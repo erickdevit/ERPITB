@@ -1,0 +1,21 @@
+name = "frequencia-itb-api"
+main = "src/index.ts"
+compatibility_date = "2026-07-20"
+
+[observability]
+enabled = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "frequencia-itb"
+database_id = "be668f55-5a2c-40a2-9cdc-25248be7e65e"
+
+[vars]
+ALLOWED_ORIGIN = "*"
+ACCESS_TOKEN_TTL_MINUTES = "15"
+REFRESH_TOKEN_TTL_DAYS = "30"
+INSTITUTION_TIMEZONE = "America/Sao_Paulo"
+
+# Argon2id é intencionalmente memory/CPU-hard e requer Workers Paid.
+# No plano pago, o limite padrão de 30 s já é suficiente; omitir um limite
+# personalizado também permite publicar o Worker antes da ativação do plano.

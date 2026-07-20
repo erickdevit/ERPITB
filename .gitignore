@@ -1,0 +1,38 @@
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+coverage/
+mobile_desktop/android/.gradle/
+mobile_desktop/android/local.properties
+mobile_desktop/windows/flutter/ephemeral/
+
+# Node / Cloudflare
+node_modules/
+.wrangler/
+backend/dist/
+backend/.dev.vars
+backend/.env*
+!backend/.env.example
+backend/.remote-secrets.json
+backend/.wrangler-*.log
+backend/.wrangler-integration-*/
+backend/.migration-check/
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Generated reports and local databases
+*.db
+*.db-shm
+*.db-wal
+*.pdf
+/artifacts/

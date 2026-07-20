@@ -1,0 +1,48 @@
+name: frequencia_itb
+description: Controle de frequência offline-first do Instituto Transforma Brasil.
+publish_to: none
+version: 0.2.5+7
+
+environment:
+  sdk: ">=3.8.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  connectivity_plus: ^6.1.4
+  cryptography: ^2.9.0
+  cupertino_icons: ^1.0.8
+  fl_chart: ^1.0.0
+  flutter_secure_storage: ^10.0.0
+  flutter_svg: ^2.2.0
+  go_router: ^16.0.0
+  http: ^1.4.0
+  intl: ^0.20.2
+  path: ^1.9.1
+  path_provider: ^2.1.5
+  pdf: ^3.11.3
+  printing: ^5.14.2
+  provider: ^6.1.5
+  sqlcipher_flutter_libs: 0.6.8
+  sqlite3: 2.9.4
+  uuid: ^4.5.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+# The upstream Windows implementation uses ATL only for UTF-8/UTF-16
+# conversion. Keep the implementation local so Windows builds do not require
+# the optional Visual Studio ATL component.
+dependency_overrides:
+  flutter_secure_storage_windows:
+    path: third_party/flutter_secure_storage_windows
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/itb-logo.svg
+    - assets/fonts/Roboto-Regular.ttf
+    - assets/fonts/Roboto-Bold.ttf
+    - assets/fonts/LICENSE.txt
