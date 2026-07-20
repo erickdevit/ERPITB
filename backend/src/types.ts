@@ -45,6 +45,7 @@ export interface SyncOperation {
 }
 
 export type SyncEntity =
+  | 'laboratories'
   | 'courses'
   | 'classes'
   | 'class_teachers'

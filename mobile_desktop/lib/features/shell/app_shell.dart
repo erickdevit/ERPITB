@@ -11,7 +11,9 @@ import '../audit/audit_screen.dart';
 import '../auth/auth_controller.dart';
 import '../classes/classes_screen.dart';
 import '../conflicts/conflicts_screen.dart';
+import '../courses/courses_screen.dart';
 import '../dashboard/dashboard_screen.dart';
+import '../laboratories/laboratories_screen.dart';
 import '../reports/reports_screen.dart';
 import '../students/students_screen.dart';
 import '../users/users_screen.dart';
@@ -90,6 +92,20 @@ class _AppShellState extends State<AppShell> {
       Icons.description,
       ReportsScreen(),
     ),
+    if (role.canManage)
+      const _Destination(
+        'Cursos',
+        Icons.menu_book_outlined,
+        Icons.menu_book,
+        CoursesScreen(),
+      ),
+    if (role.canManage)
+      const _Destination(
+        'Laboratórios',
+        Icons.science_outlined,
+        Icons.science,
+        LaboratoriesScreen(),
+      ),
     if (role == UserRole.admin)
       const _Destination(
         'Usuários',

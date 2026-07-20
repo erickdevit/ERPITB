@@ -69,6 +69,16 @@ class LocalDatabase {
     if (!studentColumns.any((row) => row['name'] == 'birth_date')) {
       _db.execute('ALTER TABLE students ADD COLUMN birth_date TEXT');
     }
+    final classColumns = _db.select('PRAGMA table_info(classes)');
+    if (!classColumns.any((row) => row['name'] == 'week_day')) {
+      _db.execute('ALTER TABLE classes ADD COLUMN week_day TEXT');
+    }
+    if (!classColumns.any((row) => row['name'] == 'is_kids')) {
+      _db.execute('ALTER TABLE classes ADD COLUMN is_kids INTEGER NOT NULL DEFAULT 0');
+    }
+    if (!classColumns.any((row) => row['name'] == 'laboratory_id')) {
+      _db.execute('ALTER TABLE classes ADD COLUMN laboratory_id TEXT');
+    }
   }
 
   List<Map<String, Object?>> select(
@@ -340,6 +350,7 @@ class LocalDatabase {
   }
 
   static const _syncTables = {
+    'laboratories',
     'courses',
     'classes',
     'class_teachers',
@@ -349,6 +360,15 @@ class LocalDatabase {
     'class_notes',
   };
   static const _allowedColumns = <String, Set<String>>{
+    'laboratories': {
+      'id',
+      'name',
+      'active',
+      'sync_version',
+      'created_at',
+      'updated_at',
+      'deleted_at',
+    },
     'courses': {
       'id',
       'code',
@@ -364,6 +384,9 @@ class LocalDatabase {
       'course_id',
       'name',
       'shift',
+      'week_day',
+      'is_kids',
+      'laboratory_id',
       'active',
       'sync_version',
       'created_at',
@@ -433,8 +456,9 @@ class LocalDatabase {
 CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS cached_session (singleton INTEGER PRIMARY KEY CHECK(singleton = 1), user_json TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS offline_auth (user_id TEXT NOT NULL, email TEXT PRIMARY KEY COLLATE NOCASE, salt TEXT NOT NULL, verifier TEXT NOT NULL, updated_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS courses (id TEXT PRIMARY KEY, code TEXT NOT NULL, name TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, sync_version INTEGER NOT NULL DEFAULT 0, sync_status TEXT NOT NULL DEFAULT 'SYNCED', deleted_at TEXT, created_at TEXT, updated_at TEXT);
-CREATE TABLE IF NOT EXISTS classes (id TEXT PRIMARY KEY, course_id TEXT NOT NULL, name TEXT NOT NULL, shift TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, sync_version INTEGER NOT NULL DEFAULT 0, sync_status TEXT NOT NULL DEFAULT 'SYNCED', deleted_at TEXT, created_at TEXT, updated_at TEXT);
+CREATE TABLE IF NOT EXISTS laboratories (id TEXT PRIMARY KEY, name TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, sync_version INTEGER NOT NULL DEFAULT 0, sync_status TEXT NOT NULL DEFAULT 'SYNCED', deleted_at TEXT, created_at TEXT, updated_at TEXT);
+CREATE TABLE IF NOT EXISTS courses (id TEXT PRIMARY KEY, code TEXT, name TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, sync_version INTEGER NOT NULL DEFAULT 0, sync_status TEXT NOT NULL DEFAULT 'SYNCED', deleted_at TEXT, created_at TEXT, updated_at TEXT);
+CREATE TABLE IF NOT EXISTS classes (id TEXT PRIMARY KEY, course_id TEXT NOT NULL, name TEXT NOT NULL, shift TEXT NOT NULL, week_day TEXT, is_kids INTEGER NOT NULL DEFAULT 0, laboratory_id TEXT, active INTEGER NOT NULL DEFAULT 1, sync_version INTEGER NOT NULL DEFAULT 0, sync_status TEXT NOT NULL DEFAULT 'SYNCED', deleted_at TEXT, created_at TEXT, updated_at TEXT);
 CREATE TABLE IF NOT EXISTS class_teachers (id TEXT PRIMARY KEY, class_id TEXT NOT NULL, user_id TEXT NOT NULL, sync_version INTEGER NOT NULL DEFAULT 0, sync_status TEXT NOT NULL DEFAULT 'SYNCED', deleted_at TEXT, created_at TEXT, updated_at TEXT);
 CREATE TABLE IF NOT EXISTS students (id TEXT PRIMARY KEY, name TEXT NOT NULL, cpf TEXT, contact TEXT, registration_number TEXT NOT NULL, birth_date TEXT, active INTEGER NOT NULL DEFAULT 1, sync_version INTEGER NOT NULL DEFAULT 0, sync_status TEXT NOT NULL DEFAULT 'SYNCED', deleted_at TEXT, created_at TEXT, updated_at TEXT);
 CREATE TABLE IF NOT EXISTS enrollments (id TEXT PRIMARY KEY, class_id TEXT NOT NULL, student_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'ativa', sync_version INTEGER NOT NULL DEFAULT 0, sync_status TEXT NOT NULL DEFAULT 'SYNCED', deleted_at TEXT, created_at TEXT, updated_at TEXT, UNIQUE(class_id, student_id));

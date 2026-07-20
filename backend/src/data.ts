@@ -57,10 +57,54 @@ async function requireClassAccess(env: Env, user: AuthUser, classId: string): Pr
 }
 
 async function getEntityRow(env: Env, table: string, id: string): Promise<JsonRecord> {
-  const allowed = new Set(['courses', 'classes', 'class_teachers', 'students', 'enrollments', 'attendance_records', 'class_notes']);
+  const allowed = new Set(['laboratories', 'courses', 'classes', 'class_teachers', 'students', 'enrollments', 'attendance_records', 'class_notes']);
   if (!allowed.has(table)) throw new AppError(500, 'Entidade de sync inválida.');
   const row = await env.DB.prepare(`SELECT * FROM ${table} WHERE id = ?`).bind(id).first<JsonRecord>();
   if (!row) throw new AppError(404, 'Registro não encontrado.', 'NOT_FOUND');
+  return row;
+}
+
+async function listLaboratories(env: Env, user: AuthUser): Promise<unknown> {
+  const rows = await env.DB.prepare(
+    `SELECT id, name, active, sync_version, created_at, updated_at FROM laboratories WHERE deleted_at IS NULL ORDER BY name`,
+  ).all();
+  return { items: rows.results };
+}
+
+async function createLaboratory(request: Request, env: Env, user: AuthUser): Promise<unknown> {
+  requirePermission(user, 'laboratories:create');
+  const body = await readJson<JsonRecord>(request);
+  const timestamp = nowIso();
+  const row = {
+    id: uuid(),
+    name: requireString(body.name, 'nome', { min: 2, max: 160 }),
+    active: boolInt(body.active),
+    sync_version: 1,
+    created_at: timestamp,
+    updated_at: timestamp,
+  };
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO laboratories (id, name, active, sync_version, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)`,
+    ).bind(row.id, row.name, row.active, timestamp, timestamp),
+    change(env, user, 'laboratories', row.id, 'upsert', row),
+    audit(env, user, 'CREATE', 'laboratories', row.id),
+  ]);
+  return row;
+}
+
+async function updateLaboratory(request: Request, env: Env, user: AuthUser, id: string): Promise<unknown> {
+  requirePermission(user, 'laboratories:update');
+  const current = await getEntityRow(env, 'laboratories', id);
+  const body = await readJson<JsonRecord>(request);
+  const name = body.name === undefined ? String(current.name) : requireString(body.name, 'nome', { min: 2, max: 160 });
+  const active = body.active === undefined ? Number(current.active) : boolInt(body.active);
+  const timestamp = nowIso();
+  await env.DB.prepare(
+    `UPDATE laboratories SET name = ?, active = ?, sync_version = sync_version + 1, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+  ).bind(name, active, timestamp, id).run();
+  const row = await getEntityRow(env, 'laboratories', id);
+  await env.DB.batch([change(env, user, 'laboratories', id, 'upsert', row), audit(env, user, 'UPDATE', 'laboratories', id)]);
   return row;
 }
 
@@ -82,9 +126,10 @@ async function createCourse(request: Request, env: Env, user: AuthUser): Promise
   requirePermission(user, 'courses:create');
   const body = await readJson<JsonRecord>(request);
   const timestamp = nowIso();
+  const code = typeof body.code === 'string' && body.code.trim().length > 0 ? body.code.trim().toUpperCase() : null;
   const row = {
     id: uuid(),
-    code: requireString(body.code, 'código', { min: 2, max: 30 }).toUpperCase(),
+    code,
     name: requireString(body.name, 'nome', { min: 2, max: 160 }),
     active: boolInt(body.active),
     sync_version: 1,
@@ -105,7 +150,7 @@ async function updateCourse(request: Request, env: Env, user: AuthUser, id: stri
   requirePermission(user, 'courses:update');
   const current = await getEntityRow(env, 'courses', id);
   const body = await readJson<JsonRecord>(request);
-  const code = body.code === undefined ? String(current.code) : requireString(body.code, 'código', { min: 2, max: 30 }).toUpperCase();
+  const code = body.code === undefined ? (current.code as string | null) : (typeof body.code === 'string' && body.code.trim().length > 0 ? body.code.trim().toUpperCase() : null);
   const name = body.name === undefined ? String(current.name) : requireString(body.name, 'nome', { min: 2, max: 160 });
   const active = body.active === undefined ? Number(current.active) : boolInt(body.active);
   const timestamp = nowIso();
@@ -117,9 +162,12 @@ async function updateCourse(request: Request, env: Env, user: AuthUser, id: stri
   return row;
 }
 
-async function deleteEntity(env: Env, user: AuthUser, table: 'courses' | 'classes', id: string): Promise<unknown> {
-  requirePermission(user, table === 'courses' ? 'courses:delete' : 'classes:delete');
-  const linked = table === 'courses'
+async function deleteEntity(env: Env, user: AuthUser, table: 'laboratories' | 'courses' | 'classes', id: string): Promise<unknown> {
+  const perm = table === 'laboratories' ? 'laboratories:delete' : table === 'courses' ? 'courses:delete' : 'classes:delete';
+  requirePermission(user, perm);
+  const linked = table === 'laboratories'
+    ? await env.DB.prepare(`SELECT 1 AS linked FROM classes WHERE laboratory_id = ? AND deleted_at IS NULL LIMIT 1`).bind(id).first()
+    : table === 'courses'
     ? await env.DB.prepare(`SELECT 1 AS linked FROM classes WHERE course_id = ? AND deleted_at IS NULL LIMIT 1`).bind(id).first()
     : await env.DB.prepare(
       `SELECT 1 AS linked FROM enrollments e JOIN students s ON s.id = e.student_id
@@ -129,7 +177,9 @@ async function deleteEntity(env: Env, user: AuthUser, table: 'courses' | 'classe
   if (linked) {
     throw new AppError(
       409,
-      table === 'courses'
+      table === 'laboratories'
+        ? 'Exclua ou altere as turmas deste laboratório antes de excluí-lo.'
+        : table === 'courses'
         ? 'Exclua as turmas deste curso antes de excluí-lo.'
         : 'Transfira ou exclua os alunos ativos antes de excluir a turma.',
       'LINKED_RECORDS',
@@ -150,9 +200,10 @@ async function listClasses(env: Env, user: AuthUser): Promise<unknown> {
     ? `JOIN class_teachers ct ON ct.class_id = c.id AND ct.user_id = ? AND ct.deleted_at IS NULL`
     : '';
   const statement = env.DB.prepare(
-    `SELECT c.id, c.course_id, c.name, c.shift, c.active, c.sync_version, c.created_at, c.updated_at,
-            co.code AS course_code, co.name AS course_name
-       FROM classes c JOIN courses co ON co.id = c.course_id ${filter}
+    `SELECT c.id, c.course_id, c.name, c.shift, c.week_day, c.is_kids, c.laboratory_id, c.active, c.sync_version, c.created_at, c.updated_at,
+            co.code AS course_code, co.name AS course_name, l.name AS laboratory_name
+       FROM classes c JOIN courses co ON co.id = c.course_id
+       LEFT JOIN laboratories l ON l.id = c.laboratory_id ${filter}
       WHERE c.deleted_at IS NULL ORDER BY co.name, c.name`,
   );
   const rows = user.role === 'professor' ? await statement.bind(user.id).all() : await statement.all();
@@ -168,6 +219,9 @@ async function createClass(request: Request, env: Env, user: AuthUser): Promise<
     course_id: requireString(body.courseId, 'courseId', { max: 36 }),
     name: requireString(body.name, 'nome', { min: 2, max: 120 }),
     shift: oneOf(body.shift, 'turno', ['manha', 'tarde', 'noite', 'integral'] as const),
+    week_day: typeof body.weekDay === 'string' ? body.weekDay : null,
+    is_kids: boolInt(body.isKids, false),
+    laboratory_id: typeof body.laboratoryId === 'string' && body.laboratoryId.length > 0 ? body.laboratoryId : null,
     active: boolInt(body.active), sync_version: 1, created_at: timestamp, updated_at: timestamp,
   };
   const teacherId = requireString(body.teacherId, 'professor', { max: 36 });
@@ -176,8 +230,8 @@ async function createClass(request: Request, env: Env, user: AuthUser): Promise<
   const assignment = { id: uuid(), class_id: row.id, user_id: teacherId, sync_version: 1, created_at: timestamp, updated_at: timestamp };
   await env.DB.batch([
     env.DB.prepare(
-      `INSERT INTO classes (id, course_id, name, shift, active, sync_version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
-    ).bind(row.id, row.course_id, row.name, row.shift, row.active, timestamp, timestamp),
+      `INSERT INTO classes (id, course_id, name, shift, week_day, is_kids, laboratory_id, active, sync_version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+    ).bind(row.id, row.course_id, row.name, row.shift, row.week_day, row.is_kids, row.laboratory_id, row.active, timestamp, timestamp),
     env.DB.prepare(`INSERT INTO class_teachers (id, class_id, user_id, sync_version, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)`).bind(assignment.id, row.id, teacherId, timestamp, timestamp),
     change(env, user, 'classes', row.id, 'upsert', row),
     change(env, user, 'class_teachers', assignment.id, 'upsert', assignment),
@@ -193,10 +247,13 @@ async function updateClass(request: Request, env: Env, user: AuthUser, id: strin
   const courseId = body.courseId === undefined ? String(current.course_id) : requireString(body.courseId, 'courseId', { max: 36 });
   const name = body.name === undefined ? String(current.name) : requireString(body.name, 'nome', { min: 2, max: 120 });
   const shift = body.shift === undefined ? String(current.shift) : oneOf(body.shift, 'turno', ['manha', 'tarde', 'noite', 'integral'] as const);
+  const weekDay = body.weekDay === undefined ? (current.week_day as string | null) : (typeof body.weekDay === 'string' ? body.weekDay : null);
+  const isKids = body.isKids === undefined ? Number(current.is_kids ?? 0) : boolInt(body.isKids, false);
+  const laboratoryId = body.laboratoryId === undefined ? (current.laboratory_id as string | null) : (typeof body.laboratoryId === 'string' && body.laboratoryId.length > 0 ? body.laboratoryId : null);
   const active = body.active === undefined ? Number(current.active) : boolInt(body.active);
   await env.DB.prepare(
-    `UPDATE classes SET course_id = ?, name = ?, shift = ?, active = ?, sync_version = sync_version + 1, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
-  ).bind(courseId, name, shift, active, nowIso(), id).run();
+    `UPDATE classes SET course_id = ?, name = ?, shift = ?, week_day = ?, is_kids = ?, laboratory_id = ?, active = ?, sync_version = sync_version + 1, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+  ).bind(courseId, name, shift, weekDay, isKids, laboratoryId, active, nowIso(), id).run();
   const row = await getEntityRow(env, 'classes', id);
   await env.DB.batch([change(env, user, 'classes', id, 'upsert', row), audit(env, user, 'UPDATE', 'classes', id)]);
   return row;
@@ -635,6 +692,12 @@ async function listAudit(url: URL, env: Env, user: AuthUser): Promise<unknown> {
 export async function handleDataRoute(request: Request, env: Env, user: AuthUser, url: URL): Promise<unknown | undefined> {
   const method = request.method;
   const path = url.pathname;
+
+  if (path === '/laboratories' && method === 'GET') return listLaboratories(env, user);
+  if (path === '/laboratories' && method === 'POST') return createLaboratory(request, env, user);
+  const laboratory = path.match(/^\/laboratories\/([^/]+)$/);
+  if (laboratory && method === 'PATCH') return updateLaboratory(request, env, user, laboratory[1]!);
+  if (laboratory && method === 'DELETE') return deleteEntity(env, user, 'laboratories', laboratory[1]!);
 
   if (path === '/courses' && method === 'GET') return listCourses(env, user);
   if (path === '/courses' && method === 'POST') return createCourse(request, env, user);

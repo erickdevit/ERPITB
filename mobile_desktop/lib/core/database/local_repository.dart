@@ -13,12 +13,13 @@ class LocalRepository {
     'SELECT id, code, name, active, sync_version FROM courses WHERE deleted_at IS NULL ORDER BY name',
   );
 
-  void createCourse({required String code, required String name}) {
+  void createCourse({String? code, required String name}) {
     final id = _uuid.v4();
     final timestamp = DateTime.now().toUtc().toIso8601String();
+    final courseCode = code != null && code.trim().isNotEmpty ? code.trim().toUpperCase() : null;
     final data = <String, Object?>{
       'id': id,
-      'code': code.trim().toUpperCase(),
+      'code': courseCode,
       'name': name.trim(),
       'active': 1,
       'sync_version': 0,
@@ -29,7 +30,7 @@ class LocalRepository {
       database.execute(
         '''INSERT INTO courses (id, code, name, active, sync_version, sync_status, created_at, updated_at)
            VALUES (?, ?, ?, 1, 0, 'PENDING', ?, ?)''',
-        [id, data['code'], data['name'], timestamp, timestamp],
+        [id, courseCode, data['name'], timestamp, timestamp],
       );
       database.enqueue(
         entity: 'courses',
@@ -43,23 +44,24 @@ class LocalRepository {
 
   void updateCourse({
     required String id,
-    required String code,
+    String? code,
     required String name,
   }) {
     final current = database.select('SELECT * FROM courses WHERE id = ?', [
       id,
     ]).first;
     final timestamp = DateTime.now().toUtc().toIso8601String();
+    final courseCode = code != null && code.trim().isNotEmpty ? code.trim().toUpperCase() : (current['code'] as String?);
     final data = <String, Object?>{
       ...current,
-      'code': code.trim().toUpperCase(),
+      'code': courseCode,
       'name': name.trim(),
       'updated_at': timestamp,
     };
     database.transaction(() {
       database.execute(
         "UPDATE courses SET code = ?, name = ?, sync_status = 'PENDING', updated_at = ? WHERE id = ?",
-        [data['code'], data['name'], timestamp, id],
+        [courseCode, data['name'], timestamp, id],
       );
       database.enqueue(
         entity: 'courses',
@@ -82,10 +84,83 @@ class LocalRepository {
     _deleteEntity('courses', id);
   }
 
+  List<Laboratory> laboratories() {
+    final rows = database.select(
+      'SELECT id, name, active FROM laboratories WHERE deleted_at IS NULL ORDER BY name',
+    );
+    return rows.map(Laboratory.fromMap).toList();
+  }
+
+  void createLaboratory({required String name}) {
+    final id = _uuid.v4();
+    final timestamp = DateTime.now().toUtc().toIso8601String();
+    final data = <String, Object?>{
+      'id': id,
+      'name': name.trim(),
+      'active': 1,
+      'sync_version': 0,
+      'created_at': timestamp,
+      'updated_at': timestamp,
+    };
+    database.transaction(() {
+      database.execute(
+        '''INSERT INTO laboratories (id, name, active, sync_version, sync_status, created_at, updated_at)
+           VALUES (?, ?, 1, 0, 'PENDING', ?, ?)''',
+        [id, data['name'], timestamp, timestamp],
+      );
+      database.enqueue(
+        entity: 'laboratories',
+        entityId: id,
+        action: 'upsert',
+        baseVersion: 0,
+        data: data,
+      );
+    });
+  }
+
+  void updateLaboratory({required String id, required String name}) {
+    final current = database.select('SELECT * FROM laboratories WHERE id = ?', [
+      id,
+    ]).first;
+    final timestamp = DateTime.now().toUtc().toIso8601String();
+    final data = <String, Object?>{
+      ...current,
+      'name': name.trim(),
+      'updated_at': timestamp,
+    };
+    database.transaction(() {
+      database.execute(
+        "UPDATE laboratories SET name = ?, sync_status = 'PENDING', updated_at = ? WHERE id = ?",
+        [data['name'], timestamp, id],
+      );
+      database.enqueue(
+        entity: 'laboratories',
+        entityId: id,
+        action: 'upsert',
+        baseVersion: current['sync_version']! as int,
+        data: data,
+      );
+    });
+  }
+
+  void deleteLaboratory(String id) {
+    final linkedClasses = database.select(
+      'SELECT 1 FROM classes WHERE laboratory_id = ? AND deleted_at IS NULL LIMIT 1',
+      [id],
+    );
+    if (linkedClasses.isNotEmpty) {
+      throw StateError('Exclua ou altere as turmas deste laboratório antes de excluí-lo.');
+    }
+    _deleteEntity('laboratories', id);
+  }
+
   void createClass({
     required String courseId,
     required String name,
     required String shift,
+    String? weekDay,
+    bool isKids = false,
+    String? laboratoryId,
     required String teacherId,
   }) {
     final id = _uuid.v4();
@@ -96,6 +171,9 @@ class LocalRepository {
       'course_id': courseId,
       'name': name.trim(),
       'shift': shift,
+      'week_day': weekDay,
+      'is_kids': isKids ? 1 : 0,
+      'laboratory_id': laboratoryId,
       'active': 1,
       'sync_version': 0,
       'created_at': timestamp,
@@ -103,9 +181,9 @@ class LocalRepository {
     };
     database.transaction(() {
       database.execute(
-        '''INSERT INTO classes (id, course_id, name, shift, active, sync_version, sync_status, created_at, updated_at)
-           VALUES (?, ?, ?, ?, 1, 0, 'PENDING', ?, ?)''',
-        [id, courseId, name.trim(), shift, timestamp, timestamp],
+        '''INSERT INTO classes (id, course_id, name, shift, week_day, is_kids, laboratory_id, active, sync_version, sync_status, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, 'PENDING', ?, ?)''',
+        [id, courseId, name.trim(), shift, weekDay, isKids ? 1 : 0, laboratoryId, timestamp, timestamp],
       );
       database.enqueue(
         entity: 'classes',
@@ -140,21 +218,30 @@ class LocalRepository {
     required String id,
     required String name,
     required String shift,
+    String? weekDay,
+    bool? isKids,
+    String? laboratoryId,
   }) {
     final current = database.select('SELECT * FROM classes WHERE id = ?', [
       id,
     ]).first;
     final timestamp = DateTime.now().toUtc().toIso8601String();
+    final updatedWeekDay = weekDay ?? (current['week_day'] as String?);
+    final updatedIsKids = isKids ?? ((current['is_kids'] as num?) == 1);
+    final updatedLabId = laboratoryId ?? (current['laboratory_id'] as String?);
     final data = <String, Object?>{
       ...current,
       'name': name.trim(),
       'shift': shift,
+      'week_day': updatedWeekDay,
+      'is_kids': updatedIsKids ? 1 : 0,
+      'laboratory_id': updatedLabId,
       'updated_at': timestamp,
     };
     database.transaction(() {
       database.execute(
-        "UPDATE classes SET name = ?, shift = ?, sync_status = 'PENDING', updated_at = ? WHERE id = ?",
-        [name.trim(), shift, timestamp, id],
+        "UPDATE classes SET name = ?, shift = ?, week_day = ?, is_kids = ?, laboratory_id = ?, sync_status = 'PENDING', updated_at = ? WHERE id = ?",
+        [name.trim(), shift, updatedWeekDay, updatedIsKids ? 1 : 0, updatedLabId, timestamp, id],
       );
       database.enqueue(
         entity: 'classes',
@@ -525,15 +612,17 @@ class LocalRepository {
       args.addAll([term, term]);
     }
     final rows = database.select(
-      '''SELECT c.id, c.course_id, c.name, c.shift, co.name AS course_name,
+      '''SELECT c.id, c.course_id, c.name, c.shift, c.week_day, c.is_kids, c.laboratory_id,
+                co.name AS course_name, l.name AS laboratory_name,
                 MIN(cta.user_id) AS teacher_id, MIN(ud.name) AS teacher_name,
                 COALESCE(ROUND(100.0 * SUM(CASE WHEN a.status = 'P' THEN 1 ELSE 0 END) / NULLIF(COUNT(a.id), 0), 1), 0) AS attendance_rate
            FROM classes c JOIN courses co ON co.id = c.course_id $teacherJoin
+           LEFT JOIN laboratories l ON l.id = c.laboratory_id AND l.deleted_at IS NULL
            LEFT JOIN class_teachers cta ON cta.class_id = c.id AND cta.deleted_at IS NULL
            LEFT JOIN user_directory ud ON ud.id = cta.user_id
            LEFT JOIN attendance_records a ON a.class_id = c.id AND a.deleted_at IS NULL ${attendancePeriod ? 'AND a.date BETWEEN ? AND ?' : ''}
           WHERE ${where.join(' AND ')}
-          GROUP BY c.id, c.course_id, c.name, c.shift, co.name ORDER BY co.name, c.name''',
+          GROUP BY c.id, c.course_id, c.name, c.shift, c.week_day, c.is_kids, c.laboratory_id, co.name, l.name ORDER BY co.name, c.name''',
       args,
     );
     return rows.map(ClassSummary.fromMap).toList();

@@ -2,6 +2,9 @@ import { AppError } from './http';
 import type { AuthUser, Role } from './types';
 
 export type Permission =
+  | 'laboratories:create'
+  | 'laboratories:update'
+  | 'laboratories:delete'
   | 'courses:create'
   | 'courses:update'
   | 'courses:delete'
@@ -17,13 +20,14 @@ export type Permission =
 
 const grants: Record<Role, ReadonlySet<Permission>> = {
   admin: new Set([
+    'laboratories:create', 'laboratories:update', 'laboratories:delete',
     'courses:create', 'courses:update', 'courses:delete',
     'classes:create', 'classes:update', 'classes:delete',
     'students:write', 'students:delete', 'teachers:assign', 'attendance:write',
     'conflicts:resolve', 'audit:read',
   ]),
   pedagogico: new Set([
-    'courses:update', 'classes:update', 'students:write', 'teachers:assign',
+    'laboratories:update', 'courses:update', 'classes:update', 'students:write', 'teachers:assign',
     'attendance:write', 'conflicts:resolve', 'audit:read',
   ]),
   professor: new Set(['attendance:write']),

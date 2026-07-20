@@ -6,8 +6,9 @@ import type { AuthUser, Env, SyncEntity, SyncOperation, SyncPushBody } from './t
 type Row = Record<string, unknown>;
 
 const columns: Record<SyncEntity, readonly string[]> = {
+  laboratories: ['name', 'active'],
   courses: ['code', 'name', 'active'],
-  classes: ['course_id', 'name', 'shift', 'active'],
+  classes: ['course_id', 'name', 'shift', 'week_day', 'is_kids', 'laboratory_id', 'active'],
   class_teachers: ['class_id', 'user_id'],
   students: ['encrypted_name', 'encrypted_cpf', 'encrypted_contact', 'registration_number', 'birth_date', 'active'],
   enrollments: ['class_id', 'student_id', 'status'],
@@ -93,6 +94,16 @@ async function authorizeOperation(env: Env, user: AuthUser, operation: SyncOpera
     }
     if (operation.entity === 'students' && operation.action === 'delete' && !hasPermission(user.role, 'students:delete')) {
       throw new AppError(403, 'Apenas administradores excluem alunos.', 'FORBIDDEN');
+    }
+    return;
+  }
+  if (operation.entity === 'laboratories') {
+    if (operation.action === 'delete' || (!existing && operation.action === 'upsert')) {
+      if (user.role !== 'admin') throw new AppError(403, 'Apenas administradores criam ou excluem laboratórios.', 'FORBIDDEN');
+      if (operation.action === 'delete') {
+        const linked = await env.DB.prepare(`SELECT 1 AS linked FROM classes WHERE laboratory_id = ? AND deleted_at IS NULL LIMIT 1`).bind(operation.id).first();
+        if (linked) throw new AppError(409, 'Exclua ou altere as turmas deste laboratório antes de excluí-lo.', 'LINKED_RECORDS');
+      }
     }
     return;
   }

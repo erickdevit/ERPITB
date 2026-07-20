@@ -65,37 +65,37 @@ class _ClassesScreenState extends State<ClassesScreen> {
     return ListView(
       padding: EdgeInsets.all(compact ? 16 : 24),
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 12,
+          runSpacing: 12,
           children: [
-            Text(
-              user.role.canManage ? 'Cursos e turmas' : 'Minhas turmas',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: ItbColors.navy,
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  user.role.canManage ? 'Turmas' : 'Minhas turmas',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: ItbColors.navy,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Gestão de turmas e horários de aula',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.grey[600],
+                      ),
+                ),
+              ],
             ),
-            if (user.role.canManage) ...[
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: () =>
-                        _manageCourses(context, user.role.name == 'admin'),
-                    icon: const Icon(Icons.category_outlined),
-                    label: const Text('Cursos'),
-                  ),
-                  if (user.role.name == 'admin')
-                    FilledButton.icon(
-                      onPressed: () => _classDialog(context),
-                      icon: const Icon(Icons.add),
-                      label: const Text('Nova turma'),
-                    ),
-                ],
+            if (user.role.name == 'admin')
+              FilledButton.icon(
+                onPressed: () => _classDialog(context),
+                icon: const Icon(Icons.add),
+                label: const Text('Nova turma'),
               ),
-            ],
           ],
         ),
         const SizedBox(height: 16),
@@ -180,46 +180,228 @@ class _ClassesScreenState extends State<ClassesScreen> {
     ClassSummary item,
     UserSession user,
     LocalRepository repository,
-  ) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Row(
+  ) =>
+      Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            backgroundColor: ItbColors.blue.withValues(alpha: .12),
-            child: const Icon(Icons.groups_outlined, color: ItbColors.blue),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                backgroundColor: item.isKids
+                    ? Colors.orange.withValues(alpha: .15)
+                    : ItbColors.blue.withValues(alpha: .12),
+                child: Icon(
+                  item.isKids ? Icons.child_care : Icons.groups_outlined,
+                  color: item.isKids ? Colors.orange[800] : ItbColors.blue,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item.name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                        if (item.isKids)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.orange[100],
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              'Kids',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.orange[900],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      item.courseName,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        _chip(_shift(item.shift), Icons.schedule),
+                        if (item.weekDay != null)
+                          _chip(item.weekDay!, Icons.calendar_today),
+                        if (item.laboratoryName != null)
+                          _chip(item.laboratoryName!, Icons.science),
+                      ],
+                    ),
+                    if (item.teacherName != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'Prof: ${item.teacherName!}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${item.attendanceRate.toStringAsFixed(1)}%',
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  color:
+                      item.attendanceRate < 75 ? ItbColors.red : ItbColors.green,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
+          if (user.role.canManage) ...[
+            const Divider(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                IconButton(
+                  tooltip: 'Editar turma',
+                  onPressed: () => _classDialog(context, item: item),
+                  icon: const Icon(Icons.edit_outlined),
+                ),
+                IconButton(
+                  tooltip: 'Professores',
+                  onPressed: () => _teachersDialog(context, item),
+                  icon: const Icon(Icons.co_present_outlined),
+                ),
+                if (user.role == UserRole.admin)
+                  IconButton(
+                    tooltip: 'Excluir turma',
+                    onPressed: () => _deleteClass(repository, item),
+                    icon: const Icon(Icons.delete_outline),
+                  ),
+              ],
+            ),
+          ],
+        ],
+      );
+
+  Widget _desktopClassContent(
+    ClassSummary item,
+    UserSession user,
+    LocalRepository repository,
+  ) =>
+      Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: item.isKids
+                ? Colors.orange.withValues(alpha: .15)
+                : ItbColors.blue.withValues(alpha: .12),
+            child: Icon(
+              item.isKids ? Icons.child_care : Icons.groups_outlined,
+              color: item.isKids ? Colors.orange[800] : ItbColors.blue,
+            ),
+          ),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  item.name,
-                  style: const TextStyle(fontWeight: FontWeight.w800),
+                Row(
+                  children: [
+                    Text(
+                      item.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
+                    ),
+                    if (item.isKids) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.orange[100],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          'Kids',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange[900],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 4),
-                Text('${item.courseName} • ${_shift(item.shift)}'),
-                if (item.teacherName != null) Text(item.teacherName!),
+                Text(
+                  item.courseName,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[700],
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    _chip(_shift(item.shift), Icons.schedule),
+                    if (item.weekDay != null)
+                      _chip(item.weekDay!, Icons.calendar_today),
+                    if (item.laboratoryName != null)
+                      _chip(item.laboratoryName!, Icons.science),
+                    if (item.teacherName != null)
+                      _chip('Prof: ${item.teacherName!}', Icons.person_outline),
+                  ],
+                ),
               ],
             ),
           ),
-          Text(
-            '${item.attendanceRate.toStringAsFixed(1)}%',
-            style: TextStyle(
-              fontWeight: FontWeight.w900,
-              color: item.attendanceRate < 75 ? ItbColors.red : ItbColors.green,
+          SizedBox(
+            width: 86,
+            child: Column(
+              children: [
+                Text(
+                  '${item.attendanceRate.toStringAsFixed(1)}%',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 17,
+                    color: item.attendanceRate < 75
+                        ? ItbColors.red
+                        : ItbColors.green,
+                  ),
+                ),
+                const Text('presença', style: TextStyle(fontSize: 11)),
+              ],
             ),
           ),
-        ],
-      ),
-      if (user.role.canManage) ...[
-        const Divider(height: 24),
-        Wrap(
-          alignment: WrapAlignment.end,
-          spacing: 4,
-          children: [
+          if (user.role.canManage) ...[
             IconButton(
               tooltip: 'Editar turma',
               onPressed: () => _classDialog(context, item: item),
@@ -237,254 +419,47 @@ class _ClassesScreenState extends State<ClassesScreen> {
                 icon: const Icon(Icons.delete_outline),
               ),
           ],
-        ),
-      ],
-    ],
-  );
-
-  Widget _desktopClassContent(
-    ClassSummary item,
-    UserSession user,
-    LocalRepository repository,
-  ) => Row(
-    children: [
-      CircleAvatar(
-        backgroundColor: ItbColors.blue.withValues(alpha: .12),
-        child: const Icon(Icons.groups_outlined, color: ItbColors.blue),
-      ),
-      const SizedBox(width: 16),
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              item.name,
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-            Text(
-              '${item.courseName} • ${_shift(item.shift)}${item.teacherName == null ? '' : ' • ${item.teacherName}'}',
-            ),
-          ],
-        ),
-      ),
-      SizedBox(
-        width: 86,
-        child: Column(
-          children: [
-            Text(
-              '${item.attendanceRate.toStringAsFixed(1)}%',
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                color: item.attendanceRate < 75
-                    ? ItbColors.red
-                    : ItbColors.green,
-              ),
-            ),
-            const Text('presença', style: TextStyle(fontSize: 11)),
-          ],
-        ),
-      ),
-      if (user.role.canManage)
-        IconButton(
-          tooltip: 'Editar turma',
-          onPressed: () => _classDialog(context, item: item),
-          icon: const Icon(Icons.edit_outlined),
-        ),
-      if (user.role.canManage)
-        IconButton(
-          tooltip: 'Professores',
-          onPressed: () => _teachersDialog(context, item),
-          icon: const Icon(Icons.co_present_outlined),
-        ),
-      if (user.role == UserRole.admin)
-        IconButton(
-          tooltip: 'Excluir turma',
-          onPressed: () => _deleteClass(repository, item),
-          icon: const Icon(Icons.delete_outline),
-        ),
-    ],
-  );
-
-  Future<void> _manageCourses(BuildContext context, bool isAdmin) async {
-    final repository = context.read<LocalRepository>();
-    var courseSearch = '';
-    Timer? courseDebounce;
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, refresh) {
-          final courses = repository
-              .courses()
-              .where(
-                (course) =>
-                    courseSearch.isEmpty ||
-                    '${course['code']} ${course['name']}'
-                        .toLowerCase()
-                        .contains(courseSearch.toLowerCase()),
-              )
-              .toList();
-          return AlertDialog(
-            title: const Text('Cursos'),
-            content: SizedBox(
-              width: 520,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.search),
-                      labelText: 'Buscar curso por código ou nome',
-                    ),
-                    onChanged: (value) {
-                      courseDebounce?.cancel();
-                      courseDebounce = Timer(
-                        const Duration(milliseconds: 350),
-                        () => refresh(() => courseSearch = value),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  Flexible(
-                    child: courses.isEmpty
-                        ? const Text('Nenhum curso encontrado.')
-                        : ListView(
-                            shrinkWrap: true,
-                            children: [
-                              for (final course in courses)
-                                ListTile(
-                                  title: Text(
-                                    '${course['code']} • ${course['name']}',
-                                  ),
-                                  trailing: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      IconButton(
-                                        tooltip: 'Editar curso',
-                                        onPressed: () async {
-                                          await _courseDialog(
-                                            dialogContext,
-                                            course: course,
-                                          );
-                                          refresh(() {});
-                                        },
-                                        icon: const Icon(Icons.edit_outlined),
-                                      ),
-                                      if (isAdmin)
-                                        IconButton(
-                                          tooltip: 'Excluir curso',
-                                          onPressed: () async {
-                                            final deleted = await _deleteCourse(
-                                              dialogContext,
-                                              repository,
-                                              course,
-                                            );
-                                            if (deleted) refresh(() {});
-                                          },
-                                          icon: const Icon(
-                                            Icons.delete_outline,
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                            ],
-                          ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              if (isAdmin)
-                TextButton.icon(
-                  onPressed: () async {
-                    await _courseDialog(dialogContext);
-                    refresh(() {});
-                  },
-                  icon: const Icon(Icons.add),
-                  label: const Text('Novo curso'),
-                ),
-              FilledButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Concluir'),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-    courseDebounce?.cancel();
-    if (context.mounted) context.read<SyncService>().synchronize();
-  }
-
-  Future<void> _courseDialog(
-    BuildContext context, {
-    Map<String, Object?>? course,
-  }) async {
-    var courseCode = course?['code'] as String? ?? '';
-    var courseName = course?['name'] as String? ?? '';
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(course == null ? 'Novo curso' : 'Editar curso'),
-        content: SizedBox(
-          width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                initialValue: courseCode,
-                onChanged: (value) => courseCode = value,
-                decoration: const InputDecoration(labelText: 'Código'),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                initialValue: courseName,
-                onChanged: (value) => courseName = value,
-                decoration: const InputDecoration(labelText: 'Nome'),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Salvar'),
-          ),
         ],
-      ),
-    );
-    if (saved == true &&
-        courseCode.trim().length >= 2 &&
-        courseName.trim().length >= 2 &&
-        context.mounted) {
-      final repository = context.read<LocalRepository>();
-      if (course == null) {
-        repository.createCourse(code: courseCode, name: courseName);
-      } else {
-        repository.updateCourse(
-          id: course['id']! as String,
-          code: courseCode,
-          name: courseName,
-        );
-      }
-    }
-  }
+      );
+
+  Widget _chip(String label, IconData icon) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey[300]!),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 12, color: Colors.grey[700]),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(fontSize: 11, color: Colors.grey[800]),
+            ),
+          ],
+        ),
+      );
 
   Future<void> _classDialog(BuildContext context, {ClassSummary? item}) async {
     final repository = context.read<LocalRepository>();
     final courses = repository.courses();
+    final labs = repository.laboratories();
+
     if (courses.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Cadastre um curso antes da turma.')),
       );
       return;
     }
+
     String courseId = item?.courseId ?? courses.first['id']! as String;
     String shift = item?.shift ?? 'manha';
+    String? weekDay = item?.weekDay;
+    bool isKids = item?.isKids ?? false;
+    String? selectedLaboratory = item?.laboratoryId;
+
     var professors = repository.directoryUsers(
       role: 'professor',
       includeInactive: false,
@@ -501,89 +476,160 @@ class _ClassesScreenState extends State<ClassesScreen> {
         item?.teacherId ??
         (professors.isEmpty ? null : professors.first['id'] as String);
     var className = item?.name ?? '';
+
+    final weekDays = [
+      'Segunda-feira',
+      'Terça-feira',
+      'Quarta-feira',
+      'Quinta-feira',
+      'Sexta-feira',
+      'Sábado',
+      'Domingo',
+    ];
+
     final saved = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, refresh) => AlertDialog(
           title: Text(item == null ? 'Nova turma' : 'Editar turma'),
           content: SizedBox(
-            width: 440,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (item == null)
-                  DropdownButtonFormField<String>(
-                    initialValue: courseId,
-                    decoration: const InputDecoration(labelText: 'Curso'),
+            width: 480,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (item == null)
+                    DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      initialValue: courseId,
+                      decoration: const InputDecoration(labelText: 'Curso'),
+                      items: [
+                        for (final course in courses)
+                          DropdownMenuItem(
+                            value: course['id']! as String,
+                            child: Text(course['name']! as String),
+                          ),
+                      ],
+                      onChanged: (value) => refresh(() => courseId = value!),
+                    ),
+                  if (item == null) const SizedBox(height: 12),
+                  TextFormField(
+                    initialValue: className,
+                    onChanged: (value) => className = value,
+                    decoration: const InputDecoration(
+                      labelText: 'Nome da turma',
+                      hintText: 'Ex: 1º Ano A',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          isExpanded: true,
+                          initialValue: shift,
+                          decoration: const InputDecoration(labelText: 'Turno'),
+                          items: const [
+                            DropdownMenuItem(value: 'manha', child: Text('Manhã')),
+                            DropdownMenuItem(value: 'tarde', child: Text('Tarde')),
+                            DropdownMenuItem(value: 'noite', child: Text('Noite')),
+                            DropdownMenuItem(value: 'integral', child: Text('Integral')),
+                          ],
+                          onChanged: (value) => refresh(() => shift = value!),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: DropdownButtonFormField<String?>(
+                          isExpanded: true,
+                          initialValue: weekDay,
+                          decoration: const InputDecoration(labelText: 'Dia da semana'),
+                          items: [
+                            const DropdownMenuItem(
+                              value: null,
+                              child: Text('Não especificado'),
+                            ),
+                            for (final day in weekDays)
+                              DropdownMenuItem(
+                                value: day,
+                                child: Text(day),
+                              ),
+                          ],
+                          onChanged: (value) => refresh(() => weekDay = value),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String?>(
+                    isExpanded: true,
+                    initialValue: selectedLaboratory,
+                    decoration: const InputDecoration(labelText: 'Laboratório'),
                     items: [
-                      for (final course in courses)
+                      const DropdownMenuItem(
+                        value: null,
+                        child: Text('Nenhum laboratório'),
+                      ),
+                      for (final lab in labs)
                         DropdownMenuItem(
-                          value: course['id']! as String,
-                          child: Text('${course['code']} • ${course['name']}'),
+                          value: lab.id,
+                          child: Text(lab.name),
                         ),
                     ],
-                    onChanged: (value) => refresh(() => courseId = value!),
+                    onChanged: (value) =>
+                        refresh(() => selectedLaboratory = value),
                   ),
-                if (item == null) const SizedBox(height: 12),
-                TextFormField(
-                  initialValue: className,
-                  onChanged: (value) => className = value,
-                  decoration: const InputDecoration(labelText: 'Nome da turma'),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: shift,
-                  decoration: const InputDecoration(labelText: 'Turno'),
-                  items: const [
-                    DropdownMenuItem(value: 'manha', child: Text('Manhã')),
-                    DropdownMenuItem(value: 'tarde', child: Text('Tarde')),
-                    DropdownMenuItem(value: 'noite', child: Text('Noite')),
-                    DropdownMenuItem(
-                      value: 'integral',
-                      child: Text('Integral'),
+                  const SizedBox(height: 4),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Turma Kids',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: const Text('Identifica se a turma é da categoria Kids'),
+                    value: isKids,
+                    onChanged: (value) => refresh(() => isKids = value),
+                  ),
+                  if (item == null) ...[
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedTeacher,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Professor responsável *',
+                      ),
+                      items: professors
+                          .map(
+                            (p) => DropdownMenuItem(
+                              value: p['id'] as String,
+                              child: Text('${p['name']}'),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) =>
+                          refresh(() => selectedTeacher = value),
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () async {
+                          final created = await _quickProfessor(context);
+                          if (created != null) {
+                            professors = repository.directoryUsers(
+                              role: 'professor',
+                              includeInactive: false,
+                            );
+                            refresh(() => selectedTeacher = created);
+                          }
+                        },
+                        icon: const Icon(Icons.person_add_alt_1),
+                        label: const Text('Criar professor agora'),
+                      ),
                     ),
                   ],
-                  onChanged: (value) => refresh(() => shift = value!),
-                ),
-                if (item == null) ...[
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedTeacher,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Professor responsável *',
-                    ),
-                    items: professors
-                        .map(
-                          (p) => DropdownMenuItem(
-                            value: p['id'] as String,
-                            child: Text('${p['name']}'),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) =>
-                        refresh(() => selectedTeacher = value),
-                  ),
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton.icon(
-                      onPressed: () async {
-                        final created = await _quickProfessor(context);
-                        if (created != null) {
-                          professors = repository.directoryUsers(
-                            role: 'professor',
-                            includeInactive: false,
-                          );
-                          refresh(() => selectedTeacher = created);
-                        }
-                      },
-                      icon: const Icon(Icons.person_add_alt_1),
-                      label: const Text('Criar professor agora'),
-                    ),
-                  ),
                 ],
-              ],
+              ),
             ),
           ),
           actions: [
@@ -612,18 +658,30 @@ class _ClassesScreenState extends State<ClassesScreen> {
         ),
       ),
     );
+
     if (saved == true && className.trim().length >= 2 && context.mounted) {
       if (item == null) {
         repository.createClass(
           courseId: courseId,
           name: className,
           shift: shift,
+          weekDay: weekDay,
+          isKids: isKids,
+          laboratoryId: selectedLaboratory,
           teacherId: selectedTeacher!,
         );
       } else {
-        repository.updateClass(id: item.id, name: className, shift: shift);
+        repository.updateClass(
+          id: item.id,
+          name: className,
+          shift: shift,
+          weekDay: weekDay,
+          isKids: isKids,
+          laboratoryId: selectedLaboratory,
+        );
       }
       context.read<SyncService>().synchronize();
+      setState(() {});
     }
   }
 

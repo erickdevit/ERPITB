@@ -46,6 +46,30 @@ class UserSession {
   };
 }
 
+class Laboratory {
+  const Laboratory({
+    required this.id,
+    required this.name,
+    this.active = true,
+  });
+
+  final String id;
+  final String name;
+  final bool active;
+
+  factory Laboratory.fromMap(Map<String, Object?> map) => Laboratory(
+        id: map['id']! as String,
+        name: map['name']! as String,
+        active: (map['active'] as num?) == 1,
+      );
+
+  Map<String, Object?> toMap() => {
+        'id': id,
+        'name': name,
+        'active': active ? 1 : 0,
+      };
+}
+
 class ClassSummary {
   const ClassSummary({
     required this.id,
@@ -53,6 +77,10 @@ class ClassSummary {
     required this.name,
     required this.shift,
     required this.courseName,
+    this.weekDay,
+    this.isKids = false,
+    this.laboratoryId,
+    this.laboratoryName,
     this.teacherId,
     this.teacherName,
     this.attendanceRate = 0,
@@ -63,6 +91,10 @@ class ClassSummary {
   final String name;
   final String shift;
   final String courseName;
+  final String? weekDay;
+  final bool isKids;
+  final String? laboratoryId;
+  final String? laboratoryName;
   final String? teacherId;
   final String? teacherName;
   final double attendanceRate;
@@ -73,6 +105,10 @@ class ClassSummary {
     name: map['name']! as String,
     shift: map['shift']! as String,
     courseName: (map['course_name'] ?? '') as String,
+    weekDay: map['week_day'] as String?,
+    isKids: (map['is_kids'] as num?) == 1,
+    laboratoryId: map['laboratory_id'] as String?,
+    laboratoryName: map['laboratory_name'] as String?,
     teacherId: map['teacher_id'] as String?,
     teacherName: map['teacher_name'] as String?,
     attendanceRate: (map['attendance_rate'] as num?)?.toDouble() ?? 0,

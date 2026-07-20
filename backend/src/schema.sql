@@ -20,9 +20,19 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS laboratories (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+  sync_version INTEGER NOT NULL DEFAULT 1,
+  deleted_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS courses (
   id TEXT PRIMARY KEY,
-  code TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  code TEXT,
   name TEXT NOT NULL,
   active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
   sync_version INTEGER NOT NULL DEFAULT 1,
@@ -36,6 +46,9 @@ CREATE TABLE IF NOT EXISTS classes (
   course_id TEXT NOT NULL REFERENCES courses(id),
   name TEXT NOT NULL,
   shift TEXT NOT NULL CHECK (shift IN ('manha', 'tarde', 'noite', 'integral')),
+  week_day TEXT,
+  is_kids INTEGER NOT NULL DEFAULT 0 CHECK (is_kids IN (0, 1)),
+  laboratory_id TEXT REFERENCES laboratories(id),
   active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
   sync_version INTEGER NOT NULL DEFAULT 1,
   deleted_at TEXT,
