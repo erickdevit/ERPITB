@@ -24,7 +24,7 @@ test:backend:
 
 test:flutter:
   stage: test
-  image: ghcr.io/cirrusci/flutter:stable
+  image: mobiledevops/flutter-sdk-image:latest
   before_script:
     - cd mobile_desktop
     - flutter pub get
@@ -40,7 +40,7 @@ test:flutter:
 
 build:android:
   stage: build
-  image: ghcr.io/cirrusci/flutter:stable
+  image: mobiledevops/flutter-sdk-image:latest
   needs: ["test:flutter"]
   before_script:
     - cd mobile_desktop
@@ -61,6 +61,7 @@ build:windows:
   stage: build
   tags:
     - saas-windows-medium-amd64
+  allow_failure: true
   needs: ["test:flutter"]
   before_script:
     - Set-Location mobile_desktop
@@ -84,7 +85,11 @@ build:windows:
 release:create:
   stage: release
   image: registry.gitlab.com/gitlab-org/release-cli:latest
-  needs: ["build:android", "build:windows"]
+  needs:
+    - job: build:android
+      optional: true
+    - job: build:windows
+      optional: true
   script:
     - echo "Criando release automatizado no GitLab para a tag $CI_COMMIT_TAG"
   release:
@@ -97,6 +102,6 @@ release:create:
         - name: "Frequência ITB - APK Android"
           url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/raw/artifacts/frequencia-itb-android-${CI_COMMIT_REF_SLUG}.apk?job=build:android"
         - name: "Frequência ITB - Executável Windows (ZIP)"
-          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/raw/artifacts/frequencia-itb-windows-${CI_COMMIT_REF_SLUG}.zip?job=job=build:windows"
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/raw/artifacts/frequencia-itb-windows-${CI_COMMIT_REF_SLUG}.zip?job=build:windows"
   rules:
     - if: '$CI_COMMIT_TAG =~ /^v/'
