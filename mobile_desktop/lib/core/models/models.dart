@@ -162,7 +162,8 @@ enum AttendanceStatus {
   present('P', 'Presente'),
   absent('F', 'Falta'),
   justified('J', 'Justificada'),
-  delayed('A', 'Atraso');
+  delayed('A', 'Atraso'),
+  replacement('R', 'Reposição');
 
   const AttendanceStatus(this.code, this.label);
   final String code;
@@ -170,6 +171,39 @@ enum AttendanceStatus {
 
   static AttendanceStatus fromCode(String value) =>
       AttendanceStatus.values.firstWhere((status) => status.code == value);
+}
+
+class ReplacementItem {
+  const ReplacementItem({
+    required this.recordId,
+    required this.studentId,
+    required this.studentName,
+    required this.registrationNumber,
+    required this.classId,
+    required this.className,
+    required this.date,
+    this.notes,
+  });
+
+  final String recordId;
+  final String studentId;
+  final String studentName;
+  final String registrationNumber;
+  final String classId;
+  final String className;
+  final DateTime date;
+  final String? notes;
+
+  factory ReplacementItem.fromMap(Map<String, Object?> map) => ReplacementItem(
+        recordId: map['id']! as String,
+        studentId: map['student_id']! as String,
+        studentName: (map['student_name'] ?? '') as String,
+        registrationNumber: (map['registration_number'] ?? '') as String,
+        classId: map['class_id']! as String,
+        className: (map['class_name'] ?? '') as String,
+        date: DateTime.parse(map['date']! as String),
+        notes: map['notes'] as String?,
+      );
 }
 
 class AttendanceDraft {

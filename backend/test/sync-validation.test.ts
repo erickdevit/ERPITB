@@ -19,7 +19,7 @@ describe('sync contract', () => {
   it('keeps the mandatory management and attendance fields in the schema', () => {
     const schema = readFileSync(new URL('../src/schema.sql', import.meta.url), 'utf8');
     expect(schema).toContain('birth_date TEXT');
-    expect(schema).toContain("status IN ('P', 'F', 'J', 'A')");
+    expect(schema).toContain("status IN ('P', 'F', 'J', 'A', 'R')");
     expect(schema).toContain('CREATE TABLE IF NOT EXISTS class_notes');
   });
 });

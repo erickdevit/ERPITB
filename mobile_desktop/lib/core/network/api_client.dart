@@ -147,6 +147,14 @@ class ApiClient {
       throw const NetworkUnavailable();
     } on http.ClientException {
       throw const NetworkUnavailable();
+    } on HttpException {
+      throw const NetworkUnavailable();
+    } on HandshakeException {
+      throw const NetworkUnavailable();
+    } on TlsException {
+      throw const NetworkUnavailable();
+    } on IOException {
+      throw const NetworkUnavailable();
     }
   }
 

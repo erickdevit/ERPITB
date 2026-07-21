@@ -9,6 +9,9 @@ const ARGON_MEMORY_KIB = 19 * 1024;
 const ARGON_ITERATIONS = 2;
 const ARGON_PARALLELISM = 1;
 
+const PBKDF2_ITERATIONS = 100000;
+const KEY_LEN = 32;
+
 function safeEqual(left: Uint8Array, right: Uint8Array): boolean {
   if (left.length !== right.length) return false;
   let result = 0;
@@ -16,34 +19,47 @@ function safeEqual(left: Uint8Array, right: Uint8Array): boolean {
   return result === 0;
 }
 
-export function hashPassword(password: string, salt = crypto.getRandomValues(new Uint8Array(16))): string {
-  const hash = argon2id(encoder.encode(password), salt, {
-    m: ARGON_MEMORY_KIB,
-    t: ARGON_ITERATIONS,
-    p: ARGON_PARALLELISM,
-    dkLen: 32,
-  });
-  return `$argon2id$v=19$m=${ARGON_MEMORY_KIB},t=${ARGON_ITERATIONS},p=${ARGON_PARALLELISM}$${base64.encode(salt)}$${base64.encode(hash)}`;
+export async function hashPassword(password: string, salt = crypto.getRandomValues(new Uint8Array(16))): Promise<string> {
+  const passKey = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
+  const derivedBits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+    passKey,
+    KEY_LEN * 8,
+  );
+  const hash = new Uint8Array(derivedBits);
+  return `$pbkdf2-sha256$i=${PBKDF2_ITERATIONS}$${base64.encode(salt)}$${base64.encode(hash)}`;
 }
 
-export function verifyPassword(encoded: string, password: string): boolean {
+export async function verifyPassword(encoded: string, password: string): Promise<boolean> {
   const parts = encoded.split('$');
-  if (parts.length !== 6 || parts[1] !== 'argon2id' || parts[2] !== 'v=19') return false;
-  const parameters = Object.fromEntries(parts[3]!.split(',').map((item) => item.split('=')));
-  const memory = Number(parameters.m);
-  const iterations = Number(parameters.t);
-  const parallelism = Number(parameters.p);
-  if (![memory, iterations, parallelism].every(Number.isSafeInteger)) return false;
-  if (memory <= 0 || memory > 64 * 1024 || iterations <= 0 || iterations > 10 || parallelism <= 0 || parallelism > 8) return false;
+  if (parts.length === 6 && parts[1] === 'argon2id' && parts[2] === 'v=19') {
+    try {
+      const salt = base64.decode(parts[4]!);
+      const expected = base64.decode(parts[5]!);
+      const actual = argon2id(encoder.encode(password), salt, {
+        m: 19 * 1024,
+        t: 2,
+        p: 1,
+        dkLen: expected.length,
+      });
+      return safeEqual(actual, expected);
+    } catch {
+      return false;
+    }
+  }
+  if (parts.length !== 5 || parts[1] !== 'pbkdf2-sha256') return false;
+  const iterations = Number(parts[2]!.replace('i=', ''));
+  if (!Number.isSafeInteger(iterations) || iterations <= 0 || iterations > 500000) return false;
   try {
-    const salt = base64.decode(parts[4]!);
-    const expected = base64.decode(parts[5]!);
-    const actual = argon2id(encoder.encode(password), salt, {
-      m: memory,
-      t: iterations,
-      p: parallelism,
-      dkLen: expected.length,
-    });
+    const salt = base64.decode(parts[3]!);
+    const expected = base64.decode(parts[4]!);
+    const passKey = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
+    const derivedBits = await crypto.subtle.deriveBits(
+      { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
+      passKey,
+      expected.length * 8,
+    );
+    const actual = new Uint8Array(derivedBits);
     return safeEqual(actual, expected);
   } catch {
     return false;
@@ -81,11 +97,11 @@ interface UserRow extends AuthUser { password_hash: string; active: number }
 export async function login(request: Request, env: Env): Promise<unknown> {
   const body = await readJson<Record<string, unknown>>(request);
   const email = normalizeEmail(body.email);
-  const password = requireString(body.password, 'senha', { min: 8, max: 200 });
+  const password = requireString(body.password, 'senha', { min: 6, max: 200 });
   const row = await env.DB.prepare(
     `SELECT id, name, email, password_hash, role, active FROM users WHERE email = ? LIMIT 1`,
   ).bind(email).first<UserRow>();
-  if (!row || row.active !== 1 || !verifyPassword(row.password_hash, password)) {
+  if (!row || row.active !== 1 || !(await verifyPassword(row.password_hash, password))) {
     throw new AppError(401, 'E-mail ou senha inválidos.', 'INVALID_CREDENTIALS');
   }
   const user: AuthUser = { id: row.id, name: row.name, email: row.email, role: row.role };
@@ -119,7 +135,7 @@ export async function bootstrap(request: Request, env: Env): Promise<unknown> {
   const count = await env.DB.prepare(`SELECT COUNT(*) AS total FROM users`).first<{ total: number }>();
   if ((count?.total ?? 0) > 0) throw new AppError(409, 'O bootstrap já foi concluído.', 'BOOTSTRAP_CLOSED');
   const body = await readJson<Record<string, unknown>>(request);
-  const password = requireString(body.password, 'senha', { min: 12, max: 200 });
+  const password = requireString(body.password, 'senha', { min: 6, max: 200 });
   const user: AuthUser = {
     id: uuid(),
     name: requireString(body.name, 'nome', { min: 2, max: 120 }),
@@ -127,10 +143,11 @@ export async function bootstrap(request: Request, env: Env): Promise<unknown> {
     role: 'admin',
   };
   const timestamp = nowIso();
+  const passwordHash = await hashPassword(password);
   await env.DB.batch([
     env.DB.prepare(
       `INSERT INTO users (id, name, email, password_hash, role, active, created_at, updated_at) VALUES (?, ?, ?, ?, 'admin', 1, ?, ?)`,
-    ).bind(user.id, user.name, user.email, hashPassword(password), timestamp, timestamp),
+    ).bind(user.id, user.name, user.email, passwordHash, timestamp, timestamp),
     env.DB.prepare(
       `INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at) VALUES (?, ?, 'BOOTSTRAP', 'users', ?, '{}', ?)`,
     ).bind(uuid(), user.id, user.id, timestamp),

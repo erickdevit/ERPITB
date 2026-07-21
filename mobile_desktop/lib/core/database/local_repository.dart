@@ -706,6 +706,35 @@ class LocalRepository {
         .toList();
   }
 
+  List<ReplacementItem> replacementRecords({String? search, String? classId}) {
+    final where = <String>[
+      "a.status = 'R'",
+      'a.deleted_at IS NULL',
+      's.deleted_at IS NULL',
+    ];
+    final args = <Object?>[];
+    if (classId != null && classId.isNotEmpty) {
+      where.add('a.class_id = ?');
+      args.add(classId);
+    }
+    if (search != null && search.trim().isNotEmpty) {
+      where.add('(s.name LIKE ? OR s.registration_number LIKE ?)');
+      final term = '%${search.trim()}%';
+      args.addAll([term, term]);
+    }
+    final rows = database.select(
+      '''SELECT a.id, a.student_id, s.name AS student_name, s.registration_number,
+                a.class_id, c.name AS class_name, a.date, a.notes
+           FROM attendance_records a
+           JOIN students s ON s.id = a.student_id
+           JOIN classes c ON c.id = a.class_id
+          WHERE ${where.join(' AND ')}
+          ORDER BY a.date DESC, s.name ASC''',
+      args,
+    );
+    return rows.map(ReplacementItem.fromMap).toList();
+  }
+
   bool callExists(String classId, DateTime date) {
     final day = DateFormat('yyyy-MM-dd').format(date);
     return database.select(

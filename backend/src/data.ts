@@ -280,11 +280,12 @@ async function createUser(request: Request, env: Env, user: AuthUser): Promise<u
   if (user.role !== 'admin') throw new AppError(403, 'Apenas administradores criam usuários.', 'FORBIDDEN');
   const body = await readJson<JsonRecord>(request);
   const role = oneOf<Role>(body.role, 'perfil', ['admin', 'pedagogico', 'professor']);
-  const password = requireString(body.password, 'senha', { min: 12, max: 200 });
+  const password = requireString(body.password, 'senha', { min: 6, max: 200 });
   const timestamp = nowIso();
   const row = { id: uuid(), name: requireString(body.name, 'nome', { min: 2, max: 120 }), email: normalizeEmail(body.email), role, active: 1, created_at: timestamp, updated_at: timestamp };
+  const passwordHash = await hashPassword(password);
   await env.DB.batch([
-    env.DB.prepare(`INSERT INTO users (id, name, email, password_hash, role, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?)`).bind(row.id, row.name, row.email, hashPassword(password), role, timestamp, timestamp),
+    env.DB.prepare(`INSERT INTO users (id, name, email, password_hash, role, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?)`).bind(row.id, row.name, row.email, passwordHash, role, timestamp, timestamp),
     audit(env, user, 'CREATE', 'users', row.id, { role }),
   ]);
   return row;
@@ -323,10 +324,11 @@ async function updateUser(request: Request, env: Env, user: AuthUser, id: string
   if (current.role === 'professor' && (role !== 'professor' || !active)) {
     await ensureProfessorMayBeDisabled(env, id);
   }
-  const password = body.password == null ? null : requireString(body.password, 'senha', { min: 12, max: 200 });
+  const password = body.password == null ? null : requireString(body.password, 'senha', { min: 6, max: 200 });
   const timestamp = nowIso();
   if (password) {
-    await env.DB.prepare(`UPDATE users SET name = ?, email = ?, role = ?, active = ?, password_hash = ?, updated_at = ? WHERE id = ?`).bind(name, email, role, active, hashPassword(password), timestamp, id).run();
+    const passwordHash = await hashPassword(password);
+    await env.DB.prepare(`UPDATE users SET name = ?, email = ?, role = ?, active = ?, password_hash = ?, updated_at = ? WHERE id = ?`).bind(name, email, role, active, passwordHash, timestamp, id).run();
   } else {
     await env.DB.prepare(`UPDATE users SET name = ?, email = ?, role = ?, active = ?, updated_at = ? WHERE id = ?`).bind(name, email, role, active, timestamp, id).run();
   }
@@ -554,7 +556,7 @@ async function saveAttendance(request: Request, env: Env, user: AuthUser): Promi
     if (!raw || typeof raw !== 'object') throw new AppError(400, 'Lançamento inválido.', 'VALIDATION_ERROR');
     const record = raw as JsonRecord;
     const studentId = requireString(record.studentId, 'studentId', { max: 36 });
-    const status = oneOf<AttendanceStatus>(record.status, 'status', ['P', 'F', 'J', 'A']);
+    const status = oneOf<AttendanceStatus>(record.status, 'status', ['P', 'F', 'J', 'A', 'R']);
     const notes = record.notes == null ? null : requireString(record.notes, 'observações', { max: 1000 });
     const enrolled = await env.DB.prepare(
       `SELECT 1 AS enrolled FROM enrollments WHERE class_id = ? AND student_id = ? AND status = 'ativa' AND deleted_at IS NULL`,
@@ -668,7 +670,7 @@ async function resolveConflict(request: Request, env: Env, user: AuthUser, id: s
     const recordId = requireString(conflict.entity_id, 'entityId');
     statements.push(env.DB.prepare(
       `UPDATE attendance_records SET status = ?, notes = ?, recorded_by_user_id = ?, sync_status = 'SYNCED', sync_version = sync_version + 1, updated_at = ? WHERE id = ?`,
-    ).bind(oneOf(local.status, 'status', ['P', 'F', 'J', 'A'] as const), local.notes ?? null, user.id, nowIso(), recordId));
+    ).bind(oneOf(local.status, 'status', ['P', 'F', 'J', 'A', 'R'] as const), local.notes ?? null, user.id, nowIso(), recordId));
     const merged = { ...local, id: recordId, recorded_by_user_id: user.id, sync_status: 'SYNCED', updated_at: nowIso() };
     statements.push(change(env, user, 'attendance_records', recordId, 'upsert', merged));
   }

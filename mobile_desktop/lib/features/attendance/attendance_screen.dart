@@ -387,12 +387,20 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           ButtonSegment(value: AttendanceStatus.absent, label: Text('F')),
           ButtonSegment(value: AttendanceStatus.justified, label: Text('J')),
           ButtonSegment(value: AttendanceStatus.delayed, label: Text('A')),
+          ButtonSegment(value: AttendanceStatus.replacement, label: Text('R')),
         ],
         selected: {draft.status},
         onSelectionChanged: allowed
-            ? (value) => setState(
-                () => drafts[draftIndex] = draft.copyWith(status: value.first),
-              )
+            ? (value) {
+                final selectedStatus = value.first;
+                if (selectedStatus == AttendanceStatus.replacement) {
+                  _showReplacementModal(draftIndex, draft);
+                } else {
+                  setState(
+                    () => drafts[draftIndex] = draft.copyWith(status: selectedStatus),
+                  );
+                }
+              }
             : null,
       ),
       const SizedBox(width: 4),
@@ -413,6 +421,111 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       ),
     ],
   );
+
+  Future<void> _showReplacementModal(
+    int draftIndex,
+    AttendanceDraft draft,
+  ) async {
+    DateTime repDate = DateTime.now().add(const Duration(days: 1));
+    TimeOfDay repTime = const TimeOfDay(hour: 14, minute: 0);
+    final notesController = TextEditingController(text: draft.notes ?? '');
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text('Agendar Reposição — ${draft.student.name}'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Escolha a data e horário para a reposição:',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 12),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.calendar_today),
+                  title: const Text('Data da reposição'),
+                  subtitle: Text(
+                    '${repDate.day.toString().padLeft(2, '0')}/${repDate.month.toString().padLeft(2, '0')}/${repDate.year}',
+                  ),
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: repDate,
+                      firstDate: DateTime.now().subtract(const Duration(days: 30)),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                    );
+                    if (picked != null) {
+                      setDialogState(() => repDate = picked);
+                    }
+                  },
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.access_time),
+                  title: const Text('Horário da reposição'),
+                  subtitle: Text(
+                    '${repTime.hour.toString().padLeft(2, '0')}:${repTime.minute.toString().padLeft(2, '0')}',
+                  ),
+                  onTap: () async {
+                    final picked = await showTimePicker(
+                      context: context,
+                      initialTime: repTime,
+                    );
+                    if (picked != null) {
+                      setDialogState(() => repTime = picked);
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: notesController,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Observação (opcional)',
+                    hintText: 'Motivo da reposição ou conteúdo a ser reposto',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogCtx, true),
+              child: const Text('Confirmar Reposição'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      final dateStr =
+          '${repDate.day.toString().padLeft(2, '0')}/${repDate.month.toString().padLeft(2, '0')}/${repDate.year}';
+      final timeStr =
+          '${repTime.hour.toString().padLeft(2, '0')}:${repTime.minute.toString().padLeft(2, '0')}';
+      final extraNotes = notesController.text.trim();
+      final formattedNotes = extraNotes.isNotEmpty
+          ? 'Reposição agendada para: $dateStr $timeStr | Obs: $extraNotes'
+          : 'Reposição agendada para: $dateStr $timeStr';
+
+      setState(() {
+        drafts[draftIndex] = draft.copyWith(
+          status: AttendanceStatus.replacement,
+          notes: formattedNotes,
+        );
+        expandedNotes.add(draft.student.id);
+      });
+    }
+  }
 
   Future<void> _pickDate(LocalRepository repository) async {
     final selected = await showDatePicker(

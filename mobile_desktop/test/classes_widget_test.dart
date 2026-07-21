@@ -97,7 +97,7 @@ void main() {
     await tester.enterText(field('Nome *'), 'Professor QA Inline');
     await tester.enterText(field('E-mail *'), 'prof.inline@itb.org.br');
     await tester.enterText(
-      field('Senha (mínimo 12 caracteres) *'),
+      field('Senha (mínimo 6 caracteres) *'),
       'SenhaTemporaria!2026',
     );
     await tester.tap(find.text('Criar'));

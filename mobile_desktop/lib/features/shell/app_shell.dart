@@ -14,6 +14,7 @@ import '../conflicts/conflicts_screen.dart';
 import '../courses/courses_screen.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../laboratories/laboratories_screen.dart';
+import '../replacements/replacements_screen.dart';
 import '../reports/reports_screen.dart';
 import '../students/students_screen.dart';
 import '../users/users_screen.dart';
@@ -91,6 +92,12 @@ class _AppShellState extends State<AppShell> {
       Icons.description_outlined,
       Icons.description,
       ReportsScreen(),
+    ),
+    const _Destination(
+      'Reposição',
+      Icons.event_repeat_outlined,
+      Icons.event_repeat,
+      ReplacementsScreen(),
     ),
     if (role.canManage)
       const _Destination(

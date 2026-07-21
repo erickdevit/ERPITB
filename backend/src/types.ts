@@ -1,5 +1,5 @@
 export type Role = 'admin' | 'pedagogico' | 'professor';
-export type AttendanceStatus = 'P' | 'F' | 'J' | 'A';
+export type AttendanceStatus = 'P' | 'F' | 'J' | 'A' | 'R';
 export type SyncStatus = 'PENDING' | 'SYNCED' | 'CONFLICT';
 
 export interface Env {

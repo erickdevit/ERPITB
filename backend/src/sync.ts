@@ -159,6 +159,7 @@ async function normalizePayload(env: Env, user: AuthUser, operation: SyncOperati
 
 function ensureRequired(entity: SyncEntity, payload: Row): void {
   const required: Record<SyncEntity, readonly string[]> = {
+    laboratories: ['name', 'active'],
     courses: ['code', 'name', 'active'],
     classes: ['course_id', 'name', 'shift', 'active'],
     class_teachers: ['class_id', 'user_id'],
@@ -172,7 +173,7 @@ function ensureRequired(entity: SyncEntity, payload: Row): void {
       throw new AppError(400, `Campo ${field} ausente na operação de ${entity}.`, 'VALIDATION_ERROR');
     }
   }
-  if (entity === 'attendance_records' && !['P', 'F', 'J', 'A'].includes(String(payload.status))) {
+  if (entity === 'attendance_records' && !['P', 'F', 'J', 'A', 'R'].includes(String(payload.status))) {
     throw new AppError(400, 'Status de frequência inválido.', 'VALIDATION_ERROR');
   }
   if (entity === 'students' && payload.birth_date != null) {

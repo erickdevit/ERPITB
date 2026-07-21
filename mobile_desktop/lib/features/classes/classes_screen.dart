@@ -713,7 +713,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
                 onChanged: (value) => professorPassword = value,
                 obscureText: true,
                 decoration: const InputDecoration(
-                  labelText: 'Senha (mínimo 12 caracteres) *',
+                  labelText: 'Senha (mínimo 6 caracteres) *',
                 ),
               ),
             ],
@@ -734,7 +734,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
     if (save != true ||
         professorName.trim().length < 2 ||
         !professorEmail.contains('@') ||
-        professorPassword.length < 12 ||
+        professorPassword.length < 6 ||
         !context.mounted) {
       return null;
     }

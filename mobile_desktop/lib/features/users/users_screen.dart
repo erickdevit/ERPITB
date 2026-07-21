@@ -329,7 +329,7 @@ class _UsersScreenState extends State<UsersScreen> {
                     obscureText: true,
                     decoration: InputDecoration(
                       labelText: item == null
-                          ? 'Senha (mínimo 12 caracteres) *'
+                          ? 'Senha (mínimo 6 caracteres) *'
                           : 'Nova senha (opcional)',
                     ),
                   ),
@@ -352,8 +352,8 @@ class _UsersScreenState extends State<UsersScreen> {
               onPressed: () {
                 if (userName.trim().length < 2 ||
                     !userEmail.contains('@') ||
-                    (item == null && userPassword.length < 12) ||
-                    (userPassword.isNotEmpty && userPassword.length < 12)) {
+                    (item == null && userPassword.length < 6) ||
+                    (userPassword.isNotEmpty && userPassword.length < 6)) {
                   _message('Preencha os campos obrigatórios corretamente.');
                   return;
                 }

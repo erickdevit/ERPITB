@@ -1,7 +1,7 @@
 name: frequencia_itb
 description: Controle de frequência offline-first do Instituto Transforma Brasil.
 publish_to: none
-version: 0.2.6+8
+version: 1.0.0+9
 
 environment:
   sdk: ">=3.8.0 <4.0.0"

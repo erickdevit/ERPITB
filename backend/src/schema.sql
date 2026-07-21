@@ -99,7 +99,7 @@ CREATE TABLE IF NOT EXISTS attendance_records (
   class_id TEXT NOT NULL REFERENCES classes(id),
   student_id TEXT NOT NULL REFERENCES students(id),
   date TEXT NOT NULL,
-  status TEXT NOT NULL CHECK (status IN ('P', 'F', 'J', 'A')),
+  status TEXT NOT NULL CHECK (status IN ('P', 'F', 'J', 'A', 'R')),
   notes TEXT,
   recorded_by_user_id TEXT NOT NULL REFERENCES users(id),
   sync_status TEXT NOT NULL DEFAULT 'SYNCED' CHECK (sync_status IN ('PENDING', 'SYNCED', 'CONFLICT')),
