@@ -26,6 +26,7 @@ test:flutter:
   stage: test
   image: mobiledevops/flutter-sdk-image:latest
   before_script:
+    - apt-get update -qq && apt-get install -y -qq libsqlite3-dev sqlite3 || true
     - cd mobile_desktop
     - flutter pub get
   script:
