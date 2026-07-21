@@ -1,0 +1,102 @@
+stages:
+  - test
+  - build
+  - release
+
+variables:
+  NODE_VERSION: "20"
+
+# ==========================================
+# 1. TEST STAGE
+# ==========================================
+
+test:backend:
+  stage: test
+  image: node:20-alpine
+  before_script:
+    - cd backend
+    - npm ci
+  script:
+    - npm run typecheck
+    - npm test
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_TAG =~ /^v/'
+
+test:flutter:
+  stage: test
+  image: ghcr.io/cirrusci/flutter:3.32.0
+  before_script:
+    - cd mobile_desktop
+    - flutter pub get
+  script:
+    - flutter analyze
+    - flutter test
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_TAG =~ /^v/'
+
+# ==========================================
+# 2. BUILD STAGE
+# ==========================================
+
+build:android:
+  stage: build
+  image: ghcr.io/cirrusci/flutter:3.32.0
+  needs: ["test:flutter"]
+  before_script:
+    - cd mobile_desktop
+    - flutter pub get
+  script:
+    - flutter build apk --release
+    - mkdir -p ../artifacts
+    - cp build/app/outputs/flutter-apk/app-release.apk ../artifacts/frequencia-itb-android-${CI_COMMIT_REF_SLUG}.apk
+  artifacts:
+    name: "frequencia-itb-android-${CI_COMMIT_REF_SLUG}"
+    paths:
+      - artifacts/frequencia-itb-android-*.apk
+    expire_in: 30 days
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_TAG =~ /^v/'
+
+build:windows:
+  stage: build
+  tags:
+    - saas-windows-medium-amd64
+  needs: ["test:flutter"]
+  before_script:
+    - Set-Location mobile_desktop
+    - flutter pub get
+  script:
+    - flutter build windows --release
+    - New-Item -ItemType Directory -Path ..\artifacts -Force
+    - Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath ..\artifacts\frequencia-itb-windows-$env:CI_COMMIT_REF_SLUG.zip -Force
+  artifacts:
+    name: "frequencia-itb-windows-${CI_COMMIT_REF_SLUG}"
+    paths:
+      - artifacts/frequencia-itb-windows-*.zip
+    expire_in: 30 days
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_TAG =~ /^v/'
+
+# ==========================================
+# 3. RELEASE STAGE
+# ==========================================
+
+release:create:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  needs: ["build:android", "build:windows"]
+  script:
+    - echo "Criando release automatizado no GitLab para a tag $CI_COMMIT_TAG"
+  release:
+    name: "Frequência ITB $CI_COMMIT_TAG"
+    description: "Versão oficial $CI_COMMIT_TAG do aplicativo Frequência ITB para Android e Windows Desktop."
+    tag_name: "$CI_COMMIT_TAG"
+    ref: "$CI_COMMIT_TAG"
+    assets:
+      links:
+        - name: "Frequência ITB - APK Android"
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/raw/artifacts/frequencia-itb-android-${CI_COMMIT_REF_SLUG}.apk?job=build:android"
+        - name: "Frequência ITB - Executável Windows (ZIP)"
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/raw/artifacts/frequencia-itb-windows-${CI_COMMIT_REF_SLUG}.zip?job=job=build:windows"
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v/'
