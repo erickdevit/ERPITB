@@ -30,6 +30,14 @@ backend/.migration-check/
 .DS_Store
 Thumbs.db
 
+# Keystores & Security
+*.jks
+*.keystore
+*.p12
+key.properties
+android/key.properties
+mobile_desktop/android/key.properties
+
 # Generated reports and local databases
 *.db
 *.db-shm
