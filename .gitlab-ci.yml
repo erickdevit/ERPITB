@@ -45,6 +45,17 @@ build:android:
   before_script:
     - cd mobile_desktop
     - flutter pub get
+    - |
+      if [ -n "$ANDROID_KEYSTORE_FILE" ]; then
+        echo "Configurando assinatura de produção do Android..."
+        cp "$ANDROID_KEYSTORE_FILE" android/app/upload-keystore.jks
+        cat <<EOF > android/key.properties
+        storePassword=$ANDROID_KEYSTORE_PASSWORD
+        keyPassword=$ANDROID_KEY_PASSWORD
+        keyAlias=$ANDROID_KEY_ALIAS
+        storeFile=app/upload-keystore.jks
+        EOF
+      fi
   script:
     - flutter build apk --release
     - mkdir -p ../artifacts
