@@ -6,7 +6,7 @@ Aplicativo offline-first para controle de frequência do Instituto Transforma Br
 
 - API: `https://frequencia-itb-api.wx-f24.workers.dev`
 - D1: `frequencia-itb` (`be668f55-5a2c-40a2-9cdc-25248be7e65e`)
-- Builds testáveis `0.2.5+7` e credenciais: diretório local `artifacts/`
+- Builds testáveis `0.2.6+8` e credenciais: diretório local `artifacts/`
 - Auditoria dos 12 itens do EPIC: `docs/epic-verification.md`
 
 O Worker está publicado e funcional, mas Argon2id é deliberadamente pesado. Para

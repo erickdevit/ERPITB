@@ -1,7 +1,7 @@
 # Verificação do EPIC de branding, navegação e funcionalidades core
 
 Data da auditoria: 20/07/2026  
-Versão auditada: `0.2.5+7`  
+Versão auditada: `0.2.6+8`
 API: `https://frequencia-itb-api.wx-f24.workers.dev`
 
 Este documento registra as evidências manuais e automatizadas usadas para validar os 12 itens do EPIC. Os dados usados nos testes são fictícios.
@@ -41,7 +41,7 @@ Durante essa inspeção foi detectada uma ausência de `Provider<ApiClient>` ape
 
 ## Verificações automatizadas e operacionais
 
-Resultado final: `flutter analyze` sem ocorrências, 22 testes Flutter aprovados, incluindo a navegação responsiva completa em 390 × 844; typecheck TypeScript aprovado e 8 testes Vitest aprovados.
+Resultado final: `flutter analyze` sem ocorrências, 26 testes Flutter aprovados, incluindo a navegação responsiva completa em 390 × 844 e a persistência segura da sessão; typecheck TypeScript aprovado e 8 testes Vitest aprovados.
 
 Comandos principais:
 
@@ -83,10 +83,10 @@ O login remoto usa Argon2id e pode receber Cloudflare `1102` se o Worker estiver
 
 ## Entregáveis
 
-- `artifacts/FrequenciaITB-Windows-0.2.5+7.zip`
-- `artifacts/FrequenciaITB-Android-0.2.5+7-debug.apk` — instalável para teste
-- `artifacts/FrequenciaITB-Android-0.2.5+7-release-unsigned.apk` — requer assinatura oficial
+- `artifacts/FrequenciaITB-Windows-0.2.6+8.zip`
+- `artifacts/FrequenciaITB-Android-0.2.6+8-debug.apk` — instalável para teste
+- `artifacts/FrequenciaITB-Android-0.2.6+8-release-unsigned.apk` — requer assinatura oficial
 - `artifacts/SHA256SUMS.txt`
 - `artifacts/LEIA-ME-TESTE.txt`
 
-O APK declara `versionName=0.2.5`, `versionCode=7`, `minSdk=24` e `targetSdk=36`. O APK de debug verifica com o certificado Android Debug; o release intencionalmente não possui assinatura de distribuição.
+O APK declara `versionName=0.2.6`, `versionCode=8`, `minSdk=24` e `targetSdk=36`. O APK de debug verifica com o certificado Android Debug; o release intencionalmente não possui assinatura de distribuição.

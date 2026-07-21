@@ -77,16 +77,16 @@ class _ClassesScreenState extends State<ClassesScreen> {
                 Text(
                   user.role.canManage ? 'Turmas' : 'Minhas turmas',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: ItbColors.navy,
-                      ),
+                    fontWeight: FontWeight.w800,
+                    color: ItbColors.navy,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'Gestão de turmas e horários de aula',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.grey[600],
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
                 ),
               ],
             ),
@@ -180,137 +180,11 @@ class _ClassesScreenState extends State<ClassesScreen> {
     ClassSummary item,
     UserSession user,
     LocalRepository repository,
-  ) =>
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              CircleAvatar(
-                backgroundColor: item.isKids
-                    ? Colors.orange.withValues(alpha: .15)
-                    : ItbColors.blue.withValues(alpha: .12),
-                child: Icon(
-                  item.isKids ? Icons.child_care : Icons.groups_outlined,
-                  color: item.isKids ? Colors.orange[800] : ItbColors.blue,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            item.name,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-                        if (item.isKids)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.orange[100],
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              'Kids',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.orange[900],
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      item.courseName,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[700],
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      children: [
-                        _chip(_shift(item.shift), Icons.schedule),
-                        if (item.weekDay != null)
-                          _chip(item.weekDay!, Icons.calendar_today),
-                        if (item.laboratoryName != null)
-                          _chip(item.laboratoryName!, Icons.science),
-                      ],
-                    ),
-                    if (item.teacherName != null) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        'Prof: ${item.teacherName!}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '${item.attendanceRate.toStringAsFixed(1)}%',
-                style: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 16,
-                  color:
-                      item.attendanceRate < 75 ? ItbColors.red : ItbColors.green,
-                ),
-              ),
-            ],
-          ),
-          if (user.role.canManage) ...[
-            const Divider(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                IconButton(
-                  tooltip: 'Editar turma',
-                  onPressed: () => _classDialog(context, item: item),
-                  icon: const Icon(Icons.edit_outlined),
-                ),
-                IconButton(
-                  tooltip: 'Professores',
-                  onPressed: () => _teachersDialog(context, item),
-                  icon: const Icon(Icons.co_present_outlined),
-                ),
-                if (user.role == UserRole.admin)
-                  IconButton(
-                    tooltip: 'Excluir turma',
-                    onPressed: () => _deleteClass(repository, item),
-                    icon: const Icon(Icons.delete_outline),
-                  ),
-              ],
-            ),
-          ],
-        ],
-      );
-
-  Widget _desktopClassContent(
-    ClassSummary item,
-    UserSession user,
-    LocalRepository repository,
-  ) =>
+  ) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
       Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CircleAvatar(
             backgroundColor: item.isKids
@@ -321,22 +195,23 @@ class _ClassesScreenState extends State<ClassesScreen> {
               color: item.isKids ? Colors.orange[800] : ItbColors.blue,
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Text(
-                      item.name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
+                    Expanded(
+                      child: Text(
+                        item.name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                        ),
                       ),
                     ),
-                    if (item.isKids) ...[
-                      const SizedBox(width: 8),
+                    if (item.isKids)
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
@@ -355,14 +230,13 @@ class _ClassesScreenState extends State<ClassesScreen> {
                           ),
                         ),
                       ),
-                    ],
                   ],
                 ),
                 const SizedBox(height: 4),
                 Text(
                   item.courseName,
                   style: TextStyle(
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                     color: Colors.grey[700],
                   ),
                 ),
@@ -376,32 +250,34 @@ class _ClassesScreenState extends State<ClassesScreen> {
                       _chip(item.weekDay!, Icons.calendar_today),
                     if (item.laboratoryName != null)
                       _chip(item.laboratoryName!, Icons.science),
-                    if (item.teacherName != null)
-                      _chip('Prof: ${item.teacherName!}', Icons.person_outline),
                   ],
                 ),
-              ],
-            ),
-          ),
-          SizedBox(
-            width: 86,
-            child: Column(
-              children: [
-                Text(
-                  '${item.attendanceRate.toStringAsFixed(1)}%',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 17,
-                    color: item.attendanceRate < 75
-                        ? ItbColors.red
-                        : ItbColors.green,
+                if (item.teacherName != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'Prof: ${item.teacherName!}',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                   ),
-                ),
-                const Text('presença', style: TextStyle(fontSize: 11)),
+                ],
               ],
             ),
           ),
-          if (user.role.canManage) ...[
+          const SizedBox(width: 8),
+          Text(
+            '${item.attendanceRate.toStringAsFixed(1)}%',
+            style: TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 16,
+              color: item.attendanceRate < 75 ? ItbColors.red : ItbColors.green,
+            ),
+          ),
+        ],
+      ),
+      if (user.role.canManage) ...[
+        const Divider(height: 20),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
             IconButton(
               tooltip: 'Editar turma',
               onPressed: () => _classDialog(context, item: item),
@@ -419,28 +295,143 @@ class _ClassesScreenState extends State<ClassesScreen> {
                 icon: const Icon(Icons.delete_outline),
               ),
           ],
-        ],
-      );
-
-  Widget _chip(String label, IconData icon) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: Colors.grey[100],
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.grey[300]!),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+      ],
+    ],
+  );
+
+  Widget _desktopClassContent(
+    ClassSummary item,
+    UserSession user,
+    LocalRepository repository,
+  ) => Row(
+    children: [
+      CircleAvatar(
+        backgroundColor: item.isKids
+            ? Colors.orange.withValues(alpha: .15)
+            : ItbColors.blue.withValues(alpha: .12),
+        child: Icon(
+          item.isKids ? Icons.child_care : Icons.groups_outlined,
+          color: item.isKids ? Colors.orange[800] : ItbColors.blue,
+        ),
+      ),
+      const SizedBox(width: 16),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, size: 12, color: Colors.grey[700]),
-            const SizedBox(width: 4),
+            Row(
+              children: [
+                Text(
+                  item.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                  ),
+                ),
+                if (item.isKids) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.orange[100],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'Kids',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange[900],
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 4),
             Text(
-              label,
-              style: TextStyle(fontSize: 11, color: Colors.grey[800]),
+              item.courseName,
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                _chip(_shift(item.shift), Icons.schedule),
+                if (item.weekDay != null)
+                  _chip(item.weekDay!, Icons.calendar_today),
+                if (item.laboratoryName != null)
+                  _chip(item.laboratoryName!, Icons.science),
+                if (item.teacherName != null)
+                  _chip('Prof: ${item.teacherName!}', Icons.person_outline),
+              ],
             ),
           ],
         ),
-      );
+      ),
+      SizedBox(
+        width: 86,
+        child: Column(
+          children: [
+            Text(
+              '${item.attendanceRate.toStringAsFixed(1)}%',
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 17,
+                color: item.attendanceRate < 75
+                    ? ItbColors.red
+                    : ItbColors.green,
+              ),
+            ),
+            const Text('presença', style: TextStyle(fontSize: 11)),
+          ],
+        ),
+      ),
+      if (user.role.canManage) ...[
+        IconButton(
+          tooltip: 'Editar turma',
+          onPressed: () => _classDialog(context, item: item),
+          icon: const Icon(Icons.edit_outlined),
+        ),
+        IconButton(
+          tooltip: 'Professores',
+          onPressed: () => _teachersDialog(context, item),
+          icon: const Icon(Icons.co_present_outlined),
+        ),
+        if (user.role == UserRole.admin)
+          IconButton(
+            tooltip: 'Excluir turma',
+            onPressed: () => _deleteClass(repository, item),
+            icon: const Icon(Icons.delete_outline),
+          ),
+      ],
+    ],
+  );
+
+  Widget _chip(String label, IconData icon) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    decoration: BoxDecoration(
+      color: Colors.grey[100],
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: Colors.grey[300]!),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12, color: Colors.grey[700]),
+        const SizedBox(width: 4),
+        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[800])),
+      ],
+    ),
+  );
 
   Future<void> _classDialog(BuildContext context, {ClassSummary? item}) async {
     final repository = context.read<LocalRepository>();
@@ -530,10 +521,22 @@ class _ClassesScreenState extends State<ClassesScreen> {
                           initialValue: shift,
                           decoration: const InputDecoration(labelText: 'Turno'),
                           items: const [
-                            DropdownMenuItem(value: 'manha', child: Text('Manhã')),
-                            DropdownMenuItem(value: 'tarde', child: Text('Tarde')),
-                            DropdownMenuItem(value: 'noite', child: Text('Noite')),
-                            DropdownMenuItem(value: 'integral', child: Text('Integral')),
+                            DropdownMenuItem(
+                              value: 'manha',
+                              child: Text('Manhã'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'tarde',
+                              child: Text('Tarde'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'noite',
+                              child: Text('Noite'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'integral',
+                              child: Text('Integral'),
+                            ),
                           ],
                           onChanged: (value) => refresh(() => shift = value!),
                         ),
@@ -543,17 +546,16 @@ class _ClassesScreenState extends State<ClassesScreen> {
                         child: DropdownButtonFormField<String?>(
                           isExpanded: true,
                           initialValue: weekDay,
-                          decoration: const InputDecoration(labelText: 'Dia da semana'),
+                          decoration: const InputDecoration(
+                            labelText: 'Dia da semana',
+                          ),
                           items: [
                             const DropdownMenuItem(
                               value: null,
                               child: Text('Não especificado'),
                             ),
                             for (final day in weekDays)
-                              DropdownMenuItem(
-                                value: day,
-                                child: Text(day),
-                              ),
+                              DropdownMenuItem(value: day, child: Text(day)),
                           ],
                           onChanged: (value) => refresh(() => weekDay = value),
                         ),
@@ -571,10 +573,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
                         child: Text('Nenhum laboratório'),
                       ),
                       for (final lab in labs)
-                        DropdownMenuItem(
-                          value: lab.id,
-                          child: Text(lab.name),
-                        ),
+                        DropdownMenuItem(value: lab.id, child: Text(lab.name)),
                     ],
                     onChanged: (value) =>
                         refresh(() => selectedLaboratory = value),
@@ -586,7 +585,9 @@ class _ClassesScreenState extends State<ClassesScreen> {
                       'Turma Kids',
                       style: TextStyle(fontWeight: FontWeight.w600),
                     ),
-                    subtitle: const Text('Identifica se a turma é da categoria Kids'),
+                    subtitle: const Text(
+                      'Identifica se a turma é da categoria Kids',
+                    ),
                     value: isKids,
                     onChanged: (value) => refresh(() => isKids = value),
                   ),
@@ -1051,47 +1052,6 @@ class _ClassesScreenState extends State<ClassesScreen> {
       context.read<SyncService>().synchronize();
     } catch (error) {
       if (mounted) _message(_errorMessage(error));
-    }
-  }
-
-  Future<bool> _deleteCourse(
-    BuildContext dialogContext,
-    LocalRepository repository,
-    Map<String, Object?> course,
-  ) async {
-    final confirmed = await showDialog<bool>(
-      context: dialogContext,
-      builder: (confirmContext) => AlertDialog(
-        title: const Text('Excluir curso?'),
-        content: Text(
-          '${course['name']} será removido. A exclusão só é permitida quando não há turmas vinculadas.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(confirmContext, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(confirmContext, true),
-            child: const Text('Excluir'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return false;
-    try {
-      repository.deleteCourse(course['id']! as String);
-      if (dialogContext.mounted) {
-        dialogContext.read<SyncService>().synchronize();
-      }
-      return true;
-    } catch (error) {
-      if (dialogContext.mounted) {
-        ScaffoldMessenger.of(
-          dialogContext,
-        ).showSnackBar(SnackBar(content: Text(_errorMessage(error))));
-      }
-      return false;
     }
   }
 
