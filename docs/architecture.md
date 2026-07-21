@@ -22,6 +22,7 @@ flowchart LR
 - A chave local aleatória tem 256 bits, fica em `flutter_secure_storage` e nunca é gravada no banco.
 - O app aborta a abertura se `PRAGMA cipher_version` não provar que SQLCipher está ativo.
 - O login offline usa Argon2id (19 MiB, 2 iterações, paralelismo 1) e só é habilitado depois de um login online válido.
+- A sessão permanece ativa entre reinicializações no Windows e Android: o refresh token fica no armazenamento seguro do sistema e os dados mínimos do usuário no banco local criptografado. Na abertura, o app restaura imediatamente o cache, renova os tokens em segundo plano e mantém modo offline se a rede estiver indisponível. Logout ou expiração removem os tokens e impedem a restauração automática.
 - No D1, nome, CPF e contato usam AES-256-GCM com IV aleatório por valor. O segredo fica em `DATA_ENCRYPTION_KEY`.
 - Access tokens são curtos; refresh tokens são aleatórios, guardados apenas como SHA-256 no D1 e rotacionados a cada uso.
 - O bootstrap do primeiro admin requer segredo externo e fecha definitivamente depois do primeiro usuário.

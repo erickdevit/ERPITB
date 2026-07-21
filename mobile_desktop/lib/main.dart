@@ -21,6 +21,7 @@ Future<void> main() async {
   final api = ApiClient(secureStorage);
   final sync = SyncService(database, api);
   final auth = AuthController(database, api, sync);
+  await auth.restoreSession();
   final repository = LocalRepository(database);
   final reports = ReportService(database);
   runApp(

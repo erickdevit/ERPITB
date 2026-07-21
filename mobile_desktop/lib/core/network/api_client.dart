@@ -70,6 +70,29 @@ class ApiClient {
     }
   }
 
+  Future<bool> hasPersistedSession() async =>
+      await _storage.read(key: _refreshKey) != null;
+
+  Future<Map<String, dynamic>?> restoreSession() async {
+    final token = await _storage.read(key: _refreshKey);
+    if (token == null) return null;
+    try {
+      final result = await _raw(
+        'POST',
+        '/auth/refresh',
+        body: {'refreshToken': token},
+        authenticated: false,
+        mayRefresh: false,
+      );
+      await _saveTokens(result);
+      return result;
+    } on ApiException catch (exception) {
+      if (exception.statusCode != 401) rethrow;
+      await clearTokens();
+      return null;
+    }
+  }
+
   Future<Map<String, dynamic>> get(String path) => _raw('GET', path);
   Future<Map<String, dynamic>> post(String path, Object body) =>
       _raw('POST', path, body: body);
@@ -157,22 +180,7 @@ class ApiClient {
   }
 
   Future<bool> _refresh() async {
-    final token = await _storage.read(key: _refreshKey);
-    if (token == null) return false;
-    try {
-      final result = await _raw(
-        'POST',
-        '/auth/refresh',
-        body: {'refreshToken': token},
-        authenticated: false,
-        mayRefresh: false,
-      );
-      await _saveTokens(result);
-      return true;
-    } catch (_) {
-      await clearTokens();
-      return false;
-    }
+    return await restoreSession() != null;
   }
 
   Future<void> _saveTokens(Map<String, dynamic> result) async {

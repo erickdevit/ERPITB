@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -19,8 +20,77 @@ class AuthController extends ChangeNotifier {
   bool loading = false;
   bool offline = false;
   String? error;
+  int _sessionRevision = 0;
+  Future<void>? _restoration;
+
+  Future<void> restoreSession() async {
+    final cached = _database.cachedSession();
+    if (cached == null) return;
+    if (!await _api.hasPersistedSession()) return;
+    try {
+      session = UserSession.fromJson(cached);
+      offline = true;
+      notifyListeners();
+      final revision = ++_sessionRevision;
+      final validation = _validateRestoredSession(cached, revision);
+      _restoration = validation;
+      unawaited(
+        validation.whenComplete(() {
+          if (identical(_restoration, validation)) _restoration = null;
+        }),
+      );
+    } catch (exception, stackTrace) {
+      debugPrint('Falha ao ler a sessão salva: $exception\n$stackTrace');
+      await _api.clearTokens();
+    }
+  }
+
+  Future<void> _validateRestoredSession(
+    Map<String, dynamic> cached,
+    int revision,
+  ) async {
+    try {
+      final restored = await _api.restoreSession();
+      if (revision != _sessionRevision) return;
+      if (restored == null) {
+        session = null;
+        offline = false;
+        return;
+      }
+      final user = restored['user'] as Map<String, dynamic>? ?? cached;
+      session = UserSession.fromJson(user);
+      _database.saveSession(session!.toJson());
+      offline = false;
+      unawaited(_sync.synchronize());
+    } on NetworkUnavailable {
+      if (revision != _sessionRevision) return;
+      session = UserSession.fromJson(cached);
+      offline = true;
+    } on ApiException catch (exception) {
+      if (revision != _sessionRevision) return;
+      if ((exception.statusCode ?? 0) >= 500) {
+        session = UserSession.fromJson(cached);
+        offline = true;
+      } else {
+        await _api.clearTokens();
+        session = null;
+        offline = false;
+      }
+    } catch (exception, stackTrace) {
+      if (revision != _sessionRevision) return;
+      debugPrint('Falha ao restaurar a sessão: $exception\n$stackTrace');
+      await _api.clearTokens();
+      session = null;
+      offline = false;
+    } finally {
+      if (revision == _sessionRevision) notifyListeners();
+    }
+  }
 
   Future<bool> login(String email, String password) async {
+    final restoration = _restoration;
+    _sessionRevision++;
+    if (restoration != null) await restoration;
     loading = true;
     error = null;
     notifyListeners();
@@ -53,6 +123,9 @@ class AuthController extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    final restoration = _restoration;
+    _sessionRevision++;
+    if (restoration != null) await restoration;
     if (!offline) {
       try {
         await _api.logout();
