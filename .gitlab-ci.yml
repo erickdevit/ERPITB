@@ -24,7 +24,7 @@ test:backend:
 
 test:flutter:
   stage: test
-  image: ghcr.io/cirrusci/flutter:3.32.0
+  image: ghcr.io/cirrusci/flutter:stable
   before_script:
     - cd mobile_desktop
     - flutter pub get
@@ -40,7 +40,7 @@ test:flutter:
 
 build:android:
   stage: build
-  image: ghcr.io/cirrusci/flutter:3.32.0
+  image: ghcr.io/cirrusci/flutter:stable
   needs: ["test:flutter"]
   before_script:
     - cd mobile_desktop
