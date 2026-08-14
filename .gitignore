@@ -44,3 +44,6 @@ mobile_desktop/android/key.properties
 *.db-wal
 *.pdf
 /artifacts/
+web/node_modules/
+web/dist/
+web/*.tsbuildinfo

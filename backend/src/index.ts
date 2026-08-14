@@ -31,7 +31,13 @@ export default {
     const commonHeaders = corsHeaders(env, request);
     if (request.method === 'OPTIONS') return withHeaders(new Response(null, { status: 204 }), commonHeaders, requestId);
     try {
-      const url = new URL(request.url);
+      const incomingUrl = new URL(request.url);
+      // The PWA uses a namespaced API to avoid collisions with client-side SPA
+      // routes. Legacy Flutter clients continue using the original routes.
+      const url = new URL(incomingUrl);
+      if (url.pathname === '/api' || url.pathname.startsWith('/api/')) {
+        url.pathname = url.pathname === '/api' ? '/' : url.pathname.slice(4);
+      }
       if (url.pathname === '/health' && request.method === 'GET') {
         return withHeaders(json({ status: 'ok', service: 'frequencia-itb-api' }), commonHeaders, requestId);
       }
