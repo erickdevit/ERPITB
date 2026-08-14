@@ -5,7 +5,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const useProductionApi = mode === 'production-api';
-  const productionApi = env.VITE_API_PROXY_TARGET ?? 'https://frequencia-itb-api.wx-f24.workers.dev';
+  const productionApi = env.VITE_API_PROXY_TARGET ?? 'https://freq.itbcursos.com';
   return {
   plugins: [
     react(),
