@@ -6,6 +6,7 @@
   "scripts": {
     "build:web": "npm --prefix ../web run build",
     "dev": "npm run build:web && wrangler dev --local --ip 127.0.0.1 --port 8787",
+    "dev:real": "npm --prefix ../web run dev:real",
     "deploy": "npm run build:web && wrangler deploy",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
