@@ -8,6 +8,10 @@ directory = "../web/dist"
 not_found_handling = "single-page-application"
 run_worker_first = ["/api/*", "/auth/*", "/sync/*", "/health"]
 
+[[routes]]
+pattern = "freq.itbcursos.com"
+custom_domain = true
+
 [observability]
 enabled = true
 
