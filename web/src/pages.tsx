@@ -10,6 +10,7 @@ import { jsPDF } from 'jspdf';
 import { useApp } from './app-context';
 import { DateField, ErrorNotice, PageDialog, Section, SelectField } from './components';
 import { formatDate, parseBrazilDate, todayInSaoPaulo } from './lib/date';
+import { attendanceStatuses, summarizeReport } from './lib/report';
 import type { AttendanceStatus, Entity, LocalRecord, Role } from './types';
 import { canManage, roleLabel } from './types';
 
@@ -68,8 +69,62 @@ export function AttendancePage() {
 
 export function ReplacementsPage() { const records = useEntity('attendance_records').items.filter((record) => record.status === 'R'); const students = useEntity('students').items; const classes = useEntity('classes').items; return <Section title="Alunos em Reposição"><Card><TableContainer><Table><TableHead><TableRow><TableCell>Aluno</TableCell><TableCell>Turma</TableCell><TableCell>Data da chamada</TableCell></TableRow></TableHead><TableBody>{records.map((record) => <TableRow key={record.id}><TableCell>{asText(students.find((student) => student.id === record.student_id) ?? {}, 'name')}</TableCell><TableCell>{asText(classes.find((item) => item.id === record.class_id) ?? {}, 'name')}</TableCell><TableCell>{formatDate(asText(record, 'date'))}</TableCell></TableRow>)}</TableBody></Table></TableContainer></Card></Section>; }
 
-export function ReportsPage() { const records = useEntity('attendance_records').items; const students = useEntity('students').items; const [from, setFrom] = useState(formatDate(todayInSaoPaulo().slice(0, 8) + '01')); const [to, setTo] = useState(formatDate(todayInSaoPaulo())); const start = parseBrazilDate(from, { allowFuture: true }) ?? '0000-01-01'; const end = parseBrazilDate(to, { allowFuture: true }) ?? '9999-12-31'; const rows = records.filter((record) => asText(record, 'date') >= start && asText(record, 'date') <= end); const present = rows.filter((record) => record.status === 'P').length; const rate = rows.length ? Math.round(present * 1000 / rows.length) / 10 : 0; const generate = () => { const doc = new jsPDF(); doc.setTextColor(16, 42, 67); doc.setFontSize(20); doc.text('Frequência ITB — Relatório institucional', 15, 20); doc.setFontSize(11); doc.text(`Período: ${from} a ${to}`, 15, 30); doc.text(`Registros: ${rows.length} | Presenças: ${present}`, 15, 38); rows.slice(0, 35).forEach((record, index) => doc.text(`${formatDate(asText(record, 'date'))}  ${asText(students.find((student) => student.id === record.student_id) ?? {}, 'name')} — ${statusLabel(asText(record, 'status'))}`, 15, 50 + index * 6)); doc.save(`frequencia-itb-${start}-${end}.pdf`); };
-  return <Section title="Relatórios" action={<Button variant="contained" startIcon={<PictureAsPdfOutlinedIcon />} onClick={generate}>Exportar PDF</Button>}><Card><CardContent><Typography variant="h6" fontWeight={800}>Relatório institucional</Typography><Stack direction={{ xs: 'column', md: 'row' }} gap={2} sx={{ mt: 2 }}><DateField label="Data inicial" value={from} onChange={setFrom} /><DateField label="Data final" value={to} onChange={setTo} /></Stack></CardContent></Card><Stack direction={{ xs: 'column', md: 'row' }} gap={2}><Card sx={{ flex: 1 }}><CardContent><Typography color="text.secondary">Registros no período</Typography><Typography variant="h4" fontWeight={900}>{rows.length}</Typography></CardContent></Card><Card sx={{ flex: 1 }}><CardContent><Typography color="text.secondary">Frequência média</Typography><Typography variant="h4" fontWeight={900}>{rate}%</Typography></CardContent></Card></Stack><Card><CardContent><Typography variant="h6" fontWeight={800}>Prévia do relatório</Typography><TableContainer><Table size="small"><TableHead><TableRow><TableCell>Data</TableCell><TableCell>Aluno</TableCell><TableCell>Status</TableCell></TableRow></TableHead><TableBody>{rows.slice(0, 100).map((record) => <TableRow key={record.id}><TableCell>{formatDate(asText(record, 'date'))}</TableCell><TableCell>{asText(students.find((student) => student.id === record.student_id) ?? {}, 'name')}</TableCell><TableCell>{statusLabel(asText(record, 'status'))}</TableCell></TableRow>)}</TableBody></Table></TableContainer>{rows.length > 100 && <Typography sx={{ mt: 1 }} color="text.secondary">Mostrando os primeiros 100 registros; o PDF contém os primeiros 35.</Typography>}</CardContent></Card></Section>; }
+export function ReportsPage() {
+  const records = useEntity('attendance_records').items;
+  const students = useEntity('students').items;
+  const classes = useEntity('classes').items;
+  const [from, setFrom] = useState(formatDate(todayInSaoPaulo().slice(0, 8) + '01'));
+  const [to, setTo] = useState(formatDate(todayInSaoPaulo()));
+  const [classId, setClassId] = useState('');
+  const start = parseBrazilDate(from, { allowFuture: true }) ?? '0000-01-01';
+  const end = parseBrazilDate(to, { allowFuture: true }) ?? '9999-12-31';
+  const rows = useMemo(() => records
+    .filter((record) => asText(record, 'date') >= start && asText(record, 'date') <= end && (!classId || record.class_id === classId))
+    .sort((left, right) => asText(right, 'date').localeCompare(asText(left, 'date')) || asText(left, 'student_id').localeCompare(asText(right, 'student_id'))), [records, start, end, classId]);
+  const summary = useMemo(() => summarizeReport(rows), [rows]);
+  const className = (record: LocalRecord) => asText(classes.find((item) => item.id === record.class_id) ?? {}, 'name') || 'Turma não informada';
+  const studentName = (record: LocalRecord) => asText(students.find((student) => student.id === record.student_id) ?? {}, 'name') || 'Aluno não informado';
+  const selectedClass = classId ? asText(classes.find((item) => item.id === classId) ?? {}, 'name') : 'Todas as turmas';
+  const statusChipColor = (status: string) => status === 'P' ? 'success' : status === 'F' ? 'error' : status === 'J' ? 'warning' : 'info';
+
+  const generate = () => {
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth(); const pageHeight = doc.internal.pageSize.getHeight();
+    const left = 15; const right = pageWidth - 15; const tableWidth = right - left; let page = 1;
+    const footer = () => { doc.setDrawColor(220, 226, 232); doc.line(left, pageHeight - 13, right, pageHeight - 13); doc.setTextColor(99, 115, 129); doc.setFontSize(8); doc.text(`Frequência ITB • Gerado em ${formatDate(todayInSaoPaulo())}`, left, pageHeight - 8); doc.text(`Página ${page}`, right, pageHeight - 8, { align: 'right' }); };
+    const header = (compact = false) => {
+      doc.setFillColor(16, 42, 67); doc.rect(0, 0, pageWidth, compact ? 25 : 38, 'F');
+      doc.setTextColor(255, 255, 255); doc.setFontSize(compact ? 14 : 20); doc.setFont('helvetica', 'bold'); doc.text('FREQUÊNCIA ITB', left, compact ? 15 : 17);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.text(compact ? 'Relatório de frequência' : 'Relatório institucional de frequência', left, compact ? 21 : 25);
+      doc.text(`Período: ${from} a ${to}`, right, compact ? 15 : 17, { align: 'right' });
+      if (!compact) doc.text(selectedClass, right, 25, { align: 'right' });
+      return compact ? 34 : 46;
+    };
+    const summaryCard = (x: number, label: string, value: string, color: [number, number, number]) => { doc.setFillColor(246, 248, 250); doc.setDrawColor(226, 232, 238); doc.roundedRect(x, 47, 40, 20, 2, 2, 'FD'); doc.setTextColor(99, 115, 129); doc.setFontSize(7); doc.text(label, x + 3, 53); doc.setTextColor(...color); doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.text(value, x + 3, 63); doc.setFont('helvetica', 'normal'); };
+    const tableHeader = (y: number) => { doc.setFillColor(229, 238, 244); doc.rect(left, y, tableWidth, 8, 'F'); doc.setTextColor(16, 42, 67); doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.text('DATA', left + 3, y + 5); doc.text('ALUNO', left + 29, y + 5); doc.text('TURMA', left + 96, y + 5); doc.text('SITUAÇÃO', left + 151, y + 5); doc.setFont('helvetica', 'normal'); return y + 8; };
+    let y = header();
+    summaryCard(15, 'REGISTROS', String(summary.records), [16, 42, 67]); summaryCard(60, 'ALUNOS', String(summary.students), [16, 42, 67]); summaryCard(105, 'PRESENÇAS', String(summary.present), [34, 139, 93]); summaryCard(150, 'FREQUÊNCIA', `${summary.attendanceRate}%`, [41, 182, 200]);
+    doc.setTextColor(99, 115, 129); doc.setFontSize(8); doc.text(`Estados: P ${summary.byStatus.P}   F ${summary.byStatus.F}   J ${summary.byStatus.J}   A ${summary.byStatus.A}   R ${summary.byStatus.R}`, left, 75);
+    doc.setTextColor(16, 42, 67); doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.text('Detalhamento das marcações', left, 87); doc.setFont('helvetica', 'normal');
+    y = tableHeader(92);
+    if (!rows.length) { doc.setTextColor(99, 115, 129); doc.setFontSize(10); doc.text('Não há marcações para os filtros selecionados.', left, y + 12); footer(); }
+    rows.forEach((record, index) => {
+      const student = doc.splitTextToSize(studentName(record), 62); const classLabel = doc.splitTextToSize(className(record), 49); const rowHeight = Math.max(8, student.length * 4 + 3, classLabel.length * 4 + 3);
+      if (y + rowHeight > pageHeight - 18) { footer(); doc.addPage(); page += 1; y = tableHeader(header(true)); }
+      if (index % 2 === 0) { doc.setFillColor(249, 251, 252); doc.rect(left, y, tableWidth, rowHeight, 'F'); }
+      doc.setDrawColor(230, 235, 239); doc.line(left, y + rowHeight, right, y + rowHeight); doc.setTextColor(39, 55, 67); doc.setFontSize(8); doc.text(formatDate(asText(record, 'date')), left + 3, y + 5); doc.text(student, left + 29, y + 5); doc.text(classLabel, left + 96, y + 5);
+      const status = asText(record, 'status'); const statusColors: Record<string, [number, number, number]> = { P: [34, 139, 93], F: [211, 47, 47], J: [237, 108, 2], A: [2, 136, 209], R: [123, 31, 162] }; doc.setTextColor(...(statusColors[status] ?? [39, 55, 67])); doc.setFont('helvetica', 'bold'); doc.text(`${status} · ${statusLabel(status)}`, left + 151, y + 5); doc.setFont('helvetica', 'normal'); y += rowHeight;
+    });
+    if (rows.length) footer();
+    doc.save(`frequencia-itb-${start}-${end}${classId ? `-${classId}` : ''}.pdf`);
+  };
+
+  return <Section title="Relatórios" action={<Button variant="contained" startIcon={<PictureAsPdfOutlinedIcon />} onClick={generate}>Exportar PDF</Button>}>
+    <Card sx={{ border: '1px solid', borderColor: 'divider' }}><CardContent><Typography variant="h6" fontWeight={800}>Filtros do relatório</Typography><Typography color="text.secondary" sx={{ mt: 0.5 }}>Defina o período e a turma antes de visualizar ou exportar os dados.</Typography><Stack direction={{ xs: 'column', md: 'row' }} gap={2} sx={{ mt: 2 }}><DateField label="Data inicial" value={from} onChange={setFrom} /><DateField label="Data final" value={to} onChange={setTo} /><Box sx={{ minWidth: { xs: '100%', md: 300 } }}><SelectField label="Turma" value={classId} onChange={setClassId} options={[{ value: '', label: 'Todas as turmas' }, ...classes.map((item) => ({ value: String(item.id), label: asText(item, 'name') }))]} /></Box></Stack></CardContent></Card>
+    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2 }}>{[['Registros', String(summary.records), 'primary.dark'], ['Alunos', String(summary.students), 'primary.dark'], ['Presenças', String(summary.present), 'success.main'], ['Frequência', `${summary.attendanceRate}%`, 'secondary.main']].map(([label, value, color]) => <Card key={label}><CardContent><Typography variant="overline" color="text.secondary">{label}</Typography><Typography variant="h4" fontWeight={900} sx={{ color }}>{value}</Typography></CardContent></Card>)}</Box>
+    <Card><CardContent><Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ md: 'center' }} gap={1}><Box><Typography variant="h6" fontWeight={800}>Prévia do relatório</Typography><Typography color="text.secondary">{selectedClass} • {from} a {to}</Typography></Box><Stack direction="row" gap={1} flexWrap="wrap">{attendanceStatuses.map((status) => <Chip key={status} size="small" color={statusChipColor(status)} label={`${status} · ${statusLabel(status)}: ${summary.byStatus[status]}`} />)}</Stack></Stack><Divider sx={{ my: 2 }} /><TableContainer><Table size="small"><TableHead><TableRow><TableCell>Data</TableCell><TableCell>Aluno</TableCell><TableCell>Turma</TableCell><TableCell>Situação</TableCell></TableRow></TableHead><TableBody>{rows.slice(0, 100).map((record) => <TableRow key={record.id} hover><TableCell>{formatDate(asText(record, 'date'))}</TableCell><TableCell>{studentName(record)}</TableCell><TableCell>{className(record)}</TableCell><TableCell><Chip size="small" color={statusChipColor(asText(record, 'status'))} label={`${asText(record, 'status')} · ${statusLabel(asText(record, 'status'))}`} /></TableCell></TableRow>)}{!rows.length && <TableRow><TableCell colSpan={4} align="center" sx={{ py: 5, color: 'text.secondary' }}>Não há marcações para os filtros selecionados.</TableCell></TableRow>}</TableBody></Table></TableContainer>{rows.length > 100 && <Typography sx={{ mt: 1 }} color="text.secondary">Mostrando os primeiros 100 registros na tela. O PDF contém todos os registros, organizados em páginas.</Typography>}</CardContent></Card>
+  </Section>;
+}
 
 export function ConflictsPage() { const entities: Entity[] = ['laboratories', 'courses', 'classes', 'students', 'enrollments', 'attendance_records']; const { refresh } = useApp(); const [conflicts, setConflicts] = useState<Array<{ entity: Entity; record: LocalRecord }>>([]); const { store } = useApp(); useEffect(() => { void Promise.all(entities.map(async (entity) => (await store.list(entity, true)).filter((record) => record.sync_status === 'CONFLICT').map((record) => ({ entity, record })))).then((rows) => setConflicts(rows.flat())); }, [refresh, store]); return <Section title="Conflitos"><Alert severity="info">Conflitos são preservados localmente para revisão e não substituem dados silenciosamente.</Alert><Card><Table><TableHead><TableRow><TableCell>Entidade</TableCell><TableCell>Registro</TableCell><TableCell>Atualização</TableCell></TableRow></TableHead><TableBody>{conflicts.map(({ entity, record }) => <TableRow key={`${entity}-${record.id}`}><TableCell>{entity}</TableCell><TableCell>{record.id}</TableCell><TableCell>{asText(record, 'updated_at')}</TableCell></TableRow>)}</TableBody></Table></Card></Section>; }
 
