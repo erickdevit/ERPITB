@@ -29,4 +29,4 @@ O Worker publica os assets em `web/dist` e atende o novo cliente em `/api/*`. Os
 
 ## Usar a base já publicada
 
-Para testar o PWA com os usuários e dados existentes no D1 remoto, sem criar um banco local, execute `npm run dev:real` em `backend/` e abra a URL exibida pelo Vite (normalmente `http://127.0.0.1:5173`). Esse modo encaminha apenas `/api/*` para o Worker publicado e remove o prefixo para preservar a API legada. Use as credenciais reais já cadastradas; senhas não podem ser obtidas do D1 porque são armazenadas como hash.
+Para testar o PWA com os usuários e dados existentes no D1 remoto, sem criar um banco local, execute `npm run dev` em `backend/` e abra a URL exibida pelo Vite (normalmente `http://127.0.0.1:5173`). Esse modo encaminha apenas `/api/*` para o Worker publicado e remove o prefixo para preservar a API legada. Use as credenciais reais já cadastradas; senhas não podem ser obtidas do D1 porque são armazenadas como hash. O modo isolado, com D1 local, é `npm run dev:local` e precisa ter o schema aplicado antes do uso.
