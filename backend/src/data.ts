@@ -224,18 +224,19 @@ async function createClass(request: Request, env: Env, user: AuthUser): Promise<
     laboratory_id: typeof body.laboratoryId === 'string' && body.laboratoryId.length > 0 ? body.laboratoryId : null,
     active: boolInt(body.active), sync_version: 1, created_at: timestamp, updated_at: timestamp,
   };
-  const teacherId = requireString(body.teacherId, 'professor', { max: 36 });
-  const professor = await env.DB.prepare(`SELECT id FROM users WHERE id = ? AND role = 'professor' AND active = 1`).bind(teacherId).first();
-  if (!professor) throw new AppError(400, 'Professor responsável é obrigatório.', 'TEACHER_REQUIRED');
-  const assignment = { id: uuid(), class_id: row.id, user_id: teacherId, sync_version: 1, created_at: timestamp, updated_at: timestamp };
+  const teacherId = typeof body.teacherId === 'string' && body.teacherId.length > 0 ? requireString(body.teacherId, 'professor', { max: 36 }) : null;
+  if (teacherId) {
+    const professor = await env.DB.prepare(`SELECT id FROM users WHERE id = ? AND role = 'professor' AND active = 1`).bind(teacherId).first();
+    if (!professor) throw new AppError(400, 'Professor inválido.', 'VALIDATION_ERROR');
+  }
+  const assignment = teacherId ? { id: uuid(), class_id: row.id, user_id: teacherId, sync_version: 1, created_at: timestamp, updated_at: timestamp } : null;
   await env.DB.batch([
     env.DB.prepare(
       `INSERT INTO classes (id, course_id, name, shift, week_day, is_kids, laboratory_id, active, sync_version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
     ).bind(row.id, row.course_id, row.name, row.shift, row.week_day, row.is_kids, row.laboratory_id, row.active, timestamp, timestamp),
-    env.DB.prepare(`INSERT INTO class_teachers (id, class_id, user_id, sync_version, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)`).bind(assignment.id, row.id, teacherId, timestamp, timestamp),
     change(env, user, 'classes', row.id, 'upsert', row),
-    change(env, user, 'class_teachers', assignment.id, 'upsert', assignment),
-    audit(env, user, 'CREATE', 'classes', row.id, { teacherId }),
+    ...(assignment ? [env.DB.prepare(`INSERT INTO class_teachers (id, class_id, user_id, sync_version, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)`).bind(assignment.id, row.id, teacherId, timestamp, timestamp), change(env, user, 'class_teachers', assignment.id, 'upsert', assignment)] : []),
+    audit(env, user, 'CREATE', 'classes', row.id, { teacherId: teacherId ?? undefined }),
   ]);
   return { ...row, teacher_id: teacherId };
 }

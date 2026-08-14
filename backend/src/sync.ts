@@ -272,12 +272,6 @@ export async function push(request: Request, env: Env, user: AuthUser): Promise<
   }
   for (const operation of operations) {
     if (operation.action !== 'upsert' || operation.baseVersion !== 0) continue;
-    if (operation.entity === 'classes') {
-      const teacher = operations.find((candidate) => candidate.entity === 'class_teachers' && candidate.action === 'upsert' && candidate.data.class_id === operation.id);
-      if (!teacher) throw new AppError(400, 'Toda nova turma precisa de um professor no mesmo lote.', 'TEACHER_REQUIRED');
-      const valid = await env.DB.prepare(`SELECT 1 AS valid FROM users WHERE id = ? AND role = 'professor' AND active = 1`).bind(String(teacher.data.user_id ?? '')).first();
-      if (!valid) throw new AppError(400, 'Professor inválido para a nova turma.', 'TEACHER_REQUIRED');
-    }
     if (operation.entity === 'students') {
       const enrollment = operations.find((candidate) => candidate.entity === 'enrollments' && candidate.action === 'upsert' && candidate.data.student_id === operation.id && typeof candidate.data.class_id === 'string');
       if (!enrollment) throw new AppError(400, 'Todo novo aluno precisa de uma turma no mesmo lote.', 'CLASS_REQUIRED');
