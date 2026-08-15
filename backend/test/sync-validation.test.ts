@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { isReplacementCompletion } from '../src/sync';
 
 describe('sync contract', () => {
   it('documents an idempotent operation envelope', () => {
@@ -40,5 +41,16 @@ describe('sync contract', () => {
     expect(migration).toContain('CREATE UNIQUE INDEX IF NOT EXISTS uq_enrollments_student_active');
     expect(migration).toContain("WHERE status = 'ativa' AND deleted_at IS NULL");
     expect(migration).not.toContain('DELETE FROM enrollments');
+  });
+
+  it('recognizes only the R to RC transition with a valid completion timestamp', () => {
+    const operation = {
+      operationId: 'operation-1', entity: 'attendance_records', action: 'upsert', id: 'attendance-1',
+      baseVersion: 2, updatedAt: '2026-08-15T12:00:00Z',
+      data: { status: 'RC', completed_at: '2026-08-15T12:00:00Z' },
+    } as const;
+    expect(isReplacementCompletion(operation, { id: 'attendance-1', status: 'R' })).toBe(true);
+    expect(isReplacementCompletion({ ...operation, data: { status: 'RC', completed_at: 'inválido' } }, { id: 'attendance-1', status: 'R' })).toBe(false);
+    expect(isReplacementCompletion(operation, { id: 'attendance-1', status: 'F' })).toBe(false);
   });
 });

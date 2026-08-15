@@ -33,7 +33,6 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { ApplicationProvider, useApp, useBoot } from './app-context';
 import { Login } from './login';
-import { ReplacementsPage } from './pages';
 import { canManage, type Role } from './types';
 
 const theme = createTheme({
@@ -98,6 +97,7 @@ const CoursesPage = lazy(() => import('./features/catalog-page').then((module) =
 const LaboratoriesPage = lazy(() => import('./features/catalog-page').then((module) => ({ default: module.LaboratoriesPage })));
 const UsersPage = lazy(() => import('./features/users-page').then((module) => ({ default: module.UsersPage })));
 const AttendancePage = lazy(() => import('./features/attendance-page').then((module) => ({ default: module.AttendancePage })));
+const ReplacementsPage = lazy(() => import('./features/replacements-page').then((module) => ({ default: module.ReplacementsPage })));
 const deferred = (page: React.ReactNode) => <Suspense fallback={<LinearProgress aria-label="Carregando módulo" />}>{page}</Suspense>;
 
 function AppRoutes() {
@@ -111,8 +111,8 @@ function AppRoutes() {
     <Route path="/alunos/:studentId" element={deferred(<StudentDetailPage />)} />
     <Route path="/frequencia" element={deferred(<AttendancePage />)} />
     <Route path="/relatorios" element={deferred(<ReportsCenterPage />)} />
-    <Route path="/reposicoes/abertas" element={<ReplacementsPage />} />
-    <Route path="/reposicoes/historico" element={<ReplacementsPage history />} />
+    <Route path="/reposicoes/abertas" element={deferred(<ReplacementsPage />)} />
+    <Route path="/reposicoes/historico" element={deferred(<ReplacementsPage history />)} />
     <Route path="/cursos" element={manager ? deferred(<CoursesPage />) : <Navigate to="/" replace />} />
     <Route path="/cursos/:courseId" element={manager ? deferred(<CourseDetailPage />) : <Navigate to="/" replace />} />
     <Route path="/laboratorios" element={manager ? deferred(<LaboratoriesPage />) : <Navigate to="/" replace />} />

@@ -47,6 +47,13 @@ async function teacherOwnsClass(env: Env, userId: string, classId: string): Prom
   return Boolean(row);
 }
 
+export function isReplacementCompletion(operation: SyncOperation, existing: Row | null): boolean {
+  if (!existing || operation.entity !== 'attendance_records' || operation.action !== 'upsert') return false;
+  const completedAt = operation.data.completed_at;
+  return existing.status === 'R' && operation.data.status === 'RC'
+    && typeof completedAt === 'string' && !Number.isNaN(Date.parse(completedAt));
+}
+
 async function authorizeOperation(env: Env, user: AuthUser, operation: SyncOperation, existing: Row | null): Promise<void> {
   if (operation.entity === 'class_teachers') {
     if (user.role === 'professor') throw new AppError(403, 'Ação não permitida.', 'FORBIDDEN');
@@ -90,6 +97,15 @@ async function authorizeOperation(env: Env, user: AuthUser, operation: SyncOpera
     const date = String(operation.data.date ?? existing?.date ?? '');
     if (user.role === 'professor') {
       if (!await teacherOwnsClass(env, user.id, classId)) throw new AppError(403, 'Turma não atribuída ao professor.', 'FORBIDDEN');
+      if (isReplacementCompletion(operation, existing)) {
+        const schedule = await env.DB.prepare(
+          `SELECT 1 AS valid FROM replacements
+            WHERE attendance_record_id = ? AND class_id = ? AND student_id = ? AND attendance_date = ?
+              AND deleted_at IS NULL LIMIT 1`,
+        ).bind(existing!.id, classId, String(existing!.student_id), String(existing!.date)).first();
+        if (!schedule) throw new AppError(400, 'A reposição precisa estar agendada antes da conclusão.', 'REPLACEMENT_SCHEDULE_REQUIRED');
+        return;
+      }
       const timeZone = env.INSTITUTION_TIMEZONE ?? 'America/Sao_Paulo';
       if (!teacherCanEditDate(date, new Date(), timeZone)) throw new AppError(403, 'Chamada fora da janela de sete dias.', 'EDIT_WINDOW_CLOSED');
       if (!existing) {
