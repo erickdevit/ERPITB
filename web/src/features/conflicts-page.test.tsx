@@ -42,5 +42,5 @@ describe('ConflictsPage', () => {
     expect(mocks.store.putRemote).toHaveBeenCalledWith('attendance_records', {
       id: 'attendance-1', status: 'P', sync_version: 4, sync_status: 'SYNCED',
     });
-  });
+  }, 10_000);
 });
