@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../core/database/local_repository.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/itb_components.dart';
 import '../../core/sync/sync_service.dart';
 import '../auth/auth_controller.dart';
 
@@ -88,58 +89,55 @@ class _ConflictsScreenState extends State<ConflictsScreen> {
                   .contains(term),
         )
         .toList();
+
     return ListView(
       padding: EdgeInsets.all(compact ? 16 : 24),
       children: [
-        Text(
-          'Central de conflitos',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: ItbColors.navy,
-          ),
+        const ItbPageHeader(
+          title: 'Central de conflitos',
+          subtitle:
+              'Compare as duas versões antes de decidir. Toda resolução exige justificativa e fica auditada.',
         ),
-        const SizedBox(height: 6),
-        const Text(
-          'Compare as duas versões antes de decidir. Toda resolução exige justificativa e fica auditada.',
+        const SizedBox(height: 16),
+        ItbFilterCard(
+          searchHint: 'Buscar conflito ou entidade',
+          searchValue: search,
+          onSearchChanged: (val) => setState(() => search = val),
         ),
-        const SizedBox(height: 18),
-        TextField(
-          decoration: const InputDecoration(
-            prefixIcon: Icon(Icons.search),
-            labelText: 'Buscar conflito ou entidade',
-          ),
-          onChanged: (value) {
-            debounce?.cancel();
-            debounce = Timer(const Duration(milliseconds: 350), () {
-              if (mounted) setState(() => search = value);
-            });
-          },
-        ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         if (loading) const LinearProgressIndicator(),
         if (error != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Text(
-              error!,
-              style: const TextStyle(color: ItbColors.orange),
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: ItbColors.orangeBg,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: ItbColors.orange.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline, color: ItbColors.orange, size: 18),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    error!,
+                    style: const TextStyle(
+                      color: ItbColors.orange,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         if (!loading && pending.isEmpty && visibleLocals.isEmpty)
           const Card(
-            child: Padding(
-              padding: EdgeInsets.all(40),
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.check_circle_outline,
-                    color: ItbColors.green,
-                    size: 46,
-                  ),
-                  SizedBox(height: 10),
-                  Text('Nenhum conflito pendente.'),
-                ],
-              ),
+            child: ItbEmptyState(
+              title: 'Nenhum conflito pendente',
+              subtitle: 'Todos os registros estão devidamente sincronizados e reconciliados.',
+              icon: Icons.check_circle_outline,
             ),
           ),
         ...pending.map((item) => _ConflictCard(item: item, onResolved: _load)),
@@ -148,7 +146,11 @@ class _ConflictsScreenState extends State<ConflictsScreen> {
             padding: EdgeInsets.only(top: 18, bottom: 8),
             child: Text(
               'Pendências deste dispositivo',
-              style: TextStyle(fontWeight: FontWeight.w800),
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: ItbColors.navy,
+                fontSize: 15,
+              ),
             ),
           ),
           ...visibleLocals.map((item) {
@@ -159,15 +161,32 @@ class _ConflictsScreenState extends State<ConflictsScreen> {
                       as Map<String, dynamic>;
             return Card(
               child: ListTile(
-                leading: Icon(
-                  rejected ? Icons.block_outlined : Icons.cloud_off,
-                  color: ItbColors.orange,
+                leading: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: rejected ? ItbColors.redBg : ItbColors.orangeBg,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(
+                    rejected ? Icons.block_outlined : Icons.cloud_off,
+                    color: rejected ? ItbColors.red : ItbColors.orange,
+                    size: 20,
+                  ),
                 ),
-                title: Text('${item['entity_name']} • ${item['entity_id']}'),
+                title: Text(
+                  '${item['entity_name']} • ${item['entity_id']}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: ItbColors.navy,
+                  ),
+                ),
                 subtitle: Text(
                   rejected
                       ? '${details?['message'] ?? 'Operação rejeitada pelo servidor.'}'
                       : 'Será reconciliado com a Central quando houver conexão.',
+                  style: const TextStyle(fontSize: 12),
                 ),
               ),
             );
@@ -182,19 +201,39 @@ class _ConflictCard extends StatelessWidget {
   const _ConflictCard({required this.item, required this.onResolved});
   final Map<String, dynamic> item;
   final Future<void> Function() onResolved;
+
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 12),
     child: Card(
       child: ExpansionTile(
-        leading: const Icon(Icons.compare_arrows, color: ItbColors.orange),
+        leading: Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: ItbColors.orangeBg,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          alignment: Alignment.center,
+          child: const Icon(
+            Icons.compare_arrows,
+            color: ItbColors.orange,
+            size: 20,
+          ),
+        ),
         title: Text(
           '${item['entity_name']} • ${item['entity_id']}',
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontWeight: FontWeight.w700),
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+            color: ItbColors.navy,
+          ),
         ),
-        subtitle: Text('Criado em ${item['created_at']}'),
+        subtitle: Text(
+          'Criado em ${item['created_at']}',
+          style: const TextStyle(fontSize: 12, color: ItbColors.textSecondary),
+        ),
         children: [
           Padding(
             padding: const EdgeInsets.all(18),
@@ -226,12 +265,12 @@ class _ConflictCard extends StatelessWidget {
                       const SizedBox(height: 12),
                       panels[1],
                     ],
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 16),
                     Align(
                       alignment: Alignment.centerRight,
                       child: FilledButton.icon(
                         onPressed: () => _resolve(context),
-                        icon: const Icon(Icons.gavel_outlined),
+                        icon: const Icon(Icons.gavel_outlined, size: 18),
                         label: const Text('Resolver'),
                       ),
                     ),
@@ -259,7 +298,13 @@ class _ConflictCard extends StatelessWidget {
             width: 440,
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                const Text(
+                  'Escolha qual versão deve prevalecer:',
+                  style: TextStyle(fontSize: 13, color: ItbColors.textSecondary),
+                ),
+                const SizedBox(height: 10),
                 SegmentedButton<String>(
                   segments: const [
                     ButtonSegment(value: 'remote', label: Text('Servidor')),
@@ -269,13 +314,14 @@ class _ConflictCard extends StatelessWidget {
                   onSelectionChanged: (value) =>
                       setDialogState(() => decision = value.first),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 TextFormField(
                   onChanged: (value) => justification = value,
                   minLines: 3,
                   maxLines: 5,
                   decoration: const InputDecoration(
                     labelText: 'Justificativa obrigatória',
+                    hintText: 'Explique o motivo da decisão tomada...',
                   ),
                 ),
               ],
@@ -337,17 +383,29 @@ class _VersionPanel extends StatelessWidget {
     width: double.infinity,
     padding: const EdgeInsets.all(14),
     decoration: BoxDecoration(
-      color: const Color(0xFFF4F7FA),
+      color: ItbColors.surfaceMuted,
       borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: ItbColors.surfaceBorder),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+        Text(
+          title,
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            color: ItbColors.navy,
+            fontSize: 13,
+          ),
+        ),
         const SizedBox(height: 8),
         SelectableText(
           const JsonEncoder.withIndent('  ').convert(data),
-          style: const TextStyle(fontFamily: 'Consolas', fontSize: 12),
+          style: const TextStyle(
+            fontFamily: 'Consolas',
+            fontSize: 12,
+            color: ItbColors.textPrimary,
+          ),
         ),
       ],
     ),

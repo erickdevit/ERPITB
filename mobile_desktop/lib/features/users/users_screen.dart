@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 import '../../core/database/local_repository.dart';
 import '../../core/models/models.dart';
 import '../../core/network/api_client.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/theme/itb_components.dart';
 
 class UsersScreen extends StatefulWidget {
   const UsersScreen({super.key});
@@ -60,56 +62,34 @@ class _UsersScreenState extends State<UsersScreen> {
                   '${u['name']} ${u['email']}'.toLowerCase().contains(term)),
         )
         .toList();
+
     return ListView(
       padding: EdgeInsets.all(compact ? 16 : 24),
       children: [
-        Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          runSpacing: 12,
-          children: [
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Usuários',
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900),
-                ),
-                Text('Acessos, funções e situação cadastral.'),
-              ],
-            ),
-            FilledButton.icon(
-              onPressed: () => _edit(),
-              icon: const Icon(Icons.person_add_alt_1),
-              label: const Text('Novo usuário'),
-            ),
-          ],
+        ItbPageHeader(
+          title: 'Usuários',
+          subtitle: 'Acessos, funções e situação cadastral.',
+          action: FilledButton.icon(
+            onPressed: () => _edit(),
+            icon: const Icon(Icons.person_add_alt_1, size: 18),
+            label: const Text('Novo usuário'),
+          ),
         ),
-        const SizedBox(height: 20),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            SizedBox(
-              width: compact ? double.infinity : 360,
-              child: TextField(
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.search),
-                  labelText: 'Buscar por nome ou e-mail',
-                ),
-                onChanged: (value) {
-                  debounce?.cancel();
-                  debounce = Timer(const Duration(milliseconds: 350), () {
-                    if (mounted) setState(() => query = value);
-                  });
-                },
-              ),
-            ),
+        const SizedBox(height: 16),
+        ItbFilterCard(
+          searchHint: 'Buscar por nome ou e-mail',
+          searchValue: query,
+          onSearchChanged: (val) => setState(() => query = val),
+          filters: [
             SizedBox(
               width: compact ? double.infinity : 280,
               child: DropdownButtonFormField<String?>(
                 initialValue: role,
                 isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Perfil'),
+                decoration: const InputDecoration(
+                  isDense: true,
+                  labelText: 'Perfil',
+                ),
                 items: const [
                   DropdownMenuItem(value: null, child: Text('Todos os perfis')),
                   DropdownMenuItem(
@@ -149,8 +129,22 @@ class _UsersScreenState extends State<UsersScreen> {
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const CircleAvatar(
-                                child: Icon(Icons.person_outline),
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: ItbColors.blueLight,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  '${user['name']}'.substring(0, 1).toUpperCase(),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    color: ItbColors.blue,
+                                    fontSize: 16,
+                                  ),
+                                ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
@@ -161,25 +155,32 @@ class _UsersScreenState extends State<UsersScreen> {
                                       '${user['name']}',
                                       style: const TextStyle(
                                         fontWeight: FontWeight.w800,
+                                        fontSize: 15,
+                                        color: ItbColors.navy,
                                       ),
                                     ),
+                                    const SizedBox(height: 2),
                                     Text(
                                       '${user['email']}',
                                       overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: ItbColors.textSecondary,
+                                      ),
                                     ),
                                   ],
                                 ),
                               ),
-                              Chip(
-                                label: Text(
-                                  user['active'] == 1 ? 'Ativo' : 'Inativo',
-                                ),
-                              ),
+                              ItbStatusBadge.userActive(user['active'] == 1),
                             ],
                           ),
                           const SizedBox(height: 10),
                           Text(
                             'Perfil: ${UserRole.parse('${user['role']}').label}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                           const Divider(height: 24),
                           Row(
@@ -187,15 +188,22 @@ class _UsersScreenState extends State<UsersScreen> {
                             children: [
                               TextButton.icon(
                                 onPressed: () => _edit(user),
-                                icon: const Icon(Icons.edit_outlined),
+                                icon: const Icon(Icons.edit_outlined, size: 18),
                                 label: const Text('Editar'),
                               ),
                               if (user['active'] == 1) ...[
                                 const SizedBox(width: 8),
                                 TextButton.icon(
                                   onPressed: () => _delete('${user['id']}'),
-                                  icon: const Icon(Icons.delete_outline),
-                                  label: const Text('Excluir'),
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    color: ItbColors.red,
+                                    size: 18,
+                                  ),
+                                  label: const Text(
+                                    'Excluir',
+                                    style: TextStyle(color: ItbColors.red),
+                                  ),
                                 ),
                               ],
                             ],
@@ -210,60 +218,81 @@ class _UsersScreenState extends State<UsersScreen> {
         else
           Card(
             child: users.isEmpty
-                ? const Padding(
-                    padding: EdgeInsets.all(32),
-                    child: Center(child: Text('Nenhum usuário encontrado.')),
+                ? const ItbEmptyState(
+                    title: 'Nenhum usuário encontrado',
+                    subtitle: 'Cadastre novos usuários institucionais.',
+                    icon: Icons.manage_accounts_outlined,
                   )
-                : SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      columns: const [
-                        DataColumn(label: Text('Nome')),
-                        DataColumn(label: Text('E-mail')),
-                        DataColumn(label: Text('Perfil')),
-                        DataColumn(label: Text('Status')),
-                        DataColumn(label: Text('Ações')),
-                      ],
-                      rows: users
-                          .map(
-                            (u) => DataRow(
-                              cells: [
-                                DataCell(Text('${u['name']}')),
-                                DataCell(Text('${u['email']}')),
-                                DataCell(
-                                  Text(UserRole.parse('${u['role']}').label),
-                                ),
-                                DataCell(
-                                  Chip(
-                                    label: Text(
-                                      u['active'] == 1 ? 'Ativo' : 'Inativo',
+                : ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: DataTable(
+                        columns: const [
+                          DataColumn(label: Text('Nome')),
+                          DataColumn(label: Text('E-mail')),
+                          DataColumn(label: Text('Perfil')),
+                          DataColumn(label: Text('Status')),
+                          DataColumn(label: Text('Ações')),
+                        ],
+                        rows: users
+                            .map(
+                              (u) => DataRow(
+                                cells: [
+                                  DataCell(
+                                    Text(
+                                      '${u['name']}',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        color: ItbColors.navy,
+                                      ),
                                     ),
                                   ),
-                                ),
-                                DataCell(
-                                  Row(
-                                    children: [
-                                      IconButton(
-                                        tooltip: 'Editar',
-                                        onPressed: () => _edit(u),
-                                        icon: const Icon(Icons.edit_outlined),
+                                  DataCell(Text('${u['email']}')),
+                                  DataCell(
+                                    Text(
+                                      UserRole.parse('${u['role']}').label,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w500,
                                       ),
-                                      if (u['active'] == 1)
+                                    ),
+                                  ),
+                                  DataCell(
+                                    ItbStatusBadge.userActive(
+                                      u['active'] == 1,
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
                                         IconButton(
-                                          tooltip: 'Excluir usuário',
-                                          onPressed: () =>
-                                              _delete('${u['id']}'),
+                                          tooltip: 'Editar',
+                                          onPressed: () => _edit(u),
                                           icon: const Icon(
-                                            Icons.delete_outline,
+                                            Icons.edit_outlined,
+                                            size: 19,
                                           ),
                                         ),
-                                    ],
+                                        if (u['active'] == 1)
+                                          IconButton(
+                                            tooltip: 'Excluir usuário',
+                                            onPressed: () =>
+                                                _delete('${u['id']}'),
+                                            icon: const Icon(
+                                              Icons.delete_outline,
+                                              color: ItbColors.red,
+                                              size: 19,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          )
-                          .toList(),
+                                ],
+                              ),
+                            )
+                            .toList(),
+                      ),
                     ),
                   ),
           ),
@@ -333,12 +362,15 @@ class _UsersScreenState extends State<UsersScreen> {
                           : 'Nova senha (opcional)',
                     ),
                   ),
-                  if (item != null)
+                  if (item != null) ...[
+                    const SizedBox(height: 6),
                     SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
                       value: active,
                       title: const Text('Usuário ativo'),
                       onChanged: (v) => setDialogState(() => active = v),
                     ),
+                  ],
                 ],
               ),
             ),
@@ -405,6 +437,7 @@ class _UsersScreenState extends State<UsersScreen> {
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(c, true),
+                style: FilledButton.styleFrom(backgroundColor: ItbColors.red),
                 child: const Text('Excluir'),
               ),
             ],

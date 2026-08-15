@@ -8,6 +8,7 @@ import '../../core/models/models.dart';
 import '../../core/network/api_client.dart';
 import '../../core/sync/sync_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/itb_components.dart';
 import '../auth/auth_controller.dart';
 
 class ClassesScreen extends StatefulWidget {
@@ -21,6 +22,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
   String? teacherId;
   ClassSummary? selectedClass;
   Timer? debounce;
+
   @override
   void initState() {
     super.initState();
@@ -59,72 +61,41 @@ class _ClassesScreenState extends State<ClassesScreen> {
       search: search,
       teacherId: teacherId,
     );
+
     if (selectedClass != null) {
       return _classDetails(context, repository, user, selectedClass!);
     }
+
     return ListView(
       padding: EdgeInsets.all(compact ? 16 : 24),
       children: [
-        Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  user.role.canManage ? 'Turmas' : 'Minhas turmas',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: ItbColors.navy,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Gestão de turmas e horários de aula',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
-                ),
-              ],
-            ),
-            if (user.role.name == 'admin')
-              FilledButton.icon(
-                onPressed: () => _classDialog(context),
-                icon: const Icon(Icons.add),
-                label: const Text('Nova turma'),
-              ),
-          ],
+        ItbPageHeader(
+          title: user.role.canManage ? 'Turmas' : 'Minhas turmas',
+          subtitle: 'Gestão de turmas e horários de aula',
+          action: user.role.name == 'admin'
+              ? FilledButton.icon(
+                  onPressed: () => _classDialog(context),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Nova turma'),
+                )
+              : null,
         ),
         const SizedBox(height: 16),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            SizedBox(
-              width: compact ? double.infinity : 360,
-              child: TextField(
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.search),
-                  labelText: 'Buscar turma ou curso',
-                ),
-                onChanged: (value) {
-                  debounce?.cancel();
-                  debounce = Timer(const Duration(milliseconds: 350), () {
-                    if (mounted) setState(() => search = value);
-                  });
-                },
-              ),
-            ),
+        ItbFilterCard(
+          searchHint: 'Buscar turma ou curso',
+          searchValue: search,
+          onSearchChanged: (value) => setState(() => search = value),
+          filters: [
             if (user.role.canManage)
               SizedBox(
                 width: compact ? double.infinity : 300,
                 child: DropdownButtonFormField<String?>(
                   initialValue: teacherId,
                   isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Professor'),
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    labelText: 'Professor',
+                  ),
                   items: [
                     const DropdownMenuItem(
                       value: null,
@@ -142,7 +113,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
               ),
           ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
         if (classes.isEmpty)
           const _EmptyState()
         else
@@ -151,7 +122,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
               padding: const EdgeInsets.only(bottom: 12),
               child: Card(
                 child: InkWell(
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(16),
                   onTap: () => setState(() => selectedClass = item),
                   child: Padding(
                     padding: EdgeInsets.all(compact ? 16 : 20),
@@ -186,13 +157,18 @@ class _ClassesScreenState extends State<ClassesScreen> {
       Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            backgroundColor: item.isKids
-                ? Colors.orange.withValues(alpha: .15)
-                : ItbColors.blue.withValues(alpha: .12),
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: item.isKids ? ItbColors.orangeBg : ItbColors.blueLight,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            alignment: Alignment.center,
             child: Icon(
               item.isKids ? Icons.child_care : Icons.groups_outlined,
-              color: item.isKids ? Colors.orange[800] : ItbColors.blue,
+              color: item.isKids ? ItbColors.orange : ItbColors.blue,
+              size: 24,
             ),
           ),
           const SizedBox(width: 12),
@@ -208,42 +184,29 @@ class _ClassesScreenState extends State<ClassesScreen> {
                         style: const TextStyle(
                           fontWeight: FontWeight.w800,
                           fontSize: 16,
+                          color: ItbColors.navy,
                         ),
                       ),
                     ),
-                    if (item.isKids)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.orange[100],
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          'Kids',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.orange[900],
-                          ),
-                        ),
-                      ),
+                    if (item.isKids) ...[
+                      const SizedBox(width: 6),
+                      ItbStatusBadge.kids(),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 4),
                 Text(
                   item.courseName,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontWeight: FontWeight.w600,
-                    color: Colors.grey[700],
+                    color: ItbColors.textSecondary,
+                    fontSize: 13,
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 Wrap(
                   spacing: 6,
-                  runSpacing: 4,
+                  runSpacing: 6,
                   children: [
                     _chip(_shift(item.shift), Icons.schedule),
                     if (item.weekDay != null)
@@ -256,19 +219,33 @@ class _ClassesScreenState extends State<ClassesScreen> {
                   const SizedBox(height: 6),
                   Text(
                     'Prof: ${item.teacherName!}',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: ItbColors.textSecondary,
+                    ),
                   ),
                 ],
               ],
             ),
           ),
           const SizedBox(width: 8),
-          Text(
-            '${item.attendanceRate.toStringAsFixed(1)}%',
-            style: TextStyle(
-              fontWeight: FontWeight.w900,
-              fontSize: 16,
-              color: item.attendanceRate < 75 ? ItbColors.red : ItbColors.green,
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: item.attendanceRate < 75
+                  ? ItbColors.redBg
+                  : ItbColors.greenBg,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              '${item.attendanceRate.toStringAsFixed(1)}%',
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 14,
+                color: item.attendanceRate < 75
+                    ? ItbColors.red
+                    : ItbColors.green,
+              ),
             ),
           ),
         ],
@@ -281,18 +258,18 @@ class _ClassesScreenState extends State<ClassesScreen> {
             IconButton(
               tooltip: 'Editar turma',
               onPressed: () => _classDialog(context, item: item),
-              icon: const Icon(Icons.edit_outlined),
+              icon: const Icon(Icons.edit_outlined, size: 20),
             ),
             IconButton(
               tooltip: 'Professores',
               onPressed: () => _teachersDialog(context, item),
-              icon: const Icon(Icons.co_present_outlined),
+              icon: const Icon(Icons.co_present_outlined, size: 20),
             ),
             if (user.role == UserRole.admin)
               IconButton(
                 tooltip: 'Excluir turma',
                 onPressed: () => _deleteClass(repository, item),
-                icon: const Icon(Icons.delete_outline),
+                icon: const Icon(Icons.delete_outline, color: ItbColors.red, size: 20),
               ),
           ],
         ),
@@ -306,13 +283,18 @@ class _ClassesScreenState extends State<ClassesScreen> {
     LocalRepository repository,
   ) => Row(
     children: [
-      CircleAvatar(
-        backgroundColor: item.isKids
-            ? Colors.orange.withValues(alpha: .15)
-            : ItbColors.blue.withValues(alpha: .12),
+      Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: item.isKids ? ItbColors.orangeBg : ItbColors.blueLight,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        alignment: Alignment.center,
         child: Icon(
           item.isKids ? Icons.child_care : Icons.groups_outlined,
-          color: item.isKids ? Colors.orange[800] : ItbColors.blue,
+          color: item.isKids ? ItbColors.orange : ItbColors.blue,
+          size: 26,
         ),
       ),
       const SizedBox(width: 16),
@@ -327,40 +309,25 @@ class _ClassesScreenState extends State<ClassesScreen> {
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 16,
+                    color: ItbColors.navy,
                   ),
                 ),
                 if (item.isKids) ...[
                   const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.orange[100],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      'Kids',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.orange[900],
-                      ),
-                    ),
-                  ),
+                  ItbStatusBadge.kids(),
                 ],
               ],
             ),
             const SizedBox(height: 4),
             Text(
               item.courseName,
-              style: TextStyle(
+              style: const TextStyle(
                 fontWeight: FontWeight.w500,
-                color: Colors.grey[700],
+                color: ItbColors.textSecondary,
+                fontSize: 13,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Wrap(
               spacing: 6,
               runSpacing: 4,
@@ -377,40 +344,57 @@ class _ClassesScreenState extends State<ClassesScreen> {
           ],
         ),
       ),
-      SizedBox(
-        width: 86,
+      Container(
+        width: 96,
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+        decoration: BoxDecoration(
+          color: item.attendanceRate < 75
+              ? ItbColors.redBg
+              : ItbColors.greenBg,
+          borderRadius: BorderRadius.circular(12),
+        ),
         child: Column(
           children: [
             Text(
               '${item.attendanceRate.toStringAsFixed(1)}%',
               style: TextStyle(
                 fontWeight: FontWeight.w900,
-                fontSize: 17,
+                fontSize: 16,
                 color: item.attendanceRate < 75
                     ? ItbColors.red
                     : ItbColors.green,
               ),
             ),
-            const Text('presença', style: TextStyle(fontSize: 11)),
+            Text(
+              'presença',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: item.attendanceRate < 75
+                    ? ItbColors.red
+                    : ItbColors.green,
+              ),
+            ),
           ],
         ),
       ),
       if (user.role.canManage) ...[
+        const SizedBox(width: 12),
         IconButton(
           tooltip: 'Editar turma',
           onPressed: () => _classDialog(context, item: item),
-          icon: const Icon(Icons.edit_outlined),
+          icon: const Icon(Icons.edit_outlined, size: 20),
         ),
         IconButton(
           tooltip: 'Professores',
           onPressed: () => _teachersDialog(context, item),
-          icon: const Icon(Icons.co_present_outlined),
+          icon: const Icon(Icons.co_present_outlined, size: 20),
         ),
         if (user.role == UserRole.admin)
           IconButton(
             tooltip: 'Excluir turma',
             onPressed: () => _deleteClass(repository, item),
-            icon: const Icon(Icons.delete_outline),
+            icon: const Icon(Icons.delete_outline, color: ItbColors.red, size: 20),
           ),
       ],
     ],
@@ -419,16 +403,23 @@ class _ClassesScreenState extends State<ClassesScreen> {
   Widget _chip(String label, IconData icon) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
     decoration: BoxDecoration(
-      color: Colors.grey[100],
+      color: ItbColors.surfaceMuted,
       borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: Colors.grey[300]!),
+      border: Border.all(color: ItbColors.surfaceBorder),
     ),
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 12, color: Colors.grey[700]),
+        Icon(icon, size: 12, color: ItbColors.textSecondary),
         const SizedBox(width: 4),
-        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[800])),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: ItbColors.textPrimary,
+          ),
+        ),
       ],
     ),
   );
@@ -578,7 +569,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
                     onChanged: (value) =>
                         refresh(() => selectedLaboratory = value),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text(
@@ -624,7 +615,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
                             refresh(() => selectedTeacher = created);
                           }
                         },
-                        icon: const Icon(Icons.person_add_alt_1),
+                        icon: const Icon(Icons.person_add_alt_1, size: 18),
                         label: const Text('Criar professor agora'),
                       ),
                     ),
@@ -787,7 +778,8 @@ class _ClassesScreenState extends State<ClassesScreen> {
                       children: [
                         TextField(
                           decoration: const InputDecoration(
-                            prefixIcon: Icon(Icons.search),
+                            isDense: true,
+                            prefixIcon: Icon(Icons.search, size: 20),
                             labelText: 'Buscar professor por nome ou e-mail',
                           ),
                           onChanged: (value) {
@@ -898,48 +890,26 @@ class _ClassesScreenState extends State<ClassesScreen> {
     return ListView(
       padding: EdgeInsets.all(compact ? 16 : 24),
       children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            IconButton(
-              tooltip: 'Voltar para turmas',
-              onPressed: () => setState(() => selectedClass = null),
-              icon: const Icon(Icons.arrow_back),
-            ),
-            const SizedBox(width: 8),
-            SizedBox(
-              width: compact ? MediaQuery.sizeOf(context).width - 88 : 500,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.name,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: ItbColors.navy,
-                    ),
-                  ),
-                  Text(
-                    '${item.courseName} • ${_shift(item.shift)}${item.teacherName == null ? '' : ' • ${item.teacherName}'}',
-                  ),
-                ],
-              ),
-            ),
-            Chip(
-              avatar: const Icon(Icons.groups_outlined, size: 18),
-              label: Text('${students.length} aluno(s)'),
-            ),
-          ],
+        ItbPageHeader(
+          leading: IconButton(
+            tooltip: 'Voltar para turmas',
+            onPressed: () => setState(() => selectedClass = null),
+            icon: const Icon(Icons.arrow_back),
+          ),
+          title: item.name,
+          subtitle:
+              '${item.courseName} • ${_shift(item.shift)}${item.teacherName == null ? '' : ' • ${item.teacherName}'}',
+          action: Chip(
+            avatar: const Icon(Icons.groups_outlined, size: 18),
+            label: Text('${students.length} aluno(s)'),
+          ),
         ),
         const SizedBox(height: 20),
         if (students.isEmpty)
-          const Card(
-            child: Padding(
-              padding: EdgeInsets.all(36),
-              child: Center(child: Text('Nenhum aluno nesta turma.')),
-            ),
+          const ItbEmptyState(
+            title: 'Nenhum aluno nesta turma',
+            subtitle: 'Adicione alunos a esta turma na seção de Alunos.',
+            icon: Icons.groups_outlined,
           )
         else
           Card(
@@ -947,14 +917,29 @@ class _ClassesScreenState extends State<ClassesScreen> {
               children: [
                 for (var index = 0; index < students.length; index++) ...[
                   ListTile(
-                    leading: CircleAvatar(
+                    leading: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: ItbColors.blueLight,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      alignment: Alignment.center,
                       child: Text(
                         students[index].name.substring(0, 1).toUpperCase(),
+                        style: const TextStyle(
+                          color: ItbColors.blue,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                        ),
                       ),
                     ),
                     title: Text(
                       students[index].name,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: ItbColors.navy,
+                      ),
                     ),
                     subtitle: Text(
                       'Matrícula ${students[index].registrationNumber}${students[index].contact == null ? '' : ' • ${students[index].contact}'}',
@@ -964,8 +949,8 @@ class _ClassesScreenState extends State<ClassesScreen> {
                         : Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Chip(
-                                label: Text(students[index].enrollmentStatus),
+                              ItbStatusBadge.enrollment(
+                                students[index].enrollmentStatus,
                               ),
                               if (user.role == UserRole.admin) ...[
                                 const SizedBox(width: 6),
@@ -975,7 +960,11 @@ class _ClassesScreenState extends State<ClassesScreen> {
                                     repository,
                                     students[index],
                                   ),
-                                  icon: const Icon(Icons.delete_outline),
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    color: ItbColors.red,
+                                    size: 20,
+                                  ),
                                 ),
                               ],
                             ],
@@ -983,10 +972,12 @@ class _ClassesScreenState extends State<ClassesScreen> {
                   ),
                   if (compact)
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(72, 0, 12, 10),
+                      padding: const EdgeInsets.fromLTRB(66, 0, 12, 10),
                       child: Row(
                         children: [
-                          Chip(label: Text(students[index].enrollmentStatus)),
+                          ItbStatusBadge.enrollment(
+                            students[index].enrollmentStatus,
+                          ),
                           const Spacer(),
                           if (user.role == UserRole.admin)
                             IconButton(
@@ -995,7 +986,11 @@ class _ClassesScreenState extends State<ClassesScreen> {
                                 repository,
                                 students[index],
                               ),
-                              icon: const Icon(Icons.delete_outline),
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                color: ItbColors.red,
+                                size: 20,
+                              ),
                             ),
                         ],
                       ),
@@ -1025,6 +1020,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
             ),
             FilledButton(
               onPressed: () => Navigator.pop(dialogContext, true),
+              style: FilledButton.styleFrom(backgroundColor: ItbColors.red),
               child: const Text('Excluir'),
             ),
           ],
@@ -1083,21 +1079,9 @@ class _ClassesScreenState extends State<ClassesScreen> {
 class _EmptyState extends StatelessWidget {
   const _EmptyState();
   @override
-  Widget build(BuildContext context) => const Card(
-    child: Padding(
-      padding: EdgeInsets.all(40),
-      child: Column(
-        children: [
-          Icon(Icons.groups_outlined, size: 44, color: Color(0xFF829AB1)),
-          SizedBox(height: 12),
-          Text('Nenhuma turma disponível neste dispositivo.'),
-          SizedBox(height: 4),
-          Text(
-            'Conecte-se e sincronize para baixar seus dados.',
-            style: TextStyle(color: Color(0xFF829AB1)),
-          ),
-        ],
-      ),
-    ),
+  Widget build(BuildContext context) => const ItbEmptyState(
+    title: 'Nenhuma turma disponível neste dispositivo',
+    subtitle: 'Conecte-se e sincronize para baixar seus dados.',
+    icon: Icons.groups_outlined,
   );
 }

@@ -61,15 +61,25 @@ function displayRegistrationDate(value: string): string {
 }
 
 function RateChip({ row }: { row: StudentView }) {
-  return <Chip
-    size="small"
-    color={performanceTone(row.attendanceRate)}
-    variant={row.attendanceRecords ? 'filled' : 'outlined'}
-    label={`${row.attendanceRate.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`}
-  />;
+  return (
+    <Chip
+      size="small"
+      color={performanceTone(row.attendanceRate)}
+      variant={row.attendanceRecords ? 'filled' : 'outlined'}
+      label={`${row.attendanceRate.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`}
+      sx={{ fontWeight: 700, borderRadius: 2 }}
+    />
+  );
 }
 
-function StudentActions({ row, canEdit, canDelete, canInactivate, onEdit, onRemove }: {
+function StudentActions({
+  row,
+  canEdit,
+  canDelete,
+  canInactivate,
+  onEdit,
+  onRemove,
+}: {
   row: StudentView;
   canEdit: boolean;
   canDelete: boolean;
@@ -78,61 +88,141 @@ function StudentActions({ row, canEdit, canDelete, canInactivate, onEdit, onRemo
   onRemove: (row: StudentView) => void;
 }) {
   if (!canEdit && !canDelete && !canInactivate) return null;
-  return <Stack direction="row" justifyContent="flex-end">
-    {canEdit && <Tooltip title="Editar aluno"><IconButton aria-label={`Editar ${row.name}`} onClick={() => onEdit(row)}><EditOutlinedIcon /></IconButton></Tooltip>}
-    {canDelete && <Tooltip title="Excluir aluno"><IconButton color="error" aria-label={`Excluir ${row.name}`} onClick={() => onRemove(row)}><DeleteOutlineIcon /></IconButton></Tooltip>}
-    {canInactivate && <Tooltip title="Inativar aluno"><IconButton color="warning" aria-label={`Inativar ${row.name}`} onClick={() => onRemove(row)}><PersonOffOutlinedIcon /></IconButton></Tooltip>}
-  </Stack>;
+  return (
+    <Stack direction="row" justifyContent="flex-end" spacing={0.5}>
+      {canEdit && (
+        <Tooltip title="Editar aluno">
+          <IconButton aria-label={`Editar ${row.name}`} onClick={() => onEdit(row)} size="small">
+            <EditOutlinedIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      )}
+      {canDelete && (
+        <Tooltip title="Excluir aluno">
+          <IconButton color="error" aria-label={`Excluir ${row.name}`} onClick={() => onRemove(row)} size="small">
+            <DeleteOutlineIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      )}
+      {canInactivate && (
+        <Tooltip title="Inativar aluno">
+          <IconButton color="warning" aria-label={`Inativar ${row.name}`} onClick={() => onRemove(row)} size="small">
+            <PersonOffOutlinedIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      )}
+    </Stack>
+  );
 }
 
 function MobileStudentCard({ row, actions }: { row: StudentView; actions?: React.ReactNode }) {
-  return <Card variant="outlined">
-    <CardActionArea component={Link} to={`/alunos/${row.id}`} aria-label={`Abrir detalhes de ${row.name}`}>
-      <CardContent>
-        <Stack direction="row" gap={1.5} alignItems="flex-start">
-          <Avatar sx={{ bgcolor: 'primary.main' }}><PersonOutlineIcon /></Avatar>
-          <Box flex={1} minWidth={0}>
-            <Stack direction="row" gap={1} alignItems="center" justifyContent="space-between">
-              <Box minWidth={0}>
-                <Typography fontWeight={800} noWrap>{row.name}</Typography>
-                <Typography variant="body2" color="text.secondary">Matrícula {row.registrationNumber}</Typography>
-              </Box>
-              <Chip size="small" label={enrollmentStatusLabel(row.enrollmentStatus)} />
-            </Stack>
-            <Stack gap={0.5} mt={1.5}>
-              <Typography variant="body2"><strong>Turma:</strong> {row.className}</Typography>
-              <Typography variant="body2"><strong>Nascimento:</strong> {formatDate(row.birthDate) || '—'}</Typography>
-              <Typography variant="body2"><strong>Cadastro:</strong> {displayRegistrationDate(row.registrationDate)}</Typography>
-              {row.contact && <Typography variant="body2"><strong>Contato:</strong> {row.contact}</Typography>}
-              <Stack direction="row" alignItems="center" gap={1} mt={0.5}>
-                <Typography variant="body2" fontWeight={700}>Frequência</Typography><RateChip row={row} />
+  return (
+    <Card sx={{ border: '1px solid #E2E8F0', borderRadius: 2.5, overflow: 'hidden' }}>
+      <CardActionArea component={Link} to={`/alunos/${row.id}`} aria-label={`Abrir detalhes de ${row.name}`}>
+        <CardContent sx={{ p: 2 }}>
+          <Stack direction="row" gap={1.5} alignItems="flex-start">
+            <Avatar sx={{ bgcolor: '#EFF6FF', color: '#1976D2', width: 38, height: 38, borderRadius: 2, fontWeight: 700, fontSize: 15 }}>
+              {row.name.slice(0, 1).toUpperCase()}
+            </Avatar>
+            <Box flex={1} minWidth={0}>
+              <Stack direction="row" gap={1} alignItems="center" justifyContent="space-between">
+                <Box minWidth={0}>
+                  <Typography fontWeight={750} color="#0F172A" fontSize={14.5} noWrap>
+                    {row.name}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Matrícula {row.registrationNumber}
+                  </Typography>
+                </Box>
+                <Chip size="small" label={enrollmentStatusLabel(row.enrollmentStatus)} sx={{ fontWeight: 600, height: 20, fontSize: 10.5 }} />
               </Stack>
-            </Stack>
+              <Stack gap={0.4} mt={1.25}>
+                <Typography variant="caption" color="#475569" sx={{ fontSize: 12.5 }}>
+                  <strong style={{ color: '#0F172A' }}>Turma:</strong> {row.className}
+                </Typography>
+                <Typography variant="caption" color="#475569" sx={{ fontSize: 12.5 }}>
+                  <strong style={{ color: '#0F172A' }}>Nascimento:</strong> {formatDate(row.birthDate) || '—'}
+                </Typography>
+                <Typography variant="caption" color="#475569" sx={{ fontSize: 12.5 }}>
+                  <strong style={{ color: '#0F172A' }}>Cadastro:</strong> {displayRegistrationDate(row.registrationDate)}
+                </Typography>
+                {row.contact && (
+                  <Typography variant="caption" color="#475569" sx={{ fontSize: 12.5 }}>
+                    <strong style={{ color: '#0F172A' }}>Contato:</strong> {row.contact}
+                  </Typography>
+                )}
+                <Stack direction="row" alignItems="center" gap={1} mt={0.5}>
+                  <Typography variant="caption" fontWeight={700} color="#0F172A">
+                    Frequência:
+                  </Typography>
+                  <RateChip row={row} />
+                </Stack>
+              </Stack>
+            </Box>
+          </Stack>
+        </CardContent>
+      </CardActionArea>
+      {actions && (
+        <>
+          <Divider sx={{ borderColor: '#F1F5F9' }} />
+          <Box px={1.5} py={0.5}>
+            {actions}
           </Box>
-        </Stack>
-      </CardContent>
-    </CardActionArea>
-    {actions && <><Divider /><Box px={1} py={0.5}>{actions}</Box></>}
-  </Card>;
+        </>
+      )}
+    </Card>
+  );
 }
 
 function StudentTable({ rows, renderActions }: { rows: StudentView[]; renderActions: (row: StudentView) => React.ReactNode }) {
-  return <Card variant="outlined"><TableContainer><Table>
-    <TableHead><TableRow>
-      <TableCell>Matrícula</TableCell><TableCell>Nome</TableCell><TableCell>Turma</TableCell><TableCell>Nascimento</TableCell><TableCell>Cadastro</TableCell><TableCell>Contato</TableCell><TableCell>Situação</TableCell><TableCell>Taxa</TableCell><TableCell align="right">Ações</TableCell>
-    </TableRow></TableHead>
-    <TableBody>{rows.map((row) => <TableRow key={row.key} hover>
-      <TableCell>{row.registrationNumber}</TableCell>
-      <TableCell><Button component={Link} to={`/alunos/${row.id}`} sx={{ px: 0, fontWeight: 800, textAlign: 'left' }}>{row.name}</Button></TableCell>
-      <TableCell>{row.className}</TableCell>
-      <TableCell>{formatDate(row.birthDate) || '—'}</TableCell>
-      <TableCell>{displayRegistrationDate(row.registrationDate)}</TableCell>
-      <TableCell>{row.contact || '—'}</TableCell>
-      <TableCell><Chip size="small" label={enrollmentStatusLabel(row.enrollmentStatus)} /></TableCell>
-      <TableCell><RateChip row={row} /></TableCell>
-      <TableCell align="right">{renderActions(row)}</TableCell>
-    </TableRow>)}</TableBody>
-  </Table></TableContainer></Card>;
+  return (
+    <Card sx={{ border: '1px solid #E2E8F0', borderRadius: 2.5 }}>
+      <TableContainer>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>Matrícula</TableCell>
+              <TableCell>Nome</TableCell>
+              <TableCell>Turma</TableCell>
+              <TableCell>Nascimento</TableCell>
+              <TableCell>Cadastro</TableCell>
+              <TableCell>Contato</TableCell>
+              <TableCell>Situação</TableCell>
+              <TableCell>Taxa</TableCell>
+              <TableCell align="right">Ações</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {rows.map((row) => (
+              <TableRow key={row.key} hover>
+                <TableCell sx={{ fontWeight: 600, color: '#64748B', fontSize: 12.5 }}>{row.registrationNumber}</TableCell>
+                <TableCell>
+                  <Button
+                    component={Link}
+                    to={`/alunos/${row.id}`}
+                    sx={{ px: 0, fontWeight: 700, color: '#1976D2', textAlign: 'left', minWidth: 0, '&:hover': { bgcolor: 'transparent', textDecoration: 'underline' } }}
+                  >
+                    {row.name}
+                  </Button>
+                </TableCell>
+                <TableCell sx={{ fontWeight: 500 }}>{row.className}</TableCell>
+                <TableCell sx={{ color: '#475569' }}>{formatDate(row.birthDate) || '—'}</TableCell>
+                <TableCell sx={{ color: '#475569' }}>{displayRegistrationDate(row.registrationDate)}</TableCell>
+                <TableCell sx={{ color: '#475569' }}>{row.contact || '—'}</TableCell>
+                <TableCell>
+                  <Chip size="small" label={enrollmentStatusLabel(row.enrollmentStatus)} sx={{ fontWeight: 600, height: 20, fontSize: 10.5 }} />
+                </TableCell>
+                <TableCell>
+                  <RateChip row={row} />
+                </TableCell>
+                <TableCell align="right">{renderActions(row)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Card>
+  );
 }
 
 export function StudentsPage() {
@@ -259,57 +349,181 @@ export function StudentsPage() {
     }
   };
 
-  const actions = (row: StudentView) => <StudentActions
-    row={row}
-    canEdit={permissions.canEdit}
-    canDelete={permissions.canDelete}
-    canInactivate={permissions.canInactivate}
-    onEdit={startEdit}
-    onRemove={(value) => void remove(value)}
-  />;
+  const actions = (row: StudentView) => (
+    <StudentActions
+      row={row}
+      canEdit={permissions.canEdit}
+      canDelete={permissions.canDelete}
+      canInactivate={permissions.canInactivate}
+      onEdit={startEdit}
+      onRemove={(value) => void remove(value)}
+    />
+  );
 
-  return <Section title="Alunos" action={permissions.canCreate
-    ? <Button startIcon={<AddIcon />} variant="contained" disabled={!visibleClasses.length} onClick={startCreate}>Novo aluno</Button>
-    : undefined}>
-    {permissions.readOnly && <Alert severity="info">Você está vendo somente os alunos das turmas atribuídas ao seu perfil.</Alert>}
-    {notice && <Alert severity="warning" onClose={() => setNotice(undefined)}>{notice}</Alert>}
-    <Stack direction={{ xs: 'column', lg: 'row' }} gap={1.5} flexWrap="wrap">
-      <Box sx={{ width: { xs: '100%', lg: 280 } }}><SelectField label="Turma" value={classFilter} onChange={setClassFilter} options={[{ value: '', label: 'Todas as turmas' }, ...visibleClasses.map((item) => ({ value: item.id, label: text(item, 'name') }))]} /></Box>
-      <TextField
-        label="Buscar aluno ou matrícula"
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        sx={{ width: { xs: '100%', lg: 300 } }}
-        InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> }}
-      />
-      {!permissions.readOnly && <Box sx={{ width: { xs: '100%', lg: 260 } }}><SelectField label="Professor" value={teacherFilter} onChange={setTeacherFilter} options={[{ value: '', label: 'Todos os professores' }, ...activeTeachers.map((item) => ({ value: item.id, label: text(item, 'name') }))]} /></Box>}
-      <Box sx={{ width: { xs: '100%', lg: 210 } }}><SelectField label="Desempenho" value={performance} onChange={(value) => setPerformance(value as PerformanceFilter)} options={[
-        { value: '', label: 'Todos' },
-        { value: 'critical', label: 'Crítico (<75%)' },
-        { value: 'attention', label: 'Atenção (75–85%)' },
-        { value: 'regular', label: 'Regular (>85%)' },
-      ]} /></Box>
-      <Box sx={{ width: { xs: '100%', lg: 190 } }}><SelectField label="Matrícula" value={status} onChange={setStatus} options={[
-        { value: '', label: 'Todos os alunos' },
-        { value: 'ativa', label: 'Ativa' },
-        { value: 'trancada', label: 'Trancada' },
-        { value: 'concluida', label: 'Concluída' },
-      ]} /></Box>
-    </Stack>
-    {loading && <LinearProgress aria-label="Carregando alunos" />}
-    {!loading && !shown.length && <Card variant="outlined"><CardContent sx={{ py: 5, textAlign: 'center' }}><Typography color="text.secondary">Nenhum aluno corresponde aos filtros.</Typography></CardContent></Card>}
-    {!loading && shown.length > 0 && (compact
-      ? <Stack gap={1.5} data-testid="mobile-student-list">{shown.map((row) => <MobileStudentCard key={row.key} row={row} actions={actions(row)} />)}</Stack>
-      : <StudentTable rows={shown} renderActions={actions} />)}
-    <PageDialog open={Boolean(editing)} title={editing === 'new' ? 'Novo aluno' : 'Editar aluno'} onClose={() => !busy && setEditing(undefined)} onSave={() => void save()} saveText={busy ? 'Salvando…' : 'Salvar'}>
-      {formError && <Alert severity="error">{formError}</Alert>}
-      <SelectField label="Turma *" value={draft.classId} onChange={(classId) => setDraft({ ...draft, classId })} options={visibleClasses.map((item) => ({ value: item.id, label: text(item, 'name') }))} />
-      <TextField required label="Nome completo" value={draft.name} inputProps={{ maxLength: 160 }} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
-      <TextField required label="Matrícula" value={draft.registrationNumber} inputProps={{ maxLength: 40 }} onChange={(event) => setDraft({ ...draft, registrationNumber: event.target.value })} />
-      <TextField label="CPF" value={draft.cpf} inputProps={{ maxLength: 20 }} onChange={(event) => setDraft({ ...draft, cpf: event.target.value })} />
-      <TextField label="Contato" value={draft.contact} inputProps={{ maxLength: 200 }} onChange={(event) => setDraft({ ...draft, contact: event.target.value })} />
-      <DateField label="Data de nascimento" value={draft.birthDate} onChange={(birthDate) => setDraft({ ...draft, birthDate })} />
-      {editing !== 'new' && <TextField label="Data de cadastro" value={displayRegistrationDate(editing?.registrationDate ?? '')} disabled />}
-    </PageDialog>
-  </Section>;
+  return (
+    <Section
+      title="Alunos"
+      subtitle="Cadastro de alunos, matrículas e acompanhamento de frequência"
+      action={
+        permissions.canCreate ? (
+          <Button
+            startIcon={<AddIcon />}
+            variant="contained"
+            disabled={!visibleClasses.length}
+            onClick={startCreate}
+            sx={{ px: 2.25, py: 0.8, borderRadius: 2, fontWeight: 650 }}
+          >
+            Novo aluno
+          </Button>
+        ) : undefined
+      }
+    >
+      {permissions.readOnly && (
+        <Alert severity="info" sx={{ borderRadius: 2 }}>
+          Você está vendo somente os alunos das turmas atribuídas ao seu perfil.
+        </Alert>
+      )}
+      {notice && (
+        <Alert severity="warning" onClose={() => setNotice(undefined)} sx={{ borderRadius: 2 }}>
+          {notice}
+        </Alert>
+      )}
+
+      <Card sx={{ border: '1px solid #E2E8F0', borderRadius: 3 }}>
+        <CardContent sx={{ p: { xs: 2, md: 2.25 }, '&:last-child': { pb: { xs: 2, md: 2.25 } } }}>
+          <Stack direction={{ xs: 'column', lg: 'row' }} gap={1.5} flexWrap="wrap">
+            <Box sx={{ width: { xs: '100%', lg: 260 } }}>
+              <SelectField
+                label="Turma"
+                value={classFilter}
+                onChange={setClassFilter}
+                options={[{ value: '', label: 'Todas as turmas' }, ...visibleClasses.map((item) => ({ value: item.id, label: text(item, 'name') }))]}
+              />
+            </Box>
+            <TextField
+              size="small"
+              label="Buscar aluno ou matrícula"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              sx={{ flex: 1, minWidth: { xs: '100%', lg: 240 } }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon color="action" fontSize="small" />
+                  </InputAdornment>
+                ),
+              }}
+            />
+            {!permissions.readOnly && (
+              <Box sx={{ width: { xs: '100%', lg: 220 } }}>
+                <SelectField
+                  label="Professor"
+                  value={teacherFilter}
+                  onChange={setTeacherFilter}
+                  options={[{ value: '', label: 'Todos os professores' }, ...activeTeachers.map((item) => ({ value: item.id, label: text(item, 'name') }))]}
+                />
+              </Box>
+            )}
+            <Box sx={{ width: { xs: '100%', sm: 180 } }}>
+              <SelectField
+                label="Desempenho"
+                value={performance}
+                onChange={(value) => setPerformance(value as PerformanceFilter)}
+                options={[
+                  { value: '', label: 'Todos' },
+                  { value: 'critical', label: 'Crítico (<75%)' },
+                  { value: 'attention', label: 'Atenção (75–85%)' },
+                  { value: 'regular', label: 'Regular (>85%)' },
+                ]}
+              />
+            </Box>
+            <Box sx={{ width: { xs: '100%', sm: 160 } }}>
+              <SelectField
+                label="Matrícula"
+                value={status}
+                onChange={setStatus}
+                options={[
+                  { value: '', label: 'Todos os alunos' },
+                  { value: 'ativa', label: 'Ativa' },
+                  { value: 'trancada', label: 'Trancada' },
+                  { value: 'concluida', label: 'Concluída' },
+                ]}
+              />
+            </Box>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      {loading && <LinearProgress aria-label="Carregando alunos" sx={{ height: 2 }} />}
+      {!loading && !shown.length && (
+        <Card sx={{ border: '1px solid #E2E8F0', borderRadius: 3 }}>
+          <CardContent sx={{ py: 6, textAlign: 'center' }}>
+            <Typography color="text.secondary" fontWeight={600}>
+              Nenhum aluno corresponde aos filtros.
+            </Typography>
+          </CardContent>
+        </Card>
+      )}
+
+      {!loading &&
+        shown.length > 0 &&
+        (compact ? (
+          <Stack gap={1.25} data-testid="mobile-student-list">
+            {shown.map((row) => (
+              <MobileStudentCard key={row.key} row={row} actions={actions(row)} />
+            ))}
+          </Stack>
+        ) : (
+          <StudentTable rows={shown} renderActions={actions} />
+        ))}
+
+      <PageDialog
+        open={Boolean(editing)}
+        title={editing === 'new' ? 'Novo aluno' : 'Editar aluno'}
+        onClose={() => !busy && setEditing(undefined)}
+        onSave={() => void save()}
+        saveText={busy ? 'Salvando…' : 'Salvar'}
+      >
+        {formError && <Alert severity="error" sx={{ borderRadius: 2 }}>{formError}</Alert>}
+        <SelectField
+          label="Turma *"
+          value={draft.classId}
+          onChange={(classId) => setDraft({ ...draft, classId })}
+          options={visibleClasses.map((item) => ({ value: item.id, label: text(item, 'name') }))}
+        />
+        <TextField
+          required
+          size="small"
+          label="Nome completo"
+          value={draft.name}
+          inputProps={{ maxLength: 160 }}
+          onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+        />
+        <TextField
+          required
+          size="small"
+          label="Matrícula"
+          value={draft.registrationNumber}
+          inputProps={{ maxLength: 40 }}
+          onChange={(event) => setDraft({ ...draft, registrationNumber: event.target.value })}
+        />
+        <TextField
+          size="small"
+          label="CPF"
+          value={draft.cpf}
+          inputProps={{ maxLength: 20 }}
+          onChange={(event) => setDraft({ ...draft, cpf: event.target.value })}
+        />
+        <TextField
+          size="small"
+          label="Contato"
+          value={draft.contact}
+          inputProps={{ maxLength: 200 }}
+          onChange={(event) => setDraft({ ...draft, contact: event.target.value })}
+        />
+        <DateField label="Data de nascimento" value={draft.birthDate} onChange={(birthDate) => setDraft({ ...draft, birthDate })} />
+        {editing !== 'new' && <TextField size="small" label="Data de cadastro" value={displayRegistrationDate(editing?.registrationDate ?? '')} disabled />}
+      </PageDialog>
+    </Section>
+  );
 }

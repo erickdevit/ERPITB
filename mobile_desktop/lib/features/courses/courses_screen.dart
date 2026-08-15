@@ -7,6 +7,7 @@ import '../../core/database/local_repository.dart';
 import '../../core/models/models.dart';
 import '../../core/sync/sync_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/itb_components.dart';
 import '../auth/auth_controller.dart';
 
 class CoursesScreen extends StatefulWidget {
@@ -48,55 +49,32 @@ class _CoursesScreenState extends State<CoursesScreen> {
     return ListView(
       padding: EdgeInsets.all(compact ? 16 : 24),
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Cursos',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: ItbColors.navy,
-                      ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Gestão de cursos cadastrados',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.grey[600],
-                      ),
-                ),
-              ],
-            ),
-            if (isAdmin)
-              FilledButton.icon(
-                onPressed: () => _courseDialog(context),
-                icon: const Icon(Icons.add),
-                label: const Text('Novo curso'),
-              ),
-          ],
+        ItbPageHeader(
+          title: 'Cursos',
+          subtitle: 'Gestão de cursos cadastrados',
+          action: isAdmin
+              ? FilledButton.icon(
+                  onPressed: () => _courseDialog(context),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Novo curso'),
+                )
+              : null,
         ),
         const SizedBox(height: 16),
-        SizedBox(
-          width: compact ? double.infinity : 360,
-          child: TextField(
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.search),
-              labelText: 'Buscar curso por nome',
-            ),
-            onChanged: (value) {
-              debounce?.cancel();
-              debounce = Timer(const Duration(milliseconds: 350), () {
-                if (mounted) setState(() => search = value);
-              });
-            },
-          ),
+        ItbFilterCard(
+          searchHint: 'Buscar curso por nome',
+          searchValue: search,
+          onSearchChanged: (val) => setState(() => search = val),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
         if (courses.isEmpty)
-          const _EmptyCoursesState()
+          const Card(
+            child: ItbEmptyState(
+              title: 'Nenhum curso encontrado',
+              subtitle: 'Cadastre os cursos oferecidos pela instituição.',
+              icon: Icons.menu_book_outlined,
+            ),
+          )
         else
           for (final course in courses)
             Padding(
@@ -109,11 +87,18 @@ class _CoursesScreenState extends State<CoursesScreen> {
                   ),
                   child: Row(
                     children: [
-                      CircleAvatar(
-                        backgroundColor: ItbColors.cyan.withValues(alpha: .15),
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: ItbColors.cyanLight,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        alignment: Alignment.center,
                         child: const Icon(
                           Icons.menu_book,
                           color: ItbColors.navy,
+                          size: 22,
                         ),
                       ),
                       const SizedBox(width: 14),
@@ -122,7 +107,8 @@ class _CoursesScreenState extends State<CoursesScreen> {
                           course['name'] as String? ?? '',
                           style: const TextStyle(
                             fontWeight: FontWeight.w700,
-                            fontSize: 16,
+                            fontSize: 15,
+                            color: ItbColors.navy,
                           ),
                         ),
                       ),
@@ -130,13 +116,17 @@ class _CoursesScreenState extends State<CoursesScreen> {
                         IconButton(
                           tooltip: 'Editar curso',
                           onPressed: () => _courseDialog(context, course: course),
-                          icon: const Icon(Icons.edit_outlined),
+                          icon: const Icon(Icons.edit_outlined, size: 20),
                         ),
                         if (isAdmin)
                           IconButton(
                             tooltip: 'Excluir curso',
                             onPressed: () => _deleteCourse(repository, course),
-                            icon: const Icon(Icons.delete_outline),
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              color: ItbColors.red,
+                              size: 20,
+                            ),
                           ),
                       ],
                     ],
@@ -247,35 +237,5 @@ class _CoursesScreenState extends State<CoursesScreen> {
         }
       }
     }
-  }
-}
-
-class _EmptyCoursesState extends StatelessWidget {
-  const _EmptyCoursesState();
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 40),
-      child: Center(
-        child: Column(
-          children: [
-            Icon(
-              Icons.menu_book_outlined,
-              size: 48,
-              color: Colors.grey[400],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Nenhum curso encontrado',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[600],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }

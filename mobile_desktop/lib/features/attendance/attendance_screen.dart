@@ -9,6 +9,7 @@ import '../../core/database/local_repository.dart';
 import '../../core/models/models.dart';
 import '../../core/sync/sync_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/itb_components.dart';
 import '../auth/auth_controller.dart';
 
 class AttendanceScreen extends StatefulWidget {
@@ -70,6 +71,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           .toLowerCase()
           .contains(term);
     }).toList();
+
     return Column(
       children: [
         Padding(
@@ -79,97 +81,95 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             compact ? 16 : 24,
             12,
           ),
-          child: compact
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _attendanceTitle(context),
-                    const SizedBox(height: 12),
-                    FilledButton.icon(
-                      onPressed: allowed && drafts.isNotEmpty
-                          ? () => _save(repository, user)
-                          : null,
-                      icon: const Icon(Icons.save_outlined),
-                      label: const Text('Salvar chamada'),
-                    ),
-                  ],
-                )
-              : Row(
-                  children: [
-                    Expanded(child: _attendanceTitle(context)),
-                    FilledButton.icon(
-                      onPressed: allowed && drafts.isNotEmpty
-                          ? () => _save(repository, user)
-                          : null,
-                      icon: const Icon(Icons.save_outlined),
-                      label: const Text('Salvar chamada'),
-                    ),
-                  ],
-                ),
+          child: ItbPageHeader(
+            title: 'Lançamento de frequência',
+            subtitle: 'P = presente, F = falta, J = justificada e A = atraso.',
+            action: FilledButton.icon(
+              onPressed: allowed && drafts.isNotEmpty
+                  ? () => _save(repository, user)
+                  : null,
+              icon: const Icon(Icons.save_outlined, size: 18),
+              label: const Text('Salvar chamada'),
+            ),
+          ),
         ),
         Padding(
           padding: EdgeInsets.symmetric(
             horizontal: compact ? 16 : 24,
             vertical: 4,
           ),
-          child: TextField(
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.search),
-              labelText: 'Buscar aluno na chamada',
-            ),
-            onChanged: (value) {
-              debounce?.cancel();
-              debounce = Timer(const Duration(milliseconds: 350), () {
-                if (mounted) setState(() => search = value);
-              });
-            },
-          ),
-        ),
-        Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: compact ? 16 : 24,
-            vertical: 8,
-          ),
-          child: Flex(
-            direction: compact ? Axis.vertical : Axis.horizontal,
-            crossAxisAlignment: compact
-                ? CrossAxisAlignment.stretch
-                : CrossAxisAlignment.center,
-            children: [
-              if (compact)
-                DropdownButtonFormField<String>(
-                  initialValue: classId,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Turma'),
-                  items: _classItems(classes),
-                  onChanged: (value) => setState(() {
-                    classId = value;
-                    _load(repository);
-                  }),
-                )
-              else
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    initialValue: classId,
-                    isExpanded: true,
-                    decoration: const InputDecoration(labelText: 'Turma'),
-                    items: _classItems(classes),
-                    onChanged: (value) => setState(() {
-                      classId = value;
-                      _load(repository);
-                    }),
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                children: [
+                  TextField(
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      prefixIcon: Icon(Icons.search, size: 20),
+                      labelText: 'Buscar aluno na chamada',
+                    ),
+                    onChanged: (value) {
+                      debounce?.cancel();
+                      debounce = Timer(const Duration(milliseconds: 350), () {
+                        if (mounted) setState(() => search = value);
+                      });
+                    },
                   ),
-                ),
-              SizedBox(width: compact ? 0 : 12, height: compact ? 10 : 0),
-              OutlinedButton.icon(
-                onPressed: () => _pickDate(repository),
-                icon: const Icon(Icons.calendar_month_outlined),
-                label: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  child: Text(DateFormat('dd/MM/yyyy').format(date)),
-                ),
+                  const SizedBox(height: 10),
+                  Flex(
+                    direction: compact ? Axis.vertical : Axis.horizontal,
+                    crossAxisAlignment: compact
+                        ? CrossAxisAlignment.stretch
+                        : CrossAxisAlignment.center,
+                    children: [
+                      if (compact)
+                        DropdownButtonFormField<String>(
+                          initialValue: classId,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            labelText: 'Turma',
+                          ),
+                          items: _classItems(classes),
+                          onChanged: (value) => setState(() {
+                            classId = value;
+                            _load(repository);
+                          }),
+                        )
+                      else
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue: classId,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              isDense: true,
+                              labelText: 'Turma',
+                            ),
+                            items: _classItems(classes),
+                            onChanged: (value) => setState(() {
+                              classId = value;
+                              _load(repository);
+                            }),
+                          ),
+                        ),
+                      SizedBox(
+                        width: compact ? 0 : 12,
+                        height: compact ? 10 : 0,
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () => _pickDate(repository),
+                        icon: const Icon(Icons.calendar_month_outlined, size: 18),
+                        label: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: Text(DateFormat('dd/MM/yyyy').format(date)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
         if (!allowed)
@@ -180,16 +180,22 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             ),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: ItbColors.orange.withValues(alpha: .12),
+              color: ItbColors.orangeBg,
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: ItbColors.orange.withValues(alpha: 0.3)),
             ),
             child: const Row(
               children: [
-                Icon(Icons.lock_clock_outlined, color: ItbColors.orange),
+                Icon(Icons.lock_clock_outlined, color: ItbColors.orange, size: 20),
                 SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'Uma chamada nova só abre no dia da aula; chamadas existentes ficam editáveis por sete dias.',
+                    style: TextStyle(
+                      color: Color(0xFFB45309),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
               ],
@@ -198,7 +204,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         Padding(
           padding: EdgeInsets.symmetric(
             horizontal: compact ? 16 : 24,
-            vertical: 8,
+            vertical: 6,
           ),
           child: TextField(
             controller: generalNotes,
@@ -206,15 +212,18 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             maxLength: 2000,
             maxLines: 2,
             decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.notes),
+              isDense: true,
+              prefixIcon: Icon(Icons.notes, size: 20),
               labelText: 'Observação geral da turma nesta chamada',
             ),
           ),
         ),
         Expanded(
           child: drafts.isEmpty
-              ? const Center(
-                  child: Text('Selecione uma turma com matrículas ativas.'),
+              ? const ItbEmptyState(
+                  title: 'Nenhuma turma selecionada',
+                  subtitle: 'Selecione uma turma com matrículas ativas para carregar a lista de chamada.',
+                  icon: Icons.fact_check_outlined,
                 )
               : ListView.separated(
                   padding: EdgeInsets.all(compact ? 16 : 24),
@@ -239,7 +248,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       maxLines: 2,
                       decoration: const InputDecoration(
                         isDense: true,
-                        prefixIcon: Icon(Icons.edit_note),
+                        prefixIcon: Icon(Icons.edit_note, size: 20),
                         labelText: 'Anotação do aluno',
                       ),
                       onChanged: (value) => drafts[draftIndex] =
@@ -248,8 +257,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     return Card(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 18,
-                          vertical: 10,
+                          horizontal: 16,
+                          vertical: 12,
                         ),
                         child: Column(
                           children: [
@@ -272,7 +281,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                 ],
                               ),
                             if (expandedNotes.contains(draft.student.id)) ...[
-                              const SizedBox(height: 10),
+                              const SizedBox(height: 12),
                               if (compact)
                                 Column(
                                   crossAxisAlignment:
@@ -286,7 +295,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                           user,
                                           draftIndex,
                                         ),
-                                        icon: const Icon(Icons.save_outlined),
+                                        icon: const Icon(
+                                          Icons.save_outlined,
+                                          size: 18,
+                                        ),
                                         label: const Text('Salvar anotação'),
                                       ),
                                   ],
@@ -304,7 +316,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                           user,
                                           draftIndex,
                                         ),
-                                        icon: const Icon(Icons.save_outlined),
+                                        icon: const Icon(
+                                          Icons.save_outlined,
+                                          size: 18,
+                                        ),
                                         label: const Text('Salvar anotação'),
                                       ),
                                     ],
@@ -322,20 +337,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     );
   }
 
-  Widget _attendanceTitle(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        'Lançamento de frequência',
-        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.w800,
-          color: ItbColors.navy,
-        ),
-      ),
-      const Text('P = presente, F = falta, J = justificada e A = atraso.'),
-    ],
-  );
-
   List<DropdownMenuItem<String>> _classItems(List<ClassSummary> classes) => [
     for (final item in classes)
       DropdownMenuItem(
@@ -349,8 +350,22 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
   Widget _studentIdentity(AttendanceDraft draft) => Row(
     children: [
-      CircleAvatar(
-        child: Text(draft.student.name.substring(0, 1).toUpperCase()),
+      Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: ItbColors.blueLight,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          draft.student.name.substring(0, 1).toUpperCase(),
+          style: const TextStyle(
+            color: ItbColors.blue,
+            fontWeight: FontWeight.w800,
+            fontSize: 16,
+          ),
+        ),
       ),
       const SizedBox(width: 12),
       Expanded(
@@ -361,11 +376,19 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               draft.student.name,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w700),
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                color: ItbColors.navy,
+                fontSize: 14,
+              ),
             ),
+            const SizedBox(height: 1),
             Text(
-              draft.student.registrationNumber,
-              style: const TextStyle(color: Color(0xFF829AB1)),
+              'Matrícula: ${draft.student.registrationNumber}',
+              style: const TextStyle(
+                color: ItbColors.textSecondary,
+                fontSize: 12,
+              ),
             ),
           ],
         ),
@@ -382,6 +405,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     children: [
       SegmentedButton<AttendanceStatus>(
         showSelectedIcon: false,
+        style: ButtonStyle(
+          visualDensity: VisualDensity.compact,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
         segments: const [
           ButtonSegment(value: AttendanceStatus.present, label: Text('P')),
           ButtonSegment(value: AttendanceStatus.absent, label: Text('F')),
@@ -403,7 +430,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               }
             : null,
       ),
-      const SizedBox(width: 4),
+      const SizedBox(width: 6),
       IconButton(
         tooltip: expandedNotes.contains(draft.student.id)
             ? 'Fechar anotação'
@@ -417,6 +444,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           draft.notes?.trim().isNotEmpty == true
               ? Icons.note_alt
               : Icons.note_alt_outlined,
+          color: draft.notes?.trim().isNotEmpty == true
+              ? ItbColors.blue
+              : ItbColors.textMuted,
+          size: 20,
         ),
       ),
     ],
@@ -442,15 +473,19 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               children: [
                 const Text(
                   'Escolha a data e horário para a reposição:',
-                  style: TextStyle(fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: ItbColors.navy,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.calendar_today),
+                  leading: const Icon(Icons.calendar_today, color: ItbColors.blue),
                   title: const Text('Data da reposição'),
                   subtitle: Text(
                     '${repDate.day.toString().padLeft(2, '0')}/${repDate.month.toString().padLeft(2, '0')}/${repDate.year}',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                   onTap: () async {
                     final picked = await showDatePicker(
@@ -466,10 +501,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.access_time),
+                  leading: const Icon(Icons.access_time, color: ItbColors.blue),
                   title: const Text('Horário da reposição'),
                   subtitle: Text(
                     '${repTime.hour.toString().padLeft(2, '0')}:${repTime.minute.toString().padLeft(2, '0')}',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                   onTap: () async {
                     final picked = await showTimePicker(

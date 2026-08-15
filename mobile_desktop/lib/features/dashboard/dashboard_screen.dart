@@ -7,6 +7,7 @@ import '../../core/database/local_repository.dart';
 import '../../core/models/models.dart';
 import '../../core/sync/sync_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/itb_components.dart';
 import '../auth/auth_controller.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -38,6 +39,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       from: from,
       to: to,
     );
+
     return RefreshIndicator(
       onRefresh: context.read<SyncService>().synchronize,
       child: ListView(
@@ -45,87 +47,108 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           _Welcome(session: session),
           const SizedBox(height: 16),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              ChoiceChip(
-                label: const Text('7 dias'),
-                selected: _isPreset(7),
-                onSelected: (_) => setState(() {
-                  from = DateTime.now().subtract(const Duration(days: 6));
-                  to = DateTime.now();
-                }),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  const Text(
+                    'Período:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: ItbColors.navy,
+                      fontSize: 13,
+                    ),
+                  ),
+                  ChoiceChip(
+                    label: const Text('7 dias'),
+                    selected: _isPreset(7),
+                    onSelected: (_) => setState(() {
+                      from = DateTime.now().subtract(const Duration(days: 6));
+                      to = DateTime.now();
+                    }),
+                  ),
+                  ChoiceChip(
+                    label: const Text('30 dias'),
+                    selected: _isPreset(30),
+                    onSelected: (_) => setState(() {
+                      from = DateTime.now().subtract(const Duration(days: 29));
+                      to = DateTime.now();
+                    }),
+                  ),
+                  ChoiceChip(
+                    label: const Text('90 dias'),
+                    selected: _isPreset(90),
+                    onSelected: (_) => setState(() {
+                      from = DateTime.now().subtract(const Duration(days: 89));
+                      to = DateTime.now();
+                    }),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _period,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                    ),
+                    icon: const Icon(Icons.date_range, size: 16),
+                    label: Text(
+                      '${DateFormat('dd/MM/yy').format(from)} – ${DateFormat('dd/MM/yy').format(to)}',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ],
               ),
-              ChoiceChip(
-                label: const Text('30 dias'),
-                selected: _isPreset(30),
-                onSelected: (_) => setState(() {
-                  from = DateTime.now().subtract(const Duration(days: 29));
-                  to = DateTime.now();
-                }),
-              ),
-              ChoiceChip(
-                label: const Text('90 dias'),
-                selected: _isPreset(90),
-                onSelected: (_) => setState(() {
-                  from = DateTime.now().subtract(const Duration(days: 89));
-                  to = DateTime.now();
-                }),
-              ),
-              OutlinedButton.icon(
-                onPressed: _period,
-                icon: const Icon(Icons.date_range),
-                label: Text(
-                  '${DateFormat('dd/MM/yy').format(from)} – ${DateFormat('dd/MM/yy').format(to)}',
-                ),
-              ),
-            ],
+            ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           LayoutBuilder(
             builder: (context, constraints) {
               final cardWidth = compact
                   ? (constraints.maxWidth - 12) / 2
-                  : 230.0;
+                  : (constraints.maxWidth - 48) / 5;
               return Wrap(
-                spacing: compact ? 12 : 16,
-                runSpacing: compact ? 12 : 16,
+                spacing: compact ? 12 : 12,
+                runSpacing: compact ? 12 : 12,
                 children: [
-                  _MetricCard(
-                    width: cardWidth,
+                  ItbMetricCard(
+                    width: cardWidth.clamp(140.0, 320.0),
                     compact: compact,
                     label: 'Frequência média',
                     value: '${data.globalRate.toStringAsFixed(1)}%',
                     icon: Icons.donut_large,
                     color: ItbColors.green,
                   ),
-                  _MetricCard(
-                    width: cardWidth,
+                  ItbMetricCard(
+                    width: cardWidth.clamp(140.0, 320.0),
                     compact: compact,
                     label: 'Presenças',
                     value: '${data.present}',
                     icon: Icons.check_circle_outline,
                     color: ItbColors.blue,
                   ),
-                  _MetricCard(
-                    width: cardWidth,
+                  ItbMetricCard(
+                    width: cardWidth.clamp(140.0, 320.0),
                     compact: compact,
                     label: 'Faltas',
                     value: '${data.absent}',
                     icon: Icons.cancel_outlined,
                     color: ItbColors.red,
                   ),
-                  _MetricCard(
-                    width: cardWidth,
+                  ItbMetricCard(
+                    width: cardWidth.clamp(140.0, 320.0),
                     compact: compact,
                     label: 'Atrasos',
                     value: '${data.delayed}',
                     icon: Icons.schedule,
                     color: ItbColors.orange,
                   ),
-                  _MetricCard(
-                    width: cardWidth,
+                  ItbMetricCard(
+                    width: cardWidth.clamp(140.0, 320.0),
                     compact: compact,
                     label: 'Risco de evasão',
                     value: '${data.riskStudents}',
@@ -180,7 +203,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               return constraints.maxWidth >= 850
                   ? Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [cards[0], const SizedBox(width: 16), cards[1]],
+                      children: [
+                        cards[0],
+                        const SizedBox(width: 16),
+                        cards[1],
+                      ],
                     )
                   : Column(
                       children: [
@@ -222,95 +249,21 @@ class _Welcome extends StatelessWidget {
       Text(
         'Olá, ${session.name.split(' ').first}',
         style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-          fontWeight: FontWeight.w800,
-          color: ItbColors.navy,
-        ),
+              fontWeight: FontWeight.w800,
+              color: ItbColors.navy,
+            ),
       ),
       const SizedBox(height: 4),
       Text(
         session.role == UserRole.professor
-            ? 'Acompanhe hoje suas turmas e alunos.'
-            : 'Panorama pedagógico da instituição.',
-      ),
-    ],
-  );
-}
-
-class _MetricCard extends StatelessWidget {
-  const _MetricCard({
-    required this.width,
-    required this.compact,
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
-  final double width;
-  final bool compact;
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color color;
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    width: width,
-    child: Card(
-      child: Padding(
-        padding: EdgeInsets.all(compact ? 14 : 20),
-        child: Flex(
-          direction: compact ? Axis.vertical : Axis.horizontal,
-          crossAxisAlignment: compact
-              ? CrossAxisAlignment.start
-              : CrossAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: .12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: color),
-            ),
-            SizedBox(width: compact ? 0 : 14, height: compact ? 10 : 0),
-            if (compact)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    value,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      color: ItbColors.navy,
-                    ),
-                  ),
-                  Text(label, style: const TextStyle(color: Color(0xFF627D98))),
-                ],
-              )
-            else
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      value,
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                        color: ItbColors.navy,
-                      ),
-                    ),
-                    Text(
-                      label,
-                      style: const TextStyle(color: Color(0xFF627D98)),
-                    ),
-                  ],
-                ),
-              ),
-          ],
+            ? 'Acompanhe hoje suas turmas e o engajamento dos seus alunos.'
+            : 'Panorama pedagógico e indicadores de frequência da instituição.',
+        style: const TextStyle(
+          color: ItbColors.textSecondary,
+          fontSize: 14,
         ),
       ),
-    ),
+    ],
   );
 }
 
@@ -334,15 +287,19 @@ class _ChartCard extends StatelessWidget {
             title,
             style: const TextStyle(
               fontWeight: FontWeight.w800,
-              fontSize: 17,
+              fontSize: 16,
               color: ItbColors.navy,
             ),
           ),
+          const SizedBox(height: 2),
           Text(
             subtitle,
-            style: const TextStyle(color: Color(0xFF829AB1), fontSize: 12),
+            style: const TextStyle(
+              color: ItbColors.textSecondary,
+              fontSize: 12,
+            ),
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: 18),
           Expanded(child: child),
         ],
       ),
@@ -358,7 +315,7 @@ class _EvolutionChart extends StatelessWidget {
     height: 340,
     child: _ChartCard(
       title: 'Evolução da presença',
-      subtitle: 'Presença no período selecionado',
+      subtitle: 'Taxa média de frequência no período selecionado',
       child: data.evolution.isEmpty
           ? const _EmptyChart()
           : LineChart(
@@ -369,17 +326,36 @@ class _EvolutionChart extends StatelessWidget {
                   show: true,
                   drawVerticalLine: false,
                   horizontalInterval: 25,
+                  getDrawingHorizontalLine: (_) => const FlLine(
+                    color: Color(0xFFF1F5F9),
+                    strokeWidth: 1,
+                  ),
                 ),
                 borderData: FlBorderData(show: false),
-                titlesData: const FlTitlesData(
-                  topTitles: AxisTitles(
+                titlesData: FlTitlesData(
+                  topTitles: const AxisTitles(
                     sideTitles: SideTitles(showTitles: false),
                   ),
-                  rightTitles: AxisTitles(
+                  rightTitles: const AxisTitles(
                     sideTitles: SideTitles(showTitles: false),
                   ),
-                  bottomTitles: AxisTitles(
+                  bottomTitles: const AxisTitles(
                     sideTitles: SideTitles(showTitles: false),
+                  ),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 32,
+                      interval: 25,
+                      getTitlesWidget: (val, _) => Text(
+                        '${val.toInt()}%',
+                        style: const TextStyle(
+                          color: ItbColors.textMuted,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
                 lineBarsData: [
@@ -390,11 +366,11 @@ class _EvolutionChart extends StatelessWidget {
                     ],
                     isCurved: true,
                     color: ItbColors.blue,
-                    barWidth: 4,
+                    barWidth: 3.5,
                     dotData: const FlDotData(show: false),
                     belowBarData: BarAreaData(
                       show: true,
-                      color: ItbColors.blue.withValues(alpha: .12),
+                      color: ItbColors.blue.withValues(alpha: .08),
                     ),
                   ),
                 ],
@@ -417,14 +393,14 @@ class _DistributionChart extends StatelessWidget {
           ? const _EmptyChart()
           : PieChart(
               PieChartData(
-                centerSpaceRadius: 54,
+                centerSpaceRadius: 52,
                 sectionsSpace: 3,
                 sections: [
                   PieChartSectionData(
                     value: data.present.toDouble(),
                     color: ItbColors.green,
                     title: 'P',
-                    radius: 46,
+                    radius: 44,
                     titleStyle: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w800,
@@ -434,7 +410,7 @@ class _DistributionChart extends StatelessWidget {
                     value: data.absent.toDouble(),
                     color: ItbColors.red,
                     title: 'F',
-                    radius: 46,
+                    radius: 44,
                     titleStyle: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w800,
@@ -444,7 +420,7 @@ class _DistributionChart extends StatelessWidget {
                     value: data.justified.toDouble(),
                     color: ItbColors.cyan,
                     title: 'J',
-                    radius: 46,
+                    radius: 44,
                     titleStyle: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w800,
@@ -454,7 +430,7 @@ class _DistributionChart extends StatelessWidget {
                     value: data.delayed.toDouble(),
                     color: ItbColors.orange,
                     title: 'A',
-                    radius: 52,
+                    radius: 48,
                     titleStyle: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w800,
@@ -475,7 +451,7 @@ class _ClassChart extends StatelessWidget {
     height: 380,
     child: _ChartCard(
       title: 'Comparativo por turma',
-      subtitle: 'Percentual de presenças',
+      subtitle: 'Percentual de presenças registradas',
       child: data.byClass.isEmpty
           ? const _EmptyChart()
           : BarChart(
@@ -485,17 +461,36 @@ class _ClassChart extends StatelessWidget {
                   show: true,
                   drawVerticalLine: false,
                   horizontalInterval: 25,
+                  getDrawingHorizontalLine: (_) => const FlLine(
+                    color: Color(0xFFF1F5F9),
+                    strokeWidth: 1,
+                  ),
                 ),
                 borderData: FlBorderData(show: false),
-                titlesData: const FlTitlesData(
-                  topTitles: AxisTitles(
+                titlesData: FlTitlesData(
+                  topTitles: const AxisTitles(
                     sideTitles: SideTitles(showTitles: false),
                   ),
-                  rightTitles: AxisTitles(
+                  rightTitles: const AxisTitles(
                     sideTitles: SideTitles(showTitles: false),
                   ),
-                  bottomTitles: AxisTitles(
+                  bottomTitles: const AxisTitles(
                     sideTitles: SideTitles(showTitles: false),
+                  ),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 32,
+                      interval: 25,
+                      getTitlesWidget: (val, _) => Text(
+                        '${val.toInt()}%',
+                        style: const TextStyle(
+                          color: ItbColors.textMuted,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
                 barGroups: [
@@ -505,7 +500,7 @@ class _ClassChart extends StatelessWidget {
                       barRods: [
                         BarChartRodData(
                           toY: data.byClass[i].attendanceRate,
-                          width: 22,
+                          width: 20,
                           borderRadius: const BorderRadius.vertical(
                             top: Radius.circular(6),
                           ),
@@ -529,7 +524,7 @@ class _EmptyChart extends StatelessWidget {
     child: Text(
       'Os indicadores aparecerão após a primeira chamada.',
       textAlign: TextAlign.center,
-      style: TextStyle(color: Color(0xFF829AB1)),
+      style: TextStyle(color: ItbColors.textMuted, fontSize: 13),
     ),
   );
 }
@@ -542,25 +537,70 @@ class _AbsenteeRanking extends StatelessWidget {
     height: 360,
     child: _ChartCard(
       title: 'Alunos com mais faltas',
-      subtitle: 'Prioridade de acompanhamento no período',
+      subtitle: 'Prioridade de acompanhamento pedagógico no período',
       child: data.topAbsentees.isEmpty
           ? const _EmptyChart()
           : ListView.separated(
               itemCount: data.topAbsentees.length,
-              separatorBuilder: (_, _) => const Divider(height: 18),
+              separatorBuilder: (_, _) => const Divider(height: 14),
               itemBuilder: (_, index) {
                 final item = data.topAbsentees[index];
                 return ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: CircleAvatar(child: Text('${index + 1}')),
+                  leading: Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: index == 0
+                          ? ItbColors.redBg
+                          : ItbColors.surfaceMuted,
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '${index + 1}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: index == 0
+                            ? ItbColors.red
+                            : ItbColors.textSecondary,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
                   title: Text(
                     item.name,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: ItbColors.navy,
+                    ),
                   ),
                   subtitle: Text(
                     'Matrícula ${item.registrationNumber} • ${item.attendanceRate.toStringAsFixed(1)}% de presença',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: ItbColors.textSecondary,
+                    ),
                   ),
-                  trailing: Chip(label: Text('${item.absences} F')),
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: ItbColors.redBg,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${item.absences} F',
+                      style: const TextStyle(
+                        color: ItbColors.red,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
                 );
               },
             ),
@@ -599,19 +639,31 @@ class _TeacherWorkloadCard extends StatelessWidget {
                               item.name,
                               style: const TextStyle(
                                 fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                                color: ItbColors.navy,
                               ),
                             ),
                           ),
                           Text(
                             '${item.classes} turma(s) • ${item.students} aluno(s)',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: ItbColors.textSecondary,
+                            ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 6),
-                      LinearProgressIndicator(
-                        value: item.classes / maxClasses,
-                        minHeight: 9,
+                      ClipRRect(
                         borderRadius: BorderRadius.circular(8),
+                        child: LinearProgressIndicator(
+                          value: item.classes / maxClasses,
+                          minHeight: 8,
+                          backgroundColor: ItbColors.surfaceMuted,
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            ItbColors.blue,
+                          ),
+                        ),
                       ),
                     ],
                   );

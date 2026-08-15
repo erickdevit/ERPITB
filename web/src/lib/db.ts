@@ -1,11 +1,11 @@
 import Dexie, { type EntityTable } from 'dexie';
-import { createAccountKey, decrypt, encrypt, type CipherText } from './crypto';
+import { createAccountKey, decrypt, encrypt, type CipherText, type StoredKey } from './crypto';
 import { planEnrollmentMove } from './enrollment';
 import { classRevocationTargets, type EntitySnapshot } from './revocation';
 import { emailLookupHash, passwordVerifier, verifierMatches } from './offline-auth';
 import type { Action, Entity, LocalRecord, SyncOperation, UserSession } from '../types';
 
-interface KeyRow { accountId: string; key: CryptoKey }
+interface KeyRow { accountId: string; key: StoredKey }
 interface CipherRow extends CipherText { id: string; accountId: string; entity: string; entityId: string; updatedAt: string }
 interface QueueRow extends CipherText { operationId: string; accountId: string; updatedAt: string }
 interface MetaRow { id: string; accountId: string; cursor: number }
@@ -38,7 +38,7 @@ const recordId = (accountId: string, entity: string, id: string) => `${accountId
 const metaId = (accountId: string) => `meta:${accountId}`;
 
 export class LocalStore {
-  private key?: CryptoKey;
+  private key?: StoredKey;
   private readonly locks = new Map<string, Promise<unknown>>();
   constructor(readonly accountId: string) {}
 
@@ -84,7 +84,7 @@ export class LocalStore {
     await database.verifiers.put({ ...cipher, emailHash, accountId: this.accountId, salt, verifier: await passwordVerifier(password, salt), updatedAt: new Date().toISOString() });
   }
 
-  private async cryptoKey(): Promise<CryptoKey> {
+  private async cryptoKey(): Promise<StoredKey> {
     if (!this.key) this.key = (await database.keys.get(this.accountId))?.key;
     if (!this.key) throw new Error('A chave local desta sessão não está disponível.');
     return this.key;

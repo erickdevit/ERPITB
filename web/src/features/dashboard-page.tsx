@@ -5,10 +5,13 @@ import EventAvailableOutlinedIcon from '@mui/icons-material/EventAvailableOutlin
 import EventBusyOutlinedIcon from '@mui/icons-material/EventBusyOutlined';
 import InsightsOutlinedIcon from '@mui/icons-material/InsightsOutlined';
 import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
+import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
 import {
   Alert,
+  Avatar,
   Box,
   Button,
+  ButtonGroup,
   Card,
   CardContent,
   Chip,
@@ -42,11 +45,11 @@ import type { LocalRecord } from '../types';
 type PeriodPreset = 7 | 30 | 90 | 'custom';
 
 const statusColors = {
-  P: '#2E7D5B',
-  F: '#C43E4D',
-  J: '#18899A',
-  A: '#C57412',
-  R: '#7051A3',
+  P: '#2E7D32',
+  F: '#D32F2F',
+  J: '#00838F',
+  A: '#ED6C02',
+  R: '#7B1FA2',
 };
 
 const numberFormatter = new Intl.NumberFormat('pt-BR');
@@ -75,15 +78,42 @@ function shortDate(value: string) {
 
 function KpiCard({ label, value, detail, color, icon }: { label: string; value: string; detail: string; color: string; icon: ReactNode }) {
   return (
-    <Card variant="outlined" sx={{ height: '100%', borderColor: `${color}35` }}>
-      <CardContent sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start', p: 2.25, '&:last-child': { pb: 2.25 } }}>
-        <Box sx={{ display: 'grid', placeItems: 'center', flex: '0 0 auto', width: 42, height: 42, borderRadius: 2, color, bgcolor: `${color}14` }}>
+    <Card
+      sx={{
+        height: '100%',
+        border: '1px solid #E2E8F0',
+        borderRadius: 3,
+        transition: 'border-color 0.15s ease',
+        '&:hover': {
+          borderColor: '#CBD5E1',
+        },
+      }}
+    >
+      <CardContent sx={{ display: 'flex', gap: 2, alignItems: 'center', p: 2.25, '&:last-child': { pb: 2.25 } }}>
+        <Box
+          sx={{
+            display: 'grid',
+            placeItems: 'center',
+            flex: '0 0 auto',
+            width: 42,
+            height: 42,
+            borderRadius: 2.5,
+            color,
+            bgcolor: `${color}10`,
+          }}
+        >
           {icon}
         </Box>
-        <Box sx={{ minWidth: 0 }}>
-          <Typography variant="body2" color="text.secondary">{label}</Typography>
-          <Typography variant="h5" component="p" fontWeight={800} sx={{ color, lineHeight: 1.25 }}>{value}</Typography>
-          <Typography variant="caption" color="text.secondary">{detail}</Typography>
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Typography variant="caption" color="text.secondary" fontWeight={600}>
+            {label}
+          </Typography>
+          <Typography variant="h5" component="p" fontWeight={800} sx={{ color: '#0F172A', my: 0.25, lineHeight: 1.2, letterSpacing: '-0.02em' }}>
+            {value}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {detail}
+          </Typography>
         </Box>
       </CardContent>
     </Card>
@@ -92,10 +122,16 @@ function KpiCard({ label, value, detail, color, icon }: { label: string; value: 
 
 function DashboardCard({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   return (
-    <Card variant="outlined" sx={{ height: '100%' }}>
+    <Card sx={{ height: '100%', border: '1px solid #E2E8F0', borderRadius: 3 }}>
       <CardContent sx={{ p: { xs: 2, md: 2.5 }, '&:last-child': { pb: { xs: 2, md: 2.5 } } }}>
-        <Typography variant="h6" component="h2" fontWeight={750}>{title}</Typography>
-        {subtitle && <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>{subtitle}</Typography>}
+        <Typography variant="subtitle1" component="h2" fontWeight={750} color="#0F172A">
+          {title}
+        </Typography>
+        {subtitle && (
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+            {subtitle}
+          </Typography>
+        )}
         <Box sx={{ mt: 2 }}>{children}</Box>
       </CardContent>
     </Card>
@@ -104,7 +140,7 @@ function DashboardCard({ title, subtitle, children }: { title: string; subtitle?
 
 function EmptyChart({ children }: { children: ReactNode }) {
   return (
-    <Box sx={{ minHeight: 220, display: 'grid', placeItems: 'center', px: 2, textAlign: 'center' }}>
+    <Box sx={{ minHeight: 200, display: 'grid', placeItems: 'center', px: 2, textAlign: 'center' }}>
       <Typography variant="body2" color="text.secondary">{children}</Typography>
     </Box>
   );
@@ -166,76 +202,104 @@ export function DashboardPage() {
   };
 
   return (
-    <Stack gap={2.5}>
-      <Typography variant="body1" color="text.secondary">
-        Olá, {session.name.split(' ')[0]}. Acompanhe a frequência consolidada com os dados disponíveis neste dispositivo.
-      </Typography>
+    <Stack gap={2}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} gap={1}>
+        <Box>
+          <Typography variant="h5" component="h1" fontWeight={800} color="#0F172A" letterSpacing="-0.02em">
+            Visão Geral
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Olá, {session.name.split(' ')[0]}. Acompanhe os indicadores pedagógicos e frequência consolidada.
+          </Typography>
+        </Box>
+      </Stack>
 
-      <Card variant="outlined">
-        <CardContent sx={{ p: { xs: 2, md: 2.5 }, '&:last-child': { pb: { xs: 2, md: 2.5 } } }}>
+      <Card sx={{ border: '1px solid #E2E8F0', borderRadius: 3 }}>
+        <CardContent sx={{ p: { xs: 2, md: 2.25 }, '&:last-child': { pb: { xs: 2, md: 2.25 } } }}>
           <Stack direction={{ xs: 'column', md: 'row' }} gap={2} alignItems={{ md: 'center' }} justifyContent="space-between">
-            <Box>
-              <Typography variant="subtitle1" fontWeight={750}>Período analisado</Typography>
-              <Typography variant="body2" color="text.secondary">{range.from || '—'} a {range.to || '—'}</Typography>
-            </Box>
-            <Stack direction="row" gap={1} flexWrap="wrap">
+            <Stack direction="row" alignItems="center" spacing={1.25}>
+              <Box sx={{ width: 36, height: 36, borderRadius: 2, bgcolor: '#EFF6FF', color: '#1976D2', display: 'grid', placeItems: 'center' }}>
+                <CalendarMonthOutlinedIcon fontSize="small" />
+              </Box>
+              <Box>
+                <Typography variant="subtitle2" fontWeight={700} color="#0F172A">
+                  Período Analisado
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {range.from || '—'} a {range.to || '—'}
+                </Typography>
+              </Box>
+            </Stack>
+            <ButtonGroup variant="outlined" size="small" sx={{ borderRadius: 2, overflow: 'hidden' }}>
               {([7, 30, 90] as const).map((days) => (
-                <Button key={days} size="small" variant={preset === days ? 'contained' : 'outlined'} onClick={() => applyPreset(days)}>
+                <Button
+                  key={days}
+                  variant={preset === days ? 'contained' : 'outlined'}
+                  onClick={() => applyPreset(days)}
+                  sx={{ px: 2, fontWeight: 650, fontSize: 13 }}
+                >
                   {days} dias
                 </Button>
               ))}
-              <Button size="small" variant={preset === 'custom' ? 'contained' : 'outlined'} onClick={() => setPreset('custom')}>
+              <Button
+                variant={preset === 'custom' ? 'contained' : 'outlined'}
+                onClick={() => setPreset('custom')}
+                sx={{ px: 2, fontWeight: 650, fontSize: 13 }}
+              >
                 Personalizado
               </Button>
-            </Stack>
+            </ButtonGroup>
           </Stack>
           {preset === 'custom' && (
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2, mt: 2, maxWidth: 680 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2, mt: 2, maxWidth: 640 }}>
               <DateField label="Data inicial" value={range.from} onChange={(value) => setRange((current) => ({ ...current, from: value }))} required allowFuture />
               <DateField label="Data final" value={range.to} onChange={(value) => setRange((current) => ({ ...current, to: value }))} required allowFuture />
             </Box>
           )}
-          {!validRange && <Alert severity="warning" sx={{ mt: 2 }}>Informe um período válido; a data inicial não pode ser posterior à data final.</Alert>}
+          {!validRange && <Alert severity="warning" sx={{ mt: 2, borderRadius: 2 }}>Informe um período válido; a data inicial não pode ser posterior à data final.</Alert>}
         </CardContent>
-        {loading && <LinearProgress aria-label="Carregando indicadores" />}
+        {loading && <LinearProgress aria-label="Carregando indicadores" sx={{ height: 2 }} />}
       </Card>
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(3, minmax(0, 1fr))' }, gap: 2 }}>
-        <KpiCard label="Frequência" value={`${analytics.attendanceRate.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`} detail={`${numberFormatter.format(analytics.records)} marcações no período`} color="#1769AA" icon={<InsightsOutlinedIcon />} />
-        <KpiCard label="Presenças" value={numberFormatter.format(analytics.present)} detail="Situação P" color={statusColors.P} icon={<CheckCircleOutlineIcon />} />
-        <KpiCard label="Faltas" value={numberFormatter.format(analytics.absent)} detail="Situação F" color={statusColors.F} icon={<EventBusyOutlinedIcon />} />
-        <KpiCard label="Atrasos" value={numberFormatter.format(analytics.delayed)} detail="Situação A" color={statusColors.A} icon={<AccessTimeOutlinedIcon />} />
-        <KpiCard label="Alunos em risco" value={numberFormatter.format(analytics.riskStudents)} detail={`de ${numberFormatter.format(analytics.activeStudents)} alunos ativos`} color="#A35214" icon={<WarningAmberOutlinedIcon />} />
-        <KpiCard label="Chamadas distintas" value={numberFormatter.format(analytics.distinctCalls)} detail="Uma por turma e data" color="#4E5B71" icon={<EventAvailableOutlinedIcon />} />
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(3, minmax(0, 1fr))' }, gap: 1.5 }}>
+        <KpiCard label="Taxa de Frequência" value={`${analytics.attendanceRate.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`} detail={`${numberFormatter.format(analytics.records)} marcações no período`} color="#1976D2" icon={<InsightsOutlinedIcon fontSize="small" />} />
+        <KpiCard label="Presenças" value={numberFormatter.format(analytics.present)} detail="Situação P" color={statusColors.P} icon={<CheckCircleOutlineIcon fontSize="small" />} />
+        <KpiCard label="Faltas" value={numberFormatter.format(analytics.absent)} detail="Situação F" color={statusColors.F} icon={<EventBusyOutlinedIcon fontSize="small" />} />
+        <KpiCard label="Atrasos" value={numberFormatter.format(analytics.delayed)} detail="Situação A" color={statusColors.A} icon={<AccessTimeOutlinedIcon fontSize="small" />} />
+        <KpiCard label="Alunos em Risco" value={numberFormatter.format(analytics.riskStudents)} detail={`de ${numberFormatter.format(analytics.activeStudents)} alunos ativos`} color="#D97706" icon={<WarningAmberOutlinedIcon fontSize="small" />} />
+        <KpiCard label="Chamadas Realizadas" value={numberFormatter.format(analytics.distinctCalls)} detail="Total por turma e data" color="#64748B" icon={<EventAvailableOutlinedIcon fontSize="small" />} />
       </Box>
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1.65fr) minmax(320px, 1fr)' }, gap: 2 }}>
-        <DashboardCard title="Evolução da frequência" subtitle="Percentual diário de presenças">
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1.65fr) minmax(300px, 1fr)' }, gap: 1.5 }}>
+        <DashboardCard title="Evolução da Frequência" subtitle="Percentual diário de presenças ao longo do período">
           {analytics.evolution.length ? (
-            <Box role="img" aria-label="Gráfico da evolução diária da frequência" sx={{ width: '100%', height: 300 }}>
+            <Box role="img" aria-label="Gráfico da evolução diária da frequência" sx={{ width: '100%', height: 280 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={analytics.evolution} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#DDE3EA" vertical={false} />
-                  <XAxis dataKey="date" tickFormatter={(value) => shortDate(String(value))} minTickGap={28} tick={{ fontSize: 12 }} />
-                  <YAxis domain={[0, 100]} unit="%" width={48} tick={{ fontSize: 12 }} />
-                  <Tooltip labelFormatter={(value) => formatDate(String(value))} />
-                  <Line type="monotone" dataKey="rate" name="Frequência (%)" stroke="#1769AA" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                  <XAxis dataKey="date" tickFormatter={(value) => shortDate(String(value))} minTickGap={28} tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
+                  <YAxis domain={[0, 100]} unit="%" width={44} tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
+                  <Tooltip
+                    labelFormatter={(value) => formatDate(String(value))}
+                    contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0', boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}
+                  />
+                  <Line type="monotone" dataKey="rate" name="Frequência (%)" stroke="#1976D2" strokeWidth={2.5} dot={{ r: 2.5, fill: '#1976D2' }} activeDot={{ r: 5, fill: '#1976D2' }} />
                 </LineChart>
               </ResponsiveContainer>
             </Box>
           ) : <EmptyChart>Não há frequência registrada neste período.</EmptyChart>}
         </DashboardCard>
 
-        <DashboardCard title="Distribuição das marcações" subtitle="Presença, falta, justificativa, atraso e reposição">
+        <DashboardCard title="Distribuição das Situações" subtitle="Presença, falta, justificativa, atraso e reposição">
           {analytics.records ? (
-            <Box role="img" aria-label="Gráfico de distribuição das situações de frequência" sx={{ width: '100%', height: 300 }}>
+            <Box role="img" aria-label="Gráfico de distribuição das situações de frequência" sx={{ width: '100%', height: 280 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={distribution} dataKey="value" nameKey="name" innerRadius={54} outerRadius={88} paddingAngle={2}>
+                  <Pie data={distribution} dataKey="value" nameKey="name" innerRadius={52} outerRadius={84} paddingAngle={2}>
                     {distribution.map((item) => <Cell key={item.key} fill={statusColors[item.key as keyof typeof statusColors]} />)}
                   </Pie>
-                  <Tooltip />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                  <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0' }} />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
                 </PieChart>
               </ResponsiveContainer>
             </Box>
@@ -243,36 +307,38 @@ export function DashboardPage() {
         </DashboardCard>
       </Box>
 
-      <DashboardCard title="Comparativo por turma" subtitle="Frequência consolidada no período selecionado">
+      <DashboardCard title="Comparativo por Turma" subtitle="Frequência consolidada no período selecionado">
         {analytics.byClass.length ? (
-          <Box role="img" aria-label="Gráfico comparativo da frequência por turma" sx={{ width: '100%', height: Math.min(520, Math.max(270, analytics.byClass.length * 42)) }}>
+          <Box role="img" aria-label="Gráfico comparativo da frequência por turma" sx={{ width: '100%', height: Math.min(480, Math.max(240, analytics.byClass.length * 40)) }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={analytics.byClass} layout="vertical" margin={{ top: 4, right: 24, bottom: 4, left: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#DDE3EA" horizontal={false} />
-                <XAxis type="number" domain={[0, 100]} unit="%" tick={{ fontSize: 12 }} />
-                <YAxis type="category" dataKey="name" width={118} tick={{ fontSize: 12 }} tickFormatter={(value) => String(value).length > 18 ? `${String(value).slice(0, 17)}…` : String(value)} />
-                <Tooltip />
-                <Bar dataKey="rate" name="Frequência (%)" fill="#18899A" radius={[0, 5, 5, 0]} maxBarSize={24} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" horizontal={false} />
+                <XAxis type="number" domain={[0, 100]} unit="%" tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
+                <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11, fill: '#0F172A', fontWeight: 600 }} stroke="#E2E8F0" tickFormatter={(value) => String(value).length > 18 ? `${String(value).slice(0, 17)}…` : String(value)} />
+                <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0' }} />
+                <Bar dataKey="rate" name="Frequência (%)" fill="#0284C7" radius={[0, 4, 4, 0]} maxBarSize={18} />
               </BarChart>
             </ResponsiveContainer>
           </Box>
         ) : <EmptyChart>Nenhuma turma está disponível para comparação.</EmptyChart>}
       </DashboardCard>
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
-        <DashboardCard title="Alunos com mais faltas" subtitle="Até dez alunos, ordenados pelo maior número de faltas">
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'repeat(2, minmax(0, 1fr))' }, gap: 1.5 }}>
+        <DashboardCard title="Alunos com Mais Faltas" subtitle="Até dez alunos, ordenados pelo maior número de faltas">
           {analytics.topAbsentees.length ? (
-            <Stack component="ol" divider={<Divider flexItem />} sx={{ listStyle: 'none', p: 0, m: 0 }}>
+            <Stack component="ol" divider={<Divider flexItem sx={{ borderColor: '#F1F5F9' }} />} sx={{ listStyle: 'none', p: 0, m: 0 }}>
               {analytics.topAbsentees.map((student, index) => (
-                <Stack component="li" key={student.studentId} direction="row" gap={1.5} alignItems="center" sx={{ py: 1.25 }}>
-                  <Typography color="text.secondary" fontWeight={700} sx={{ width: 24, flex: '0 0 auto' }}>{index + 1}</Typography>
+                <Stack component="li" key={student.studentId} direction="row" gap={1.5} alignItems="center" sx={{ py: 1 }}>
+                  <Avatar sx={{ width: 26, height: 26, fontSize: 11, fontWeight: 700, bgcolor: index < 3 ? '#FFF1F2' : '#F1F5F9', color: index < 3 ? '#E11D48' : '#64748B' }}>
+                    {index + 1}
+                  </Avatar>
                   <Box sx={{ minWidth: 0, flex: 1 }}>
-                    <Typography fontWeight={650} noWrap>{student.name}</Typography>
+                    <Typography fontWeight={700} color="#0F172A" fontSize={13.5} noWrap>{student.name}</Typography>
                     <Typography variant="caption" color="text.secondary">{student.registrationNumber ? `Matrícula ${student.registrationNumber}` : 'Matrícula não informada'}</Typography>
                   </Box>
                   <Stack alignItems="flex-end" sx={{ flex: '0 0 auto' }}>
-                    <Chip size="small" color="error" variant="outlined" label={`${student.absences} falta${student.absences === 1 ? '' : 's'}`} />
-                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>{student.rate.toLocaleString('pt-BR')}% presença</Typography>
+                    <Chip size="small" color="error" variant="outlined" label={`${student.absences} falta${student.absences === 1 ? '' : 's'}`} sx={{ fontWeight: 650, height: 22, fontSize: 11 }} />
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.25 }}>{student.rate.toLocaleString('pt-BR')}% presença</Typography>
                   </Stack>
                 </Stack>
               ))}
@@ -280,21 +346,34 @@ export function DashboardPage() {
           ) : <EmptyChart>Nenhum aluno com falta no período selecionado.</EmptyChart>}
         </DashboardCard>
 
-        <DashboardCard title="Carga docente" subtitle="Turmas com chamadas e alunos vinculados">
+        <DashboardCard title="Carga Docente" subtitle="Turmas com chamadas e alunos vinculados">
           {teacherDirectoryOffline && analytics.teacherWorkload.length > 0 && (
-            <Alert severity="info" sx={{ mb: 1.5 }}>Os nomes dos professores não estão disponíveis offline; a carga local continua calculada.</Alert>
+            <Alert severity="info" sx={{ mb: 1.5, borderRadius: 2 }}>Os nomes dos professores não estão disponíveis offline; a carga local continua calculada.</Alert>
           )}
           {analytics.teacherWorkload.length ? (
-            <Stack divider={<Divider flexItem />}>
+            <Stack divider={<Divider flexItem sx={{ borderColor: '#F1F5F9' }} />}>
               {analytics.teacherWorkload.map((teacher) => (
-                <Box key={teacher.teacherId} sx={{ py: 1.25 }}>
+                <Box key={teacher.teacherId} sx={{ py: 1 }}>
                   <Stack direction="row" justifyContent="space-between" gap={2} alignItems="baseline">
-                    <Typography fontWeight={650} noWrap>{teacherNames[teacher.teacherId] || `Professor ${teacher.teacherId.slice(0, 8)}`}</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ flex: '0 0 auto' }}>
+                    <Typography fontWeight={700} color="#0F172A" fontSize={13.5} noWrap>{teacherNames[teacher.teacherId] || `Professor ${teacher.teacherId.slice(0, 8)}`}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ flex: '0 0 auto', fontWeight: 500 }}>
                       {teacher.classes} turma{teacher.classes === 1 ? '' : 's'} · {teacher.students} aluno{teacher.students === 1 ? '' : 's'}
                     </Typography>
                   </Stack>
-                  <LinearProgress variant="determinate" value={(teacher.classes / maxTeacherClasses) * 100} sx={{ mt: 1, height: 7, borderRadius: 4 }} />
+                  <LinearProgress
+                    variant="determinate"
+                    value={(teacher.classes / maxTeacherClasses) * 100}
+                    sx={{
+                      mt: 0.75,
+                      height: 6,
+                      borderRadius: 3,
+                      bgcolor: '#F1F5F9',
+                      '& .MuiLinearProgress-bar': {
+                        bgcolor: '#1976D2',
+                        borderRadius: 3,
+                      },
+                    }}
+                  />
                 </Box>
               ))}
             </Stack>

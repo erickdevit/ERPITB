@@ -7,6 +7,7 @@ import '../../core/database/local_repository.dart';
 import '../../core/models/models.dart';
 import '../../core/sync/sync_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/itb_components.dart';
 import '../auth/auth_controller.dart';
 
 class LaboratoriesScreen extends StatefulWidget {
@@ -46,55 +47,32 @@ class _LaboratoriesScreenState extends State<LaboratoriesScreen> {
     return ListView(
       padding: EdgeInsets.all(compact ? 16 : 24),
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Laboratórios',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: ItbColors.navy,
-                      ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Gestão de laboratórios e salas de aula',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.grey[600],
-                      ),
-                ),
-              ],
-            ),
-            if (isAdmin)
-              FilledButton.icon(
-                onPressed: () => _labDialog(context),
-                icon: const Icon(Icons.add),
-                label: const Text('Novo laboratório'),
-              ),
-          ],
+        ItbPageHeader(
+          title: 'Laboratórios',
+          subtitle: 'Gestão de laboratórios e salas de aula',
+          action: isAdmin
+              ? FilledButton.icon(
+                  onPressed: () => _labDialog(context),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Novo laboratório'),
+                )
+              : null,
         ),
         const SizedBox(height: 16),
-        SizedBox(
-          width: compact ? double.infinity : 360,
-          child: TextField(
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.search),
-              labelText: 'Buscar laboratório por nome',
-            ),
-            onChanged: (value) {
-              debounce?.cancel();
-              debounce = Timer(const Duration(milliseconds: 350), () {
-                if (mounted) setState(() => search = value);
-              });
-            },
-          ),
+        ItbFilterCard(
+          searchHint: 'Buscar laboratório por nome',
+          searchValue: search,
+          onSearchChanged: (val) => setState(() => search = val),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
         if (laboratories.isEmpty)
-          const _EmptyLabsState()
+          const Card(
+            child: ItbEmptyState(
+              title: 'Nenhum laboratório encontrado',
+              subtitle: 'Cadastre os laboratórios e salas de aula da instituição.',
+              icon: Icons.science_outlined,
+            ),
+          )
         else
           for (final lab in laboratories)
             Padding(
@@ -107,11 +85,18 @@ class _LaboratoriesScreenState extends State<LaboratoriesScreen> {
                   ),
                   child: Row(
                     children: [
-                      CircleAvatar(
-                        backgroundColor: ItbColors.blue.withValues(alpha: .15),
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: ItbColors.blueLight,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        alignment: Alignment.center,
                         child: const Icon(
                           Icons.science,
                           color: ItbColors.blue,
+                          size: 22,
                         ),
                       ),
                       const SizedBox(width: 14),
@@ -120,7 +105,8 @@ class _LaboratoriesScreenState extends State<LaboratoriesScreen> {
                           lab.name,
                           style: const TextStyle(
                             fontWeight: FontWeight.w700,
-                            fontSize: 16,
+                            fontSize: 15,
+                            color: ItbColors.navy,
                           ),
                         ),
                       ),
@@ -128,13 +114,17 @@ class _LaboratoriesScreenState extends State<LaboratoriesScreen> {
                         IconButton(
                           tooltip: 'Editar laboratório',
                           onPressed: () => _labDialog(context, lab: lab),
-                          icon: const Icon(Icons.edit_outlined),
+                          icon: const Icon(Icons.edit_outlined, size: 20),
                         ),
                         if (isAdmin)
                           IconButton(
                             tooltip: 'Excluir laboratório',
                             onPressed: () => _deleteLab(repository, lab),
-                            icon: const Icon(Icons.delete_outline),
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              color: ItbColors.red,
+                              size: 20,
+                            ),
                           ),
                       ],
                     ],
@@ -245,35 +235,5 @@ class _LaboratoriesScreenState extends State<LaboratoriesScreen> {
         }
       }
     }
-  }
-}
-
-class _EmptyLabsState extends StatelessWidget {
-  const _EmptyLabsState();
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 40),
-      child: Center(
-        child: Column(
-          children: [
-            Icon(
-              Icons.science_outlined,
-              size: 48,
-              color: Colors.grey[400],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Nenhum laboratório encontrado',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[600],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }

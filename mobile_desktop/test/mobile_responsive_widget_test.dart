@@ -100,14 +100,20 @@ void main() {
     await tester.pumpAndSettle();
     _expectNoLayoutFailure(tester, 'Visão geral');
 
+    Future<void> navigateTo(String destination) async {
+      tester.state<ScaffoldState>(find.byType(Scaffold).first).openDrawer();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(destination).last);
+      await tester.pumpAndSettle();
+    }
+
     for (final destination in [
       'Turmas',
       'Alunos',
       'Frequência',
       'Relatórios',
     ]) {
-      await tester.tap(find.text(destination).last);
-      await tester.pumpAndSettle();
+      await navigateTo(destination);
       _expectNoLayoutFailure(tester, destination);
       if (destination == 'Turmas') {
         await tester.tap(find.text('Turma Mobile com nome longo').first);
@@ -126,10 +132,7 @@ void main() {
     }
 
     for (final destination in ['Usuários', 'Conflitos', 'Auditoria']) {
-      tester.state<ScaffoldState>(find.byType(Scaffold).first).openDrawer();
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(destination).last);
-      await tester.pumpAndSettle();
+      await navigateTo(destination);
       _expectNoLayoutFailure(tester, destination);
       if (destination == 'Usuários') {
         expect(find.byKey(const Key('mobile-user-list')), findsOneWidget);

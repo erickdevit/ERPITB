@@ -69,16 +69,41 @@ const active = (record: LocalRecord) => !record.deleted_at && record.active !== 
 const emptyDraft = (): ClassDraft => ({ name: '', courseId: '', shift: 'manha', weekDay: '', laboratoryId: '', teacherId: '', isKids: false });
 
 function MetadataChip({ icon, label }: { icon: React.ReactElement; label: string }) {
-  return <Chip size="small" variant="outlined" icon={icon} label={label} sx={{ bgcolor: 'background.paper' }} />;
+  return (
+    <Chip
+      size="small"
+      variant="outlined"
+      icon={icon}
+      label={label}
+      sx={{
+        bgcolor: '#F8FAFC',
+        borderColor: '#E2E8F0',
+        color: '#475569',
+        fontWeight: 500,
+        fontSize: 11.5,
+        height: 24,
+      }}
+    />
+  );
 }
 
 function TeacherNames({ row }: { row: ClassView }) {
-  return <Typography variant="body2" color="text.secondary">
-    {row.teachers.length ? row.teachers.map((teacher) => teacher.name).join(', ') : 'Sem professor vinculado'}
-  </Typography>;
+  return (
+    <Typography variant="body2" color="text.secondary" sx={{ fontSize: 13 }}>
+      {row.teachers.length ? row.teachers.map((teacher) => teacher.name).join(', ') : 'Sem professor vinculado'}
+    </Typography>
+  );
 }
 
-function ClassActions({ row, onEdit, onTeachers, onDelete, canEdit, canAssignTeachers, canDelete }: {
+function ClassActions({
+  row,
+  onEdit,
+  onTeachers,
+  onDelete,
+  canEdit,
+  canAssignTeachers,
+  canDelete,
+}: {
   row: ClassView;
   onEdit: (row: ClassView) => void;
   onTeachers: (row: ClassView) => void;
@@ -88,56 +113,142 @@ function ClassActions({ row, onEdit, onTeachers, onDelete, canEdit, canAssignTea
   canDelete: boolean;
 }) {
   if (!canEdit && !canAssignTeachers && !canDelete) return null;
-  return <Stack direction="row" justifyContent="flex-end">
-    {canEdit && <Tooltip title="Editar turma"><IconButton aria-label={`Editar ${row.name}`} onClick={() => onEdit(row)}><EditOutlinedIcon /></IconButton></Tooltip>}
-    {canAssignTeachers && <Tooltip title="Gerenciar professores"><IconButton aria-label={`Gerenciar professores de ${row.name}`} onClick={() => onTeachers(row)}><CoPresentOutlinedIcon /></IconButton></Tooltip>}
-    {canDelete && <Tooltip title="Excluir turma"><IconButton color="error" aria-label={`Excluir ${row.name}`} onClick={() => onDelete(row)}><DeleteOutlineIcon /></IconButton></Tooltip>}
-  </Stack>;
+  return (
+    <Stack direction="row" justifyContent="flex-end" spacing={0.5}>
+      {canEdit && (
+        <Tooltip title="Editar turma">
+          <IconButton aria-label={`Editar ${row.name}`} onClick={() => onEdit(row)} size="small">
+            <EditOutlinedIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      )}
+      {canAssignTeachers && (
+        <Tooltip title="Gerenciar professores">
+          <IconButton aria-label={`Gerenciar professores de ${row.name}`} onClick={() => onTeachers(row)} size="small">
+            <CoPresentOutlinedIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      )}
+      {canDelete && (
+        <Tooltip title="Excluir turma">
+          <IconButton color="error" aria-label={`Excluir ${row.name}`} onClick={() => onDelete(row)} size="small">
+            <DeleteOutlineIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      )}
+    </Stack>
+  );
 }
 
 function MobileClassCard({ row, actions }: { row: ClassView; actions?: React.ReactNode }) {
-  return <Card variant="outlined">
-    <CardActionArea component={Link} to={`/turmas/${row.id}`} aria-label={`Abrir detalhes de ${row.name}`}>
-      <CardContent>
-        <Stack direction="row" gap={1.5} alignItems="flex-start">
-          <Avatar sx={{ bgcolor: row.isKids ? 'warning.light' : 'primary.main', color: row.isKids ? 'warning.dark' : 'primary.contrastText' }}>
-            {row.isKids ? <ChildCareOutlinedIcon /> : <GroupsOutlinedIcon />}
-          </Avatar>
-          <Box flex={1} minWidth={0}>
-            <Stack direction="row" gap={1} alignItems="center" flexWrap="wrap">
-              <Typography fontWeight={800}>{row.name}</Typography>
-              {row.isKids && <Chip size="small" color="warning" label="Kids" />}
-              {!row.active && <Chip size="small" label="Inativa" />}
-            </Stack>
-            <Typography fontWeight={600} color="text.secondary" mt={0.25}>{row.courseName}</Typography>
-            <Stack direction="row" gap={0.75} flexWrap="wrap" mt={1.25}>
-              <MetadataChip icon={<ScheduleOutlinedIcon />} label={shiftLabel(row.shift)} />
-              {row.weekDay && <MetadataChip icon={<CalendarTodayOutlinedIcon />} label={row.weekDay} />}
-              {row.laboratoryName && <MetadataChip icon={<ScienceOutlinedIcon />} label={row.laboratoryName} />}
-            </Stack>
-            <Box mt={1}><TeacherNames row={row} /></Box>
-          </Box>
-        </Stack>
-      </CardContent>
-    </CardActionArea>
-    {actions && <Box px={1} pb={1} onClick={(event) => event.stopPropagation()}>{actions}</Box>}
-  </Card>;
+  return (
+    <Card sx={{ border: '1px solid #E2E8F0', borderRadius: 2.5, overflow: 'hidden' }}>
+      <CardActionArea component={Link} to={`/turmas/${row.id}`} aria-label={`Abrir detalhes de ${row.name}`}>
+        <CardContent sx={{ p: 2 }}>
+          <Stack direction="row" gap={1.5} alignItems="flex-start">
+            <Avatar
+              sx={{
+                bgcolor: row.isKids ? '#FFFBEB' : '#EFF6FF',
+                color: row.isKids ? '#D97706' : '#1976D2',
+                width: 38,
+                height: 38,
+                borderRadius: 2,
+              }}
+            >
+              {row.isKids ? <ChildCareOutlinedIcon fontSize="small" /> : <GroupsOutlinedIcon fontSize="small" />}
+            </Avatar>
+            <Box flex={1} minWidth={0}>
+              <Stack direction="row" gap={0.75} alignItems="center" flexWrap="wrap">
+                <Typography fontWeight={750} color="#0F172A" fontSize={15}>
+                  {row.name}
+                </Typography>
+                {row.isKids && (
+                  <Chip
+                    size="small"
+                    label="Kids"
+                    sx={{ bgcolor: '#FFFBEB', color: '#D97706', fontWeight: 700, height: 20, fontSize: 10.5 }}
+                  />
+                )}
+                {!row.active && <Chip size="small" label="Inativa" sx={{ height: 20, fontSize: 10.5 }} />}
+              </Stack>
+              <Typography fontWeight={500} color="text.secondary" fontSize={13} mt={0.25}>
+                {row.courseName}
+              </Typography>
+              <Stack direction="row" gap={0.75} flexWrap="wrap" mt={1}>
+                <MetadataChip icon={<ScheduleOutlinedIcon fontSize="small" />} label={shiftLabel(row.shift)} />
+                {row.weekDay && <MetadataChip icon={<CalendarTodayOutlinedIcon fontSize="small" />} label={row.weekDay} />}
+                {row.laboratoryName && <MetadataChip icon={<ScienceOutlinedIcon fontSize="small" />} label={row.laboratoryName} />}
+              </Stack>
+              <Box mt={0.75}>
+                <TeacherNames row={row} />
+              </Box>
+            </Box>
+          </Stack>
+        </CardContent>
+      </CardActionArea>
+      {actions && (
+        <Box px={1.5} pb={0.75} pt={0} onClick={(event) => event.stopPropagation()} sx={{ borderTop: '1px solid #F1F5F9' }}>
+          {actions}
+        </Box>
+      )}
+    </Card>
+  );
 }
 
 function ClassTable({ rows, renderActions }: { rows: ClassView[]; renderActions: (row: ClassView) => React.ReactNode }) {
-  return <Card variant="outlined"><TableContainer><Table>
-    <TableHead><TableRow>
-      <TableCell>Turma</TableCell><TableCell>Curso</TableCell><TableCell>Turno / dia</TableCell><TableCell>Laboratório</TableCell><TableCell>Professor(es)</TableCell><TableCell align="right">Ações</TableCell>
-    </TableRow></TableHead>
-    <TableBody>{rows.map((row) => <TableRow key={row.id} hover>
-      <TableCell><Stack direction="row" gap={1} alignItems="center"><Button component={Link} to={`/turmas/${row.id}`} sx={{ px: 0, fontWeight: 800 }}>{row.name}</Button>{row.isKids && <Chip size="small" color="warning" label="Kids" />}{!row.active && <Chip size="small" label="Inativa" />}</Stack></TableCell>
-      <TableCell>{row.courseName}</TableCell>
-      <TableCell>{shiftLabel(row.shift)}{row.weekDay ? ` · ${row.weekDay}` : ''}</TableCell>
-      <TableCell>{row.laboratoryName || '—'}</TableCell>
-      <TableCell><TeacherNames row={row} /></TableCell>
-      <TableCell align="right">{renderActions(row)}</TableCell>
-    </TableRow>)}</TableBody>
-  </Table></TableContainer></Card>;
+  return (
+    <Card sx={{ border: '1px solid #E2E8F0', borderRadius: 2.5 }}>
+      <TableContainer>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>Turma</TableCell>
+              <TableCell>Curso</TableCell>
+              <TableCell>Turno / Dia</TableCell>
+              <TableCell>Laboratório</TableCell>
+              <TableCell>Professor(es)</TableCell>
+              <TableCell align="right">Ações</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {rows.map((row) => (
+              <TableRow key={row.id} hover>
+                <TableCell>
+                  <Stack direction="row" gap={1} alignItems="center">
+                    <Button
+                      component={Link}
+                      to={`/turmas/${row.id}`}
+                      sx={{ px: 0, fontWeight: 700, color: '#1976D2', textAlign: 'left', minWidth: 0, '&:hover': { bgcolor: 'transparent', textDecoration: 'underline' } }}
+                    >
+                      {row.name}
+                    </Button>
+                    {row.isKids && (
+                      <Chip
+                        size="small"
+                        label="Kids"
+                        sx={{ bgcolor: '#FFFBEB', color: '#D97706', fontWeight: 700, height: 20, fontSize: 10 }}
+                      />
+                    )}
+                    {!row.active && <Chip size="small" label="Inativa" sx={{ height: 20, fontSize: 10 }} />}
+                  </Stack>
+                </TableCell>
+                <TableCell sx={{ fontWeight: 500 }}>{row.courseName}</TableCell>
+                <TableCell sx={{ color: '#475569' }}>
+                  {shiftLabel(row.shift)}
+                  {row.weekDay ? ` · ${row.weekDay}` : ''}
+                </TableCell>
+                <TableCell sx={{ color: '#475569' }}>{row.laboratoryName || '—'}</TableCell>
+                <TableCell>
+                  <TeacherNames row={row} />
+                </TableCell>
+                <TableCell align="right">{renderActions(row)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Card>
+  );
 }
 
 export function ClassesPage() {
@@ -285,63 +396,220 @@ export function ClassesPage() {
   const assignedIds = new Set(assignments.items.filter((item) => item.class_id === teacherClass?.id && !item.deleted_at).map((item) => text(item, 'user_id')));
   const shownTeachers = activeTeachers.filter((teacher) => `${text(teacher, 'name')} ${text(teacher, 'email')}`.toLocaleLowerCase('pt-BR').includes(teacherSearch.toLocaleLowerCase('pt-BR')));
 
-  return <Section title={permissions.readOnly ? 'Minhas turmas' : 'Turmas'} action={permissions.canCreate ? <Button startIcon={<AddIcon />} variant="contained" onClick={startCreate}>Nova turma</Button> : undefined}>
-    {loading && <LinearProgress aria-label="Carregando turmas" />}
-    {notice && <Alert severity="warning" onClose={() => setNotice(undefined)}>{notice}</Alert>}
-    {permissions.readOnly && <Alert severity="info">Estas são as turmas atribuídas a você. A gestão cadastral é feita pela equipe administrativa.</Alert>}
-    <Stack direction={{ xs: 'column', md: 'row' }} gap={2}>
-      <TextField
-        label="Buscar turma ou curso"
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        sx={{ width: { xs: '100%', md: 380 } }}
-        InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> }}
-      />
-      {permissions.canAssignTeachers && <Box sx={{ width: { xs: '100%', md: 320 } }}><SelectField
-        label="Professor"
-        value={teacherFilter}
-        onChange={setTeacherFilter}
-        options={[{ value: '', label: 'Todos os professores' }, ...activeTeachers.map((teacher) => ({ value: teacher.id, label: text(teacher, 'name') }))]}
-      /></Box>}
-    </Stack>
-    {!loading && !shown.length && <Card variant="outlined"><CardContent sx={{ py: 6, textAlign: 'center' }}><GroupsOutlinedIcon color="disabled" sx={{ fontSize: 48 }} /><Typography mt={1} fontWeight={700}>{query || teacherFilter ? 'Nenhuma turma corresponde aos filtros.' : permissions.readOnly ? 'Nenhuma turma foi atribuída a você.' : 'Nenhuma turma cadastrada.'}</Typography></CardContent></Card>}
-    {shown.length > 0 && (compact
-      ? <Stack gap={1.5}>{shown.map((row) => <MobileClassCard key={row.id} row={row} actions={renderActions(row)} />)}</Stack>
-      : <ClassTable rows={shown} renderActions={renderActions} />)}
+  return (
+    <Section
+      title={permissions.readOnly ? 'Minhas turmas' : 'Turmas'}
+      subtitle="Gestão de turmas, turnos e professores responsáveis"
+      action={
+        permissions.canCreate ? (
+          <Button
+            startIcon={<AddIcon />}
+            variant="contained"
+            onClick={startCreate}
+            sx={{ px: 2.25, py: 0.8, borderRadius: 2, fontWeight: 650 }}
+          >
+            Nova turma
+          </Button>
+        ) : undefined
+      }
+    >
+      {loading && <LinearProgress aria-label="Carregando turmas" sx={{ height: 2 }} />}
+      {notice && (
+        <Alert severity="warning" onClose={() => setNotice(undefined)} sx={{ borderRadius: 2 }}>
+          {notice}
+        </Alert>
+      )}
+      {permissions.readOnly && (
+        <Alert severity="info" sx={{ borderRadius: 2 }}>
+          Estas são as turmas atribuídas a você. A gestão cadastral é feita pela equipe administrativa.
+        </Alert>
+      )}
 
-    <PageDialog open={Boolean(editing)} title={editing === 'new' ? 'Nova turma' : 'Editar turma'} onClose={() => setEditing(undefined)} onSave={() => void save()} saveText={busy ? 'Salvando…' : 'Salvar'}>
-      {formError && <Alert severity="error">{formError}</Alert>}
-      <SelectField label="Curso" value={draft.courseId} onChange={(courseId) => setDraft({ ...draft, courseId })} options={availableCourses.map((course) => ({ value: course.id, label: text(course, 'name') }))} />
-      <TextField required label="Nome da turma" placeholder="Ex.: 1º Ano A" value={draft.name} inputProps={{ maxLength: 120 }} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
-      <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.5}>
-        <SelectField label="Turno" value={draft.shift} onChange={(shift) => setDraft({ ...draft, shift })} options={classShifts.map((shift) => ({ value: shift, label: shiftLabel(shift) }))} />
-        <SelectField label="Dia da semana" value={draft.weekDay} onChange={(weekDay) => setDraft({ ...draft, weekDay })} options={[{ value: '', label: 'Não especificado' }, ...classWeekDays.map((day) => ({ value: day, label: day }))]} />
-      </Stack>
-      <SelectField label="Laboratório" value={draft.laboratoryId} onChange={(laboratoryId) => setDraft({ ...draft, laboratoryId })} options={[{ value: '', label: 'Nenhum laboratório' }, ...availableLabs.map((laboratory) => ({ value: laboratory.id, label: text(laboratory, 'name') }))]} />
-      <FormControlLabel control={<Switch checked={draft.isKids} onChange={(event) => setDraft({ ...draft, isKids: event.target.checked })} />} label="Turma Kids" />
-      {editing === 'new' && <SelectField label="Professor responsável (opcional)" value={draft.teacherId} onChange={(teacherId) => setDraft({ ...draft, teacherId })} options={[{ value: '', label: 'Vincular depois' }, ...activeTeachers.map((teacher) => ({ value: teacher.id, label: text(teacher, 'name') }))]} />}
-    </PageDialog>
+      <Card sx={{ border: '1px solid #E2E8F0', borderRadius: 3 }}>
+        <CardContent sx={{ p: { xs: 2, md: 2.25 }, '&:last-child': { pb: { xs: 2, md: 2.25 } } }}>
+          <Stack direction={{ xs: 'column', md: 'row' }} gap={2}>
+            <TextField
+              size="small"
+              label="Buscar turma ou curso"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              sx={{ flex: 1 }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon color="action" fontSize="small" />
+                  </InputAdornment>
+                ),
+              }}
+            />
+            {permissions.canAssignTeachers && (
+              <Box sx={{ width: { xs: '100%', md: 280 } }}>
+                <SelectField
+                  label="Professor"
+                  value={teacherFilter}
+                  onChange={setTeacherFilter}
+                  options={[
+                    { value: '', label: 'Todos os professores' },
+                    ...activeTeachers.map((teacher) => ({ value: teacher.id, label: text(teacher, 'name') })),
+                  ]}
+                />
+              </Box>
+            )}
+          </Stack>
+        </CardContent>
+      </Card>
 
-    <Dialog open={Boolean(teacherClass)} onClose={() => !busy && setTeacherClass(undefined)} fullWidth maxWidth="sm">
-      <DialogTitle>Professores • {teacherClass?.name}</DialogTitle>
-      <DialogContent>
-        <Stack gap={1.5} pt={1}>
-          {!directoryLoaded && <Alert severity="info">A lista de contas exige conexão. Os vínculos já sincronizados continuam visíveis na turma.</Alert>}
-          <TextField label="Buscar professor por nome ou e-mail" value={teacherSearch} onChange={(event) => setTeacherSearch(event.target.value)} InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> }} />
-          {directoryLoaded && !activeTeachers.length && <Typography color="text.secondary">Nenhum professor ativo foi encontrado.</Typography>}
-          <List disablePadding sx={{ maxHeight: 360, overflow: 'auto' }}>
-            {shownTeachers.map((teacher) => {
-              const checked = assignedIds.has(teacher.id);
-              return <ListItemButton key={teacher.id} disabled={busy} onClick={() => void toggleTeacher(teacher.id, !checked)}>
-                <ListItemIcon><Checkbox edge="start" checked={checked} tabIndex={-1} /></ListItemIcon>
-                <ListItemText primary={text(teacher, 'name')} secondary={text(teacher, 'email')} />
-              </ListItemButton>;
-            })}
-          </List>
-          {directoryLoaded && activeTeachers.length > 0 && !shownTeachers.length && <Typography color="text.secondary">Nenhum professor corresponde à busca.</Typography>}
+      {!loading && !shown.length && (
+        <Card sx={{ border: '1px solid #E2E8F0', borderRadius: 3 }}>
+          <CardContent sx={{ py: 6, textAlign: 'center' }}>
+            <GroupsOutlinedIcon color="disabled" sx={{ fontSize: 44 }} />
+            <Typography mt={1} fontWeight={700} color="#0F172A">
+              {query || teacherFilter
+                ? 'Nenhuma turma corresponde aos filtros.'
+                : permissions.readOnly
+                ? 'Nenhuma turma foi atribuída a você.'
+                : 'Nenhuma turma cadastrada.'}
+            </Typography>
+          </CardContent>
+        </Card>
+      )}
+
+      {shown.length > 0 &&
+        (compact ? (
+          <Stack gap={1.25}>
+            {shown.map((row) => (
+              <MobileClassCard key={row.id} row={row} actions={renderActions(row)} />
+            ))}
+          </Stack>
+        ) : (
+          <ClassTable rows={shown} renderActions={renderActions} />
+        ))}
+
+      <PageDialog
+        open={Boolean(editing)}
+        title={editing === 'new' ? 'Nova turma' : 'Editar turma'}
+        onClose={() => setEditing(undefined)}
+        onSave={() => void save()}
+        saveText={busy ? 'Salvando…' : 'Salvar'}
+      >
+        {formError && <Alert severity="error" sx={{ borderRadius: 2 }}>{formError}</Alert>}
+        <SelectField
+          label="Curso"
+          value={draft.courseId}
+          onChange={(courseId) => setDraft({ ...draft, courseId })}
+          options={availableCourses.map((course) => ({ value: course.id, label: text(course, 'name') }))}
+        />
+        <TextField
+          required
+          size="small"
+          label="Nome da turma"
+          placeholder="Ex.: 1º Ano A"
+          value={draft.name}
+          inputProps={{ maxLength: 120 }}
+          onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+        />
+        <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.5}>
+          <SelectField
+            label="Turno"
+            value={draft.shift}
+            onChange={(shift) => setDraft({ ...draft, shift })}
+            options={classShifts.map((shift) => ({ value: shift, label: shiftLabel(shift) }))}
+          />
+          <SelectField
+            label="Dia da semana"
+            value={draft.weekDay}
+            onChange={(weekDay) => setDraft({ ...draft, weekDay })}
+            options={[{ value: '', label: 'Não especificado' }, ...classWeekDays.map((day) => ({ value: day, label: day }))]}
+          />
         </Stack>
-      </DialogContent>
-      <DialogActions><Button variant="contained" onClick={() => setTeacherClass(undefined)} disabled={busy}>Concluir</Button></DialogActions>
-    </Dialog>
-  </Section>;
+        <SelectField
+          label="Laboratório"
+          value={draft.laboratoryId}
+          onChange={(laboratoryId) => setDraft({ ...draft, laboratoryId })}
+          options={[
+            { value: '', label: 'Nenhum laboratório' },
+            ...availableLabs.map((laboratory) => ({ value: laboratory.id, label: text(laboratory, 'name') })),
+          ]}
+        />
+        <FormControlLabel
+          control={<Switch checked={draft.isKids} onChange={(event) => setDraft({ ...draft, isKids: event.target.checked })} />}
+          label="Turma Kids"
+        />
+        {editing === 'new' && (
+          <SelectField
+            label="Professor responsável (opcional)"
+            value={draft.teacherId}
+            onChange={(teacherId) => setDraft({ ...draft, teacherId })}
+            options={[
+              { value: '', label: 'Vincular depois' },
+              ...activeTeachers.map((teacher) => ({ value: teacher.id, label: text(teacher, 'name') })),
+            ]}
+          />
+        )}
+      </PageDialog>
+
+      <Dialog
+        open={Boolean(teacherClass)}
+        onClose={() => !busy && setTeacherClass(undefined)}
+        fullWidth
+        maxWidth="sm"
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 750, color: '#0F172A', px: 3, pt: 2.5, pb: 1 }}>
+          Professores • {teacherClass?.name}
+        </DialogTitle>
+        <DialogContent sx={{ px: 3, py: 1 }}>
+          <Stack gap={1.5} pt={1}>
+            {!directoryLoaded && (
+              <Alert severity="info" sx={{ borderRadius: 2 }}>
+                A lista de contas exige conexão. Os vínculos já sincronizados continuam visíveis na turma.
+              </Alert>
+            )}
+            <TextField
+              size="small"
+              label="Buscar professor por nome ou e-mail"
+              value={teacherSearch}
+              onChange={(event) => setTeacherSearch(event.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon color="action" fontSize="small" />
+                  </InputAdornment>
+                ),
+              }}
+            />
+            {directoryLoaded && !activeTeachers.length && (
+              <Typography color="text.secondary" variant="body2">Nenhum professor ativo foi encontrado.</Typography>
+            )}
+            <List disablePadding sx={{ maxHeight: 320, overflow: 'auto' }}>
+              {shownTeachers.map((teacher) => {
+                const checked = assignedIds.has(teacher.id);
+                return (
+                  <ListItemButton
+                    key={teacher.id}
+                    disabled={busy}
+                    onClick={() => void toggleTeacher(teacher.id, !checked)}
+                    sx={{ borderRadius: 2, mb: 0.5 }}
+                  >
+                    <ListItemIcon>
+                      <Checkbox edge="start" checked={checked} tabIndex={-1} />
+                    </ListItemIcon>
+                    <ListItemText primary={text(teacher, 'name')} secondary={text(teacher, 'email')} />
+                  </ListItemButton>
+                );
+              })}
+            </List>
+            {directoryLoaded && activeTeachers.length > 0 && !shownTeachers.length && (
+              <Typography color="text.secondary" variant="body2">Nenhum professor corresponde à busca.</Typography>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid #F1F5F9' }}>
+          <Button variant="contained" onClick={() => setTeacherClass(undefined)} disabled={busy} sx={{ px: 2.5, fontWeight: 650 }}>
+            Concluir
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Section>
+  );
 }

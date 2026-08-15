@@ -9,6 +9,7 @@ import '../../core/database/local_repository.dart';
 import '../../core/models/models.dart';
 import '../../core/reports/report_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/itb_components.dart';
 import '../auth/auth_controller.dart';
 
 class ReportsScreen extends StatefulWidget {
@@ -73,23 +74,30 @@ class _ReportsScreenState extends State<ReportsScreen> {
         !students.any((student) => student.id == studentId)) {
       studentId = null;
     }
+
     return ListView(
       padding: EdgeInsets.all(compact ? 16 : 24),
       children: [
-        Text(
-          'Central de relatórios',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: ItbColors.navy,
-          ),
+        const ItbPageHeader(
+          title: 'Central de relatórios',
+          subtitle: 'Gere e exporte relatórios pedagógicos e diários de classe',
         ),
         const SizedBox(height: 20),
         Card(
           child: Padding(
-            padding: EdgeInsets.all(compact ? 16 : 22),
+            padding: EdgeInsets.all(compact ? 16 : 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                const Text(
+                  'Configuração do Relatório',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: ItbColors.navy,
+                  ),
+                ),
+                const SizedBox(height: 16),
                 Wrap(
                   spacing: 12,
                   runSpacing: 12,
@@ -117,7 +125,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         width: compact ? double.infinity : 300,
                         child: TextField(
                           decoration: const InputDecoration(
-                            prefixIcon: Icon(Icons.search),
+                            prefixIcon: Icon(Icons.search, size: 20),
                             labelText: 'Buscar turma ou aluno',
                           ),
                           onChanged: (value) {
@@ -204,47 +212,53 @@ class _ReportsScreenState extends State<ReportsScreen> {
                               setState(() => studentId = value),
                         ),
                       ),
-                    ...[
-                      OutlinedButton.icon(
-                        onPressed: () => _date(true),
-                        icon: const Icon(Icons.event),
-                        label: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 15),
-                          child: Text(
-                            'De ${DateFormat('dd/MM/yy').format(from)}',
-                          ),
+                    OutlinedButton.icon(
+                      onPressed: () => _date(true),
+                      icon: const Icon(Icons.event, size: 18),
+                      label: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Text(
+                          'De ${DateFormat('dd/MM/yy').format(from)}',
                         ),
                       ),
-                      OutlinedButton.icon(
-                        onPressed: () => _date(false),
-                        icon: const Icon(Icons.event_available),
-                        label: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 15),
-                          child: Text(
-                            'Até ${DateFormat('dd/MM/yy').format(to)}',
-                          ),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => _date(false),
+                      icon: const Icon(Icons.event_available, size: 18),
+                      label: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Text(
+                          'Até ${DateFormat('dd/MM/yy').format(to)}',
                         ),
                       ),
-                    ],
+                    ),
                   ],
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 28),
+                const Divider(height: 1),
+                const SizedBox(height: 20),
                 Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
+                  spacing: 12,
+                  runSpacing: 12,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     FilledButton.icon(
                       onPressed: busy ? null : () => _generate(false),
-                      icon: const Icon(Icons.picture_as_pdf_outlined),
+                      icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
                       label: const Text('Exportar PDF'),
                     ),
                     OutlinedButton.icon(
                       onPressed: busy ? null : () => _generate(true),
-                      icon: const Icon(Icons.print_outlined),
+                      icon: const Icon(Icons.print_outlined, size: 18),
                       label: const Text('Imprimir'),
                     ),
-                    if (busy) ...[const CircularProgressIndicator()],
+                    if (busy) ...[
+                      const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2.5),
+                      ),
+                    ],
                   ],
                 ),
               ],

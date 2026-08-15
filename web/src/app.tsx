@@ -26,23 +26,138 @@ import AssignmentTurnedInOutlinedIcon from '@mui/icons-material/AssignmentTurned
 import BadgeOutlinedIcon from '@mui/icons-material/BadgeOutlined';
 import DataObjectOutlinedIcon from '@mui/icons-material/DataObjectOutlined';
 import {
-  AppBar, Alert, Box, Button, CircularProgress, Collapse, CssBaseline, Drawer,
+  AppBar, Alert, Avatar, Box, Button, Chip, CircularProgress, Collapse, CssBaseline, Drawer,
   IconButton, LinearProgress, List, ListItemButton, ListItemIcon, ListItemText, Snackbar, Stack, Toolbar, Tooltip, Typography,
 } from '@mui/material';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { ApplicationProvider, useApp, useBoot } from './app-context';
 import { Login } from './login';
-import { canManage, type Role } from './types';
+import { canManage, roleLabel, type Role } from './types';
 
 const theme = createTheme({
-  palette: { primary: { main: '#1769AA', dark: '#102A43' }, secondary: { main: '#29B6C8' }, success: { main: '#2E9D65' }, error: { main: '#D64550' }, background: { default: '#F4F7FA', paper: '#FFFFFF' } },
-  typography: { fontFamily: 'Roboto, Segoe UI, Arial, sans-serif' },
-  shape: { borderRadius: 12 },
+  palette: {
+    primary: { main: '#1976D2', dark: '#0F172A', light: '#EFF6FF' },
+    secondary: { main: '#0284C7', light: '#F0F9FF' },
+    success: { main: '#059669', light: '#ECFDF5', dark: '#047857' },
+    error: { main: '#E11D48', light: '#FFF1F2', dark: '#BE123C' },
+    warning: { main: '#D97706', light: '#FFFBEB', dark: '#B45309' },
+    info: { main: '#0284C7', light: '#F0F9FF', dark: '#0369A1' },
+    background: { default: '#F8FAFC', paper: '#FFFFFF' },
+    text: { primary: '#0F172A', secondary: '#64748B' },
+    divider: '#F1F5F9',
+  },
+  typography: {
+    fontFamily: '"Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    h4: { fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' },
+    h5: { fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' },
+    h6: { fontWeight: 700, color: '#0F172A', letterSpacing: '-0.01em' },
+    subtitle1: { fontWeight: 650, color: '#0F172A' },
+    subtitle2: { fontWeight: 600, color: '#0F172A' },
+    body1: { color: '#1E293B', fontSize: '0.9375rem' },
+    body2: { color: '#64748B', fontSize: '0.875rem' },
+    button: { textTransform: 'none', fontWeight: 600 },
+  },
+  shape: { borderRadius: 10 },
   components: {
-    MuiCard: { styleOverrides: { root: { boxShadow: 'none', border: '1px solid #D9E2EC' } } },
-    MuiButton: { styleOverrides: { root: { textTransform: 'none', fontWeight: 700, borderRadius: 9 } } },
-    MuiDialog: { defaultProps: { fullScreen: false } },
+    MuiCard: {
+      defaultProps: { elevation: 0 },
+      styleOverrides: {
+        root: {
+          backgroundImage: 'none',
+          boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.03)',
+          border: '1px solid #E2E8F0',
+          borderRadius: 12,
+          transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+        },
+      },
+    },
+    MuiButton: {
+      defaultProps: { disableElevation: true },
+      styleOverrides: {
+        root: {
+          textTransform: 'none',
+          fontWeight: 600,
+          borderRadius: 8,
+          boxShadow: 'none',
+          transition: 'all 0.15s ease-in-out',
+          '&:hover': {
+            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.08)',
+          },
+        },
+        containedPrimary: {
+          backgroundColor: '#1976D2',
+          '&:hover': { backgroundColor: '#1565C0' },
+        },
+      },
+    },
+    MuiChip: {
+      styleOverrides: {
+        root: {
+          borderRadius: 6,
+          fontWeight: 600,
+          fontSize: '0.75rem',
+        },
+      },
+    },
+    MuiDialog: {
+      defaultProps: { fullScreen: false },
+      styleOverrides: {
+        paper: {
+          borderRadius: 14,
+          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04)',
+          border: '1px solid #E2E8F0',
+        },
+      },
+    },
+    MuiOutlinedInput: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+          backgroundColor: '#FFFFFF',
+          fontSize: '0.875rem',
+          '& .MuiOutlinedInput-notchedOutline': {
+            borderColor: '#E2E8F0',
+            transition: 'border-color 0.15s ease',
+          },
+          '&:hover .MuiOutlinedInput-notchedOutline': {
+            borderColor: '#CBD5E1',
+          },
+          '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+            borderColor: '#1976D2',
+            borderWidth: 1.5,
+          },
+        },
+      },
+    },
+    MuiTableCell: {
+      styleOverrides: {
+        head: {
+          fontWeight: 700,
+          color: '#64748B',
+          backgroundColor: '#F8FAFC',
+          borderBottom: '1px solid #E2E8F0',
+          fontSize: 11,
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+          padding: '10px 16px',
+        },
+        body: {
+          color: '#1E293B',
+          borderBottom: '1px solid #F1F5F9',
+          fontSize: 13,
+          padding: '12px 16px',
+        },
+      },
+    },
+    MuiAlert: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+          fontSize: '0.875rem',
+        },
+      },
+    },
   },
 });
 
@@ -133,7 +248,8 @@ function AppRoutes() {
 
 function Shell() {
   const { session, sync, syncState, message, logout } = useApp();
-  const location = useLocation(); const navigate = useNavigate();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [drawer, setDrawer] = useState(false);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('frequencia-itb-menu-collapsed') === 'true');
   const [replacementsOpen, setReplacementsOpen] = useState(location.pathname.startsWith('/reposicoes'));
@@ -145,33 +261,327 @@ function Shell() {
   const isSelected = (item: Destination) => location.pathname === item.path || (item.path !== '/' && !item.parent && location.pathname.startsWith(`${item.path}/`));
   const go = (path: string) => { navigate(path); setDrawer(false); };
   const toggleCollapsed = () => setCollapsed((value) => { localStorage.setItem('frequencia-itb-menu-collapsed', String(!value)); return !value; });
-  const navItem = (item: Destination, nested = false) => <ListItemButton key={item.path} selected={isSelected(item)} onClick={() => go(item.path)} aria-current={isSelected(item) ? 'page' : undefined} sx={{ my: .25, ml: nested && !collapsed ? 2 : 0, minHeight: 44, justifyContent: collapsed ? 'center' : 'initial', borderRadius: 2, '&.Mui-selected': { bgcolor: '#DCF3F7', color: '#102A43' } }}><ListItemIcon sx={{ minWidth: collapsed ? 0 : 42, justifyContent: 'center', color: 'inherit' }}>{item.icon}</ListItemIcon>{!collapsed && <ListItemText primary={item.shortLabel ?? item.label} primaryTypographyProps={{ fontWeight: isSelected(item) ? 800 : 500, fontSize: 14 }} />}</ListItemButton>;
-  const tree = (parent: Parent, label: string, icon: React.ReactNode, open: boolean, setOpen: (value: boolean) => void) => {
-    const items = destinations.filter((item) => item.parent === parent); const selected = location.pathname.startsWith(`/${parent === 'bi' ? 'bi' : 'reposicoes'}`);
-    return <Box key={parent}><Tooltip title={collapsed ? label : ''} placement="right"><ListItemButton selected={selected} onClick={() => { if (collapsed) go(items[0]?.path ?? '/'); else setOpen(!open); }} aria-expanded={!collapsed ? open : undefined} sx={{ my: .25, minHeight: 44, justifyContent: collapsed ? 'center' : 'initial', borderRadius: 2, '&.Mui-selected': { bgcolor: '#DCF3F7', color: '#102A43' } }}><ListItemIcon sx={{ minWidth: collapsed ? 0 : 42, justifyContent: 'center', color: 'inherit' }}>{icon}</ListItemIcon>{!collapsed && <><ListItemText primary={label} primaryTypographyProps={{ fontWeight: selected ? 800 : 500, fontSize: 14 }} />{open ? <ExpandLessIcon /> : <ExpandMoreIcon />}</>}</ListItemButton></Tooltip>{!collapsed && <Collapse in={open} timeout="auto" unmountOnExit>{items.map((item) => navItem(item, true))}</Collapse>}</Box>;
+
+  const navItem = (item: Destination, nested = false) => {
+    const selected = isSelected(item);
+    return (
+      <ListItemButton
+        key={item.path}
+        selected={selected}
+        onClick={() => go(item.path)}
+        aria-current={selected ? 'page' : undefined}
+        sx={{
+          my: 0.25,
+          ml: nested && !collapsed ? 1.5 : 0,
+          minHeight: 38,
+          py: 0.75,
+          px: 1.5,
+          justifyContent: collapsed ? 'center' : 'initial',
+          borderRadius: 2,
+          color: selected ? '#FFFFFF' : '#94A3B8',
+          bgcolor: selected ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+          transition: 'all 0.15s ease',
+          '&:hover': {
+            bgcolor: selected ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+            color: '#FFFFFF',
+          },
+          '&.Mui-selected': {
+            bgcolor: 'rgba(255, 255, 255, 0.08)',
+            color: '#FFFFFF',
+            '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.12)' },
+          },
+        }}
+      >
+        <ListItemIcon sx={{ minWidth: collapsed ? 0 : 32, justifyContent: 'center', color: selected ? '#38BDF8' : 'inherit', '& svg': { fontSize: 19 } }}>
+          {item.icon}
+        </ListItemIcon>
+        {!collapsed && (
+          <ListItemText
+            primary={item.shortLabel ?? item.label}
+            primaryTypographyProps={{
+              fontWeight: selected ? 650 : 500,
+              fontSize: 13.5,
+              letterSpacing: '-0.01em',
+            }}
+          />
+        )}
+      </ListItemButton>
+    );
   };
+
+  const tree = (parent: Parent, label: string, icon: React.ReactNode, open: boolean, setOpen: (value: boolean) => void) => {
+    const items = destinations.filter((item) => item.parent === parent);
+    const selected = location.pathname.startsWith(`/${parent === 'bi' ? 'bi' : 'reposicoes'}`);
+    return (
+      <Box key={parent}>
+        <Tooltip title={collapsed ? label : ''} placement="right">
+          <ListItemButton
+            selected={selected}
+            onClick={() => { if (collapsed) go(items[0]?.path ?? '/'); else setOpen(!open); }}
+            aria-expanded={!collapsed ? open : undefined}
+            sx={{
+              my: 0.25,
+              minHeight: 38,
+              py: 0.75,
+              px: 1.5,
+              justifyContent: collapsed ? 'center' : 'initial',
+              borderRadius: 2,
+              color: selected ? '#FFFFFF' : '#94A3B8',
+              bgcolor: selected ? 'rgba(255, 255, 255, 0.06)' : 'transparent',
+              transition: 'all 0.15s ease',
+              '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.04)', color: '#FFFFFF' },
+              '&.Mui-selected': {
+                bgcolor: 'rgba(255, 255, 255, 0.06)',
+                color: '#FFFFFF',
+              },
+            }}
+          >
+            <ListItemIcon sx={{ minWidth: collapsed ? 0 : 32, justifyContent: 'center', color: selected ? '#38BDF8' : 'inherit', '& svg': { fontSize: 19 } }}>
+              {icon}
+            </ListItemIcon>
+            {!collapsed && (
+              <>
+                <ListItemText primary={label} primaryTypographyProps={{ fontWeight: selected ? 650 : 500, fontSize: 13.5, letterSpacing: '-0.01em' }} />
+                {open ? <ExpandLessIcon sx={{ fontSize: 18, color: '#64748B' }} /> : <ExpandMoreIcon sx={{ fontSize: 18, color: '#64748B' }} />}
+              </>
+            )}
+          </ListItemButton>
+        </Tooltip>
+        {!collapsed && <Collapse in={open} timeout="auto" unmountOnExit>{items.map((item) => navItem(item, true))}</Collapse>}
+      </Box>
+    );
+  };
+
   const topLevel = destinations.filter((item) => !item.parent);
-  const nav = <List sx={{ p: 1 }}>{topLevel.map((item) => item.path === '/relatorios' ? <Box key="reports-and-replacements">{navItem(item)}{tree('replacements', 'Reposição', <EventRepeatOutlinedIcon />, replacementsOpen, setReplacementsOpen)}</Box> : item.path === '/usuarios' ? <Box key="bi-and-users">{tree('bi', 'B.I.', <InsightsOutlinedIcon />, biOpen, setBiOpen)}{navItem(item)}</Box> : navItem(item))}{!topLevel.some((item) => item.path === '/usuarios') && tree('bi', 'B.I.', <InsightsOutlinedIcon />, biOpen, setBiOpen)}</List>;
-  const desktopWidth = collapsed ? 84 : 264;
-  return <Box sx={{ display: 'flex', minHeight: '100vh' }}>
-    <Box component="nav" aria-label="Navegação principal" sx={{ width: desktopWidth, flexShrink: 0, display: { xs: 'none', md: 'block' }, bgcolor: '#102A43', color: '#D9E2EC', transition: 'width 180ms ease' }}>
-      <Stack direction="row" alignItems="center" justifyContent={collapsed ? 'center' : 'space-between'} sx={{ p: collapsed ? 1.5 : 2.5, minHeight: 82 }}><Box sx={{ display: collapsed ? 'none' : 'block', minWidth: 0 }}><Typography color="white" fontWeight={900} fontSize={20} noWrap>Frequência ITB</Typography><Typography fontSize={12} color="#BCCCDC" noWrap>{session.name}</Typography></Box><Tooltip title={collapsed ? 'Expandir menu' : 'Recolher menu'}><IconButton onClick={toggleCollapsed} sx={{ color: '#D9E2EC' }}>{collapsed ? <MenuIcon /> : <MenuOpenIcon />}</IconButton></Tooltip></Stack>
-      <Box sx={{ px: .5, pb: 2, maxHeight: 'calc(100vh - 82px)', overflowY: 'auto' }}>{nav}</Box>
+  const nav = (
+    <List sx={{ p: 1 }}>
+      {topLevel.map((item) =>
+        item.path === '/relatorios' ? (
+          <Box key="reports-and-replacements">
+            {navItem(item)}
+            {tree('replacements', 'Reposição', <EventRepeatOutlinedIcon />, replacementsOpen, setReplacementsOpen)}
+          </Box>
+        ) : item.path === '/usuarios' ? (
+          <Box key="bi-and-users">
+            {tree('bi', 'B.I.', <InsightsOutlinedIcon />, biOpen, setBiOpen)}
+            {navItem(item)}
+          </Box>
+        ) : (
+          navItem(item)
+        ),
+      )}
+      {!topLevel.some((item) => item.path === '/usuarios') && tree('bi', 'B.I.', <InsightsOutlinedIcon />, biOpen, setBiOpen)}
+    </List>
+  );
+
+  const desktopWidth = collapsed ? 72 : 240;
+
+  return (
+    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
+      <Box
+        component="nav"
+        aria-label="Navegação principal"
+        sx={{
+          width: desktopWidth,
+          flexShrink: 0,
+          display: { xs: 'none', md: 'block' },
+          bgcolor: '#0F172A',
+          color: '#E2E8F0',
+          transition: 'width 180ms cubic-bezier(0.4, 0, 0.2, 1)',
+          borderRight: '1px solid rgba(255, 255, 255, 0.06)',
+        }}
+      >
+        <Stack
+          direction="row"
+          alignItems="center"
+          justifyContent={collapsed ? 'center' : 'space-between'}
+          sx={{ px: collapsed ? 1 : 2, py: 1.5, minHeight: 56, borderBottom: '1px solid rgba(255, 255, 255, 0.06)' }}
+        >
+          <Box sx={{ display: collapsed ? 'none' : 'block', minWidth: 0 }}>
+            <Typography color="#FFFFFF" fontWeight={800} fontSize={16} letterSpacing="-0.02em" noWrap>
+              Frequência ITB
+            </Typography>
+            <Typography fontSize={11} color="#64748B" fontWeight={500} noWrap sx={{ mt: -0.25 }}>
+              {roleLabel[session.role] ?? session.role}
+            </Typography>
+          </Box>
+          <Tooltip title={collapsed ? 'Expandir menu' : 'Recolher menu'}>
+            <IconButton onClick={toggleCollapsed} size="small" sx={{ color: '#64748B', '&:hover': { color: '#FFFFFF', bgcolor: 'rgba(255,255,255,0.06)' } }}>
+              {collapsed ? <MenuIcon fontSize="small" /> : <MenuOpenIcon fontSize="small" />}
+            </IconButton>
+          </Tooltip>
+        </Stack>
+        <Box sx={{ px: 0.5, py: 1, maxHeight: 'calc(100vh - 56px)', overflowY: 'auto' }}>
+          {nav}
+        </Box>
+      </Box>
+
+      <Drawer
+        open={drawer}
+        onClose={() => setDrawer(false)}
+        sx={{ display: { md: 'none' } }}
+        PaperProps={{
+          sx: {
+            width: 270,
+            bgcolor: '#0F172A',
+            color: '#E2E8F0',
+          },
+        }}
+      >
+        <Box sx={{ p: 2, borderBottom: '1px solid rgba(255, 255, 255, 0.06)' }}>
+          <Typography color="#FFFFFF" fontWeight={800} fontSize={16}>
+            Frequência ITB
+          </Typography>
+          <Typography fontSize={12} color="#64748B" sx={{ mt: 0.25 }}>
+            {session.name} • {roleLabel[session.role]}
+          </Typography>
+        </Box>
+        <Box sx={{ px: 0.5, py: 0.75 }}>{nav}</Box>
+      </Drawer>
+
+      <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        <AppBar
+          position="sticky"
+          elevation={0}
+          sx={{
+            bgcolor: '#FFFFFF',
+            borderBottom: '1px solid #E2E8F0',
+            color: '#0F172A',
+          }}
+        >
+          <Toolbar sx={{ minHeight: '56px !important', px: { xs: 2, sm: 3 } }}>
+            <IconButton
+              aria-label="Abrir menu"
+              size="small"
+              sx={{ display: { md: 'none' }, mr: 1.5, color: '#0F172A' }}
+              onClick={() => setDrawer(true)}
+            >
+              <MenuIcon fontSize="small" />
+            </IconButton>
+            <Typography sx={{ flex: 1, color: '#0F172A', fontWeight: 700, fontSize: { xs: 15, sm: 16 }, letterSpacing: '-0.01em' }} noWrap>
+              {currentLabel}
+            </Typography>
+            <Stack direction="row" alignItems="center" spacing={1}>
+              <Tooltip title={syncState === 'syncing' ? 'Sincronizando dados...' : 'Sincronizar agora'}>
+                <span>
+                  <IconButton
+                    size="small"
+                    color={syncState === 'offline' || syncState === 'warning' ? 'warning' : syncState === 'error' ? 'error' : 'primary'}
+                    disabled={syncState === 'syncing'}
+                    onClick={() => void sync()}
+                    sx={{
+                      bgcolor: syncState === 'syncing' ? 'action.hover' : 'transparent',
+                    }}
+                  >
+                    {syncState === 'syncing' ? <CircularProgress size={18} /> : <SyncIcon fontSize="small" />}
+                  </IconButton>
+                </span>
+              </Tooltip>
+
+              <Stack direction="row" alignItems="center" spacing={1.25} sx={{ pl: 1, borderLeft: '1px solid #E2E8F0' }}>
+                <Avatar sx={{ width: 30, height: 30, bgcolor: '#1976D2', fontSize: 13, fontWeight: 700 }}>
+                  {session.name.slice(0, 1).toUpperCase()}
+                </Avatar>
+                <Box sx={{ display: { xs: 'none', lg: 'block' }, textAlign: 'left' }}>
+                  <Typography fontSize={13} fontWeight={650} color="#0F172A" noWrap sx={{ lineHeight: 1.2 }}>
+                    {session.name}
+                  </Typography>
+                  <Typography fontSize={11} color="#64748B" noWrap>
+                    {roleLabel[session.role]}
+                  </Typography>
+                </Box>
+                <Tooltip title="Sair do sistema">
+                  <Button
+                    size="small"
+                    color="inherit"
+                    startIcon={<LogoutIcon fontSize="small" />}
+                    onClick={() => void logout()}
+                    sx={{
+                      color: '#64748B',
+                      fontWeight: 600,
+                      fontSize: 13,
+                      '&:hover': { color: '#E11D48', bgcolor: '#FFF1F2' },
+                      display: { xs: 'none', sm: 'inline-flex' },
+                    }}
+                  >
+                    Sair
+                  </Button>
+                </Tooltip>
+                <Tooltip title="Sair">
+                  <IconButton
+                    size="small"
+                    onClick={() => void logout()}
+                    sx={{ display: { xs: 'inline-flex', sm: 'none' }, color: '#64748B' }}
+                  >
+                    <LogoutIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Stack>
+            </Stack>
+          </Toolbar>
+          {syncState === 'syncing' && <LinearProgress sx={{ height: 2 }} />}
+        </AppBar>
+
+        <Box component="main" sx={{ p: { xs: 2, sm: 3, md: 3 }, maxWidth: 1440, width: '100%', mx: 'auto', flex: 1 }}>
+          <AppRoutes />
+        </Box>
+      </Box>
+
+      <Snackbar
+        open={Boolean(message)}
+        autoHideDuration={6000}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        sx={{ maxWidth: { xs: 'calc(100vw - 24px)', sm: 480 } }}
+      >
+        <Alert
+          variant="filled"
+          severity={syncState === 'error' ? 'error' : syncState === 'offline' || syncState === 'warning' ? 'warning' : 'info'}
+          sx={{ borderRadius: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+        >
+          {message}
+        </Alert>
+      </Snackbar>
     </Box>
-    <Drawer open={drawer} onClose={() => setDrawer(false)} sx={{ display: { md: 'none' } }}><Box sx={{ width: 300, bgcolor: '#102A43', color: '#D9E2EC', minHeight: '100%' }}><Box sx={{ p: 2.5 }}><Typography color="white" fontWeight={900}>Frequência ITB</Typography><Typography fontSize={12}>{session.name}</Typography></Box><Box sx={{ px: .5 }}>{nav}</Box></Box></Drawer>
-    <Box sx={{ flex: 1, minWidth: 0 }}>
-      <AppBar position="sticky" elevation={0} color="inherit" sx={{ borderBottom: '1px solid #D9E2EC' }}><Toolbar><IconButton aria-label="Abrir menu" sx={{ display: { md: 'none' }, mr: 1 }} onClick={() => setDrawer(true)}><MenuIcon /></IconButton><Typography sx={{ flex: 1, color: 'primary.dark', fontWeight: 800 }} noWrap>{currentLabel}</Typography><Tooltip title={syncState === 'syncing' ? 'Sincronizando' : 'Sincronizar agora'}><span><IconButton color={syncState === 'offline' || syncState === 'warning' ? 'warning' : 'primary'} disabled={syncState === 'syncing'} onClick={() => void sync()}>{syncState === 'syncing' ? <CircularProgress size={22} /> : <SyncIcon />}</IconButton></span></Tooltip><Button color="inherit" startIcon={<LogoutIcon />} onClick={() => void logout()} sx={{ display: { xs: 'none', sm: 'inline-flex' } }}>Sair</Button><Tooltip title="Sair"><IconButton onClick={() => void logout()} sx={{ display: { xs: 'inline-flex', sm: 'none' } }}><LogoutIcon /></IconButton></Tooltip></Toolbar>{syncState === 'syncing' && <LinearProgress />}</AppBar>
-      <Box component="main" sx={{ p: { xs: 2, md: 3 }, maxWidth: 1500, mx: 'auto' }}><AppRoutes /></Box>
-    </Box>
-    <Snackbar open={Boolean(message)} autoHideDuration={6000} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} sx={{ maxWidth: { xs: 'calc(100vw - 24px)', sm: 520 } }}><Alert severity={syncState === 'error' ? 'error' : syncState === 'offline' || syncState === 'warning' ? 'warning' : 'info'}>{message}</Alert></Snackbar>
-  </Box>;
+  );
 }
 
 export function App() {
-  const boot = useBoot(); const [override, setOverride] = useState<typeof boot>(); const state = override ?? boot;
-  if (state.loading) return <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}><CircularProgress /></Box>;
-  if (!state.session || !state.store) return <Login notice={state.error} onLogin={(session, store) => setOverride({ loading: false, session, store })} />;
-  return <ApplicationProvider initialSession={state.session} initialStore={state.store} onSignedOut={(notice) => setOverride({ loading: false, error: notice })}><Shell /></ApplicationProvider>;
+  const boot = useBoot();
+  const [override, setOverride] = useState<typeof boot>();
+  const state = override ?? boot;
+  if (state.loading) {
+    return (
+      <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center', bgcolor: '#F6F8FB' }}>
+        <CircularProgress size={48} thickness={4} />
+      </Box>
+    );
+  }
+  if (!state.session || !state.store) {
+    return (
+      <Login
+        notice={state.error}
+        onLogin={(session, store) => setOverride({ loading: false, session, store })}
+      />
+    );
+  }
+  return (
+    <ApplicationProvider
+      initialSession={state.session}
+      initialStore={state.store}
+      onSignedOut={(notice) => setOverride({ loading: false, error: notice })}
+    >
+      <Shell />
+    </ApplicationProvider>
+  );
 }
 
-export function Root() { return <ThemeProvider theme={theme}><CssBaseline /><BrowserRouter><App /></BrowserRouter></ThemeProvider>; }
+export function Root() {
+  return (
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </ThemeProvider>
+  );
+}

@@ -8,6 +8,7 @@ import '../../core/database/local_repository.dart';
 import '../../core/models/models.dart';
 import '../../core/sync/sync_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/itb_components.dart';
 import '../auth/auth_controller.dart';
 
 class StudentsScreen extends StatefulWidget {
@@ -23,6 +24,7 @@ class _StudentsScreenState extends State<StudentsScreen> {
   String? teacherId;
   String search = '';
   Timer? debounce;
+
   @override
   void dispose() {
     debounce?.cancel();
@@ -47,49 +49,41 @@ class _StudentsScreenState extends State<StudentsScreen> {
       search: search,
       teacherId: teacherId,
     );
+
     return ListView(
       padding: EdgeInsets.all(compact ? 16 : 24),
       children: [
-        Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            Text(
-              'Alunos',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: ItbColors.navy,
-              ),
-            ),
-            if (user.role.canManage)
-              SizedBox(
-                width: compact ? double.infinity : null,
-                child: FilledButton.icon(
+        ItbPageHeader(
+          title: 'Alunos',
+          subtitle: 'Cadastro, matrículas e histórico de alunos',
+          action: user.role.canManage
+              ? FilledButton.icon(
                   onPressed: classes.isEmpty
                       ? null
                       : () => _studentDialog(
                           repository,
                           classId ?? classes.first.id,
                         ),
-                  icon: const Icon(Icons.person_add_alt_1),
+                  icon: const Icon(Icons.person_add_alt_1, size: 18),
                   label: const Text('Novo aluno'),
-                ),
-              ),
-          ],
+                )
+              : null,
         ),
         const SizedBox(height: 16),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
+        ItbFilterCard(
+          searchHint: 'Buscar aluno ou matrícula',
+          searchValue: search,
+          onSearchChanged: (value) => setState(() => search = value),
+          filters: [
             SizedBox(
-              width: compact ? double.infinity : 280,
+              width: compact ? double.infinity : 240,
               child: DropdownButtonFormField<String?>(
                 initialValue: classId,
                 isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Turma'),
+                decoration: const InputDecoration(
+                  isDense: true,
+                  labelText: 'Turma',
+                ),
                 items: [
                   const DropdownMenuItem(
                     value: null,
@@ -101,28 +95,16 @@ class _StudentsScreenState extends State<StudentsScreen> {
                 onChanged: (value) => setState(() => classId = value),
               ),
             ),
-            SizedBox(
-              width: compact ? double.infinity : 300,
-              child: TextField(
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.search),
-                  labelText: 'Buscar aluno ou matrícula',
-                ),
-                onChanged: (value) {
-                  debounce?.cancel();
-                  debounce = Timer(const Duration(milliseconds: 350), () {
-                    if (mounted) setState(() => search = value);
-                  });
-                },
-              ),
-            ),
             if (user.role.canManage)
               SizedBox(
-                width: compact ? double.infinity : 280,
+                width: compact ? double.infinity : 240,
                 child: DropdownButtonFormField<String?>(
                   initialValue: teacherId,
                   isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Professor'),
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    labelText: 'Professor',
+                  ),
                   items: [
                     const DropdownMenuItem(
                       value: null,
@@ -139,11 +121,14 @@ class _StudentsScreenState extends State<StudentsScreen> {
                 ),
               ),
             SizedBox(
-              width: compact ? double.infinity : 210,
+              width: compact ? double.infinity : 190,
               child: DropdownButtonFormField<String?>(
                 initialValue: performance,
                 isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Desempenho'),
+                decoration: const InputDecoration(
+                  isDense: true,
+                  labelText: 'Desempenho',
+                ),
                 items: const [
                   DropdownMenuItem(value: null, child: Text('Todos')),
                   DropdownMenuItem(
@@ -163,11 +148,14 @@ class _StudentsScreenState extends State<StudentsScreen> {
               ),
             ),
             SizedBox(
-              width: compact ? double.infinity : 190,
+              width: compact ? double.infinity : 170,
               child: DropdownButtonFormField<String?>(
                 initialValue: status,
                 isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Matrícula'),
+                decoration: const InputDecoration(
+                  isDense: true,
+                  labelText: 'Matrícula',
+                ),
                 items: const [
                   DropdownMenuItem(value: null, child: Text('Todos os alunos')),
                   DropdownMenuItem(value: 'ativa', child: Text('Ativa')),
@@ -182,14 +170,13 @@ class _StudentsScreenState extends State<StudentsScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
         if (students.isEmpty)
           const Card(
-            child: Padding(
-              padding: EdgeInsets.all(36),
-              child: Center(
-                child: Text('Nenhum aluno corresponde aos filtros.'),
-              ),
+            child: ItbEmptyState(
+              title: 'Nenhum aluno encontrado',
+              subtitle: 'Tente ajustar os filtros ou cadastrar novos alunos.',
+              icon: Icons.school_outlined,
             ),
           )
         else if (compact)
@@ -218,7 +205,7 @@ class _StudentsScreenState extends State<StudentsScreen> {
         else
           Card(
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(16),
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: DataTable(
@@ -237,12 +224,18 @@ class _StudentsScreenState extends State<StudentsScreen> {
                     for (final student in students)
                       DataRow(
                         cells: [
-                          DataCell(Text(student.registrationNumber)),
+                          DataCell(
+                            Text(
+                              student.registrationNumber,
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                          ),
                           DataCell(
                             Text(
                               student.name,
                               style: const TextStyle(
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.w700,
+                                color: ItbColors.navy,
                               ),
                             ),
                           ),
@@ -266,10 +259,13 @@ class _StudentsScreenState extends State<StudentsScreen> {
                             ),
                           ),
                           DataCell(Text(student.contact ?? '—')),
-                          DataCell(Chip(label: Text(student.enrollmentStatus))),
+                          DataCell(
+                            ItbStatusBadge.enrollment(student.enrollmentStatus),
+                          ),
                           if (user.role.canManage)
                             DataCell(
                               Row(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
                                   IconButton(
                                     tooltip: 'Editar',
@@ -280,14 +276,21 @@ class _StudentsScreenState extends State<StudentsScreen> {
                                           classes.first.id,
                                       student: student,
                                     ),
-                                    icon: const Icon(Icons.edit_outlined),
+                                    icon: const Icon(
+                                      Icons.edit_outlined,
+                                      size: 19,
+                                    ),
                                   ),
                                   if (user.role == UserRole.admin)
                                     IconButton(
                                       tooltip: 'Excluir aluno',
                                       onPressed: () =>
                                           _delete(repository, student),
-                                      icon: const Icon(Icons.delete_outline),
+                                      icon: const Icon(
+                                        Icons.delete_outline,
+                                        color: ItbColors.red,
+                                        size: 19,
+                                      ),
                                     )
                                   else
                                     IconButton(
@@ -296,6 +299,7 @@ class _StudentsScreenState extends State<StudentsScreen> {
                                           _inactivate(repository, student),
                                       icon: const Icon(
                                         Icons.person_off_outlined,
+                                        size: 19,
                                       ),
                                     ),
                                 ],
@@ -388,7 +392,7 @@ class _StudentsScreenState extends State<StudentsScreen> {
                       );
                       if (value != null) refresh(() => birthDate = value);
                     },
-                    icon: const Icon(Icons.cake_outlined),
+                    icon: const Icon(Icons.cake_outlined, size: 18),
                     label: Text(
                       birthDate == null
                           ? 'Data de nascimento'
@@ -504,6 +508,7 @@ class _StudentsScreenState extends State<StudentsScreen> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: ItbColors.red),
             child: const Text('Excluir'),
           ),
         ],
@@ -544,9 +549,22 @@ class _MobileStudentCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
-                backgroundColor: ItbColors.blue.withValues(alpha: .12),
-                child: const Icon(Icons.person_outline, color: ItbColors.blue),
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: ItbColors.blueLight,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  student.name.substring(0, 1).toUpperCase(),
+                  style: const TextStyle(
+                    color: ItbColors.blue,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                  ),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -555,25 +573,42 @@ class _MobileStudentCard extends StatelessWidget {
                   children: [
                     Text(
                       student.name,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                        color: ItbColors.navy,
+                      ),
                     ),
                     const SizedBox(height: 2),
-                    Text('Matrícula ${student.registrationNumber}'),
+                    Text(
+                      'Matrícula ${student.registrationNumber}',
+                      style: const TextStyle(
+                        color: ItbColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
                   ],
                 ),
               ),
-              Chip(label: Text(student.enrollmentStatus)),
+              ItbStatusBadge.enrollment(student.enrollmentStatus),
             ],
           ),
           const SizedBox(height: 12),
-          Text('Turma: ${student.className ?? '—'}'),
+          Text(
+            'Turma: ${student.className ?? '—'}',
+            style: const TextStyle(fontSize: 13),
+          ),
           const SizedBox(height: 4),
           Text(
             'Nascimento: ${student.birthDate == null ? '—' : DateFormat('dd/MM/yyyy').format(student.birthDate!)}',
+            style: const TextStyle(fontSize: 13),
           ),
           if ((student.contact ?? '').isNotEmpty) ...[
             const SizedBox(height: 4),
-            Text('Contato: ${student.contact}'),
+            Text(
+              'Contato: ${student.contact}',
+              style: const TextStyle(fontSize: 13),
+            ),
           ],
           if (canManage) ...[
             const Divider(height: 24),
@@ -582,7 +617,7 @@ class _MobileStudentCard extends StatelessWidget {
               children: [
                 TextButton.icon(
                   onPressed: onEdit,
-                  icon: const Icon(Icons.edit_outlined),
+                  icon: const Icon(Icons.edit_outlined, size: 18),
                   label: const Text('Editar'),
                 ),
                 const SizedBox(width: 8),
@@ -590,8 +625,15 @@ class _MobileStudentCard extends StatelessWidget {
                   onPressed: onRemove,
                   icon: Icon(
                     isAdmin ? Icons.delete_outline : Icons.person_off_outlined,
+                    color: isAdmin ? ItbColors.red : null,
+                    size: 18,
                   ),
-                  label: Text(isAdmin ? 'Excluir' : 'Inativar'),
+                  label: Text(
+                    isAdmin ? 'Excluir' : 'Inativar',
+                    style: TextStyle(
+                      color: isAdmin ? ItbColors.red : null,
+                    ),
+                  ),
                 ),
               ],
             ),

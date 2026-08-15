@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/database/local_repository.dart';
 import '../../core/models/models.dart';
 import '../../core/network/api_client.dart';
-import '../../core/database/local_repository.dart';
 import '../../core/sync/sync_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../attendance/attendance_screen.dart';
@@ -26,11 +26,18 @@ class AppShell extends StatefulWidget {
 }
 
 class _Destination {
-  const _Destination(this.label, this.icon, this.selectedIcon, this.page);
+  const _Destination(
+    this.label,
+    this.icon,
+    this.selectedIcon,
+    this.page, {
+    this.section = 'Principal',
+  });
   final String label;
   final IconData icon;
   final IconData selectedIcon;
   final Widget page;
+  final String section;
 }
 
 class _AppShellState extends State<AppShell> {
@@ -66,73 +73,84 @@ class _AppShellState extends State<AppShell> {
     const _Destination(
       'Visão geral',
       Icons.dashboard_outlined,
-      Icons.dashboard,
+      Icons.dashboard_rounded,
       DashboardScreen(),
+      section: 'Acompanhamento',
     ),
     const _Destination(
       'Turmas',
       Icons.groups_outlined,
-      Icons.groups,
+      Icons.groups_rounded,
       ClassesScreen(),
+      section: 'Gestão Pedagógica',
     ),
     const _Destination(
       'Alunos',
       Icons.school_outlined,
-      Icons.school,
+      Icons.school_rounded,
       StudentsScreen(),
+      section: 'Gestão Pedagógica',
     ),
     const _Destination(
       'Frequência',
       Icons.fact_check_outlined,
-      Icons.fact_check,
+      Icons.fact_check_rounded,
       AttendanceScreen(),
+      section: 'Acompanhamento',
     ),
     const _Destination(
       'Relatórios',
       Icons.description_outlined,
-      Icons.description,
+      Icons.description_rounded,
       ReportsScreen(),
+      section: 'Gestão Pedagógica',
     ),
     const _Destination(
       'Reposição',
       Icons.event_repeat_outlined,
-      Icons.event_repeat,
+      Icons.event_repeat_rounded,
       ReplacementsScreen(),
+      section: 'Acompanhamento',
     ),
     if (role.canManage)
       const _Destination(
         'Cursos',
         Icons.menu_book_outlined,
-        Icons.menu_book,
+        Icons.menu_book_rounded,
         CoursesScreen(),
+        section: 'Gestão Pedagógica',
       ),
     if (role.canManage)
       const _Destination(
         'Laboratórios',
         Icons.science_outlined,
-        Icons.science,
+        Icons.science_rounded,
         LaboratoriesScreen(),
+        section: 'Gestão Pedagógica',
       ),
     if (role == UserRole.admin)
       const _Destination(
         'Usuários',
         Icons.manage_accounts_outlined,
-        Icons.manage_accounts,
+        Icons.manage_accounts_rounded,
         UsersScreen(),
+        section: 'Administração',
       ),
     if (role.canResolveConflicts)
       const _Destination(
         'Conflitos',
         Icons.compare_arrows_outlined,
-        Icons.compare_arrows,
+        Icons.compare_arrows_rounded,
         ConflictsScreen(),
+        section: 'Administração',
       ),
     if (role.canManage)
       const _Destination(
         'Auditoria',
         Icons.manage_history_outlined,
-        Icons.manage_history,
+        Icons.manage_history_rounded,
         AuditScreen(),
+        section: 'Administração',
       ),
   ];
 
@@ -147,63 +165,145 @@ class _AppShellState extends State<AppShell> {
       index: index,
       children: destinations.map((item) => item.page).toList(),
     );
+
     return Scaffold(
       drawer: wide
           ? null
           : Drawer(
+              backgroundColor: Colors.white,
               child: SafeArea(
-                child: ListView(
-                  padding: EdgeInsets.zero,
+                child: Column(
                   children: [
                     Container(
-                      color: ItbColors.navy,
+                      width: double.infinity,
                       padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-                      child: Row(
+                      decoration: const BoxDecoration(
+                        color: ItbColors.navy,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          CircleAvatar(
-                            backgroundColor: ItbColors.cyan,
-                            foregroundColor: ItbColors.navy,
-                            child: Text(
-                              session.name.substring(0, 1).toUpperCase(),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w900,
+                          Row(
+                            children: [
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: ItbColors.cyan,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  session.name.substring(0, 1).toUpperCase(),
+                                  style: const TextStyle(
+                                    color: ItbColors.navy,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              session.name,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      session.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      session.role.label,
+                                      style: const TextStyle(
+                                        color: Color(0xFF94A3B8),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
+                            ],
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    for (
-                      var position = 0;
-                      position < destinations.length;
-                      position++
-                    )
-                      ListTile(
-                        selected: position == index,
-                        leading: Icon(
-                          position == index
-                              ? destinations[position].selectedIcon
-                              : destinations[position].icon,
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 12,
+                          horizontal: 8,
                         ),
-                        title: Text(destinations[position].label),
-                        onTap: () {
-                          setState(() => index = position);
-                          Navigator.pop(context);
-                        },
+                        children: [
+                          for (
+                            var position = 0;
+                            position < destinations.length;
+                            position++
+                          )
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 2),
+                              child: ListTile(
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                selectedTileColor: ItbColors.blueLight,
+                                selectedColor: ItbColors.blue,
+                                selected: position == index,
+                                leading: Icon(
+                                  position == index
+                                      ? destinations[position].selectedIcon
+                                      : destinations[position].icon,
+                                  color: position == index
+                                      ? ItbColors.blue
+                                      : ItbColors.textSecondary,
+                                ),
+                                title: Text(
+                                  destinations[position].label,
+                                  style: TextStyle(
+                                    fontWeight: position == index
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    color: position == index
+                                        ? ItbColors.blue
+                                        : ItbColors.textPrimary,
+                                  ),
+                                ),
+                                onTap: () {
+                                  setState(() => index = position);
+                                  Navigator.pop(context);
+                                },
+                              ),
+                            ),
+                        ],
                       ),
+                    ),
+                    const Divider(height: 1),
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: ListTile(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        leading: const Icon(
+                          Icons.logout,
+                          color: ItbColors.red,
+                        ),
+                        title: const Text(
+                          'Sair da conta',
+                          style: TextStyle(
+                            color: ItbColors.red,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        onTap: () => auth.logout(),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -240,6 +340,7 @@ class _AppShellState extends State<AppShell> {
                         collapsed
                             ? Icons.keyboard_double_arrow_right
                             : Icons.keyboard_double_arrow_left,
+                        color: Colors.white70,
                       ),
                     ),
                   ),
@@ -261,8 +362,17 @@ class _AppShellState extends State<AppShell> {
                 Expanded(
                   child: Column(
                     children: [
-                      SizedBox(
-                        height: kToolbarHeight,
+                      Container(
+                        height: kToolbarHeight + 4,
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          border: Border(
+                            bottom: BorderSide(
+                              color: ItbColors.surfaceBorder,
+                              width: 1,
+                            ),
+                          ),
+                        ),
                         child: _topBar(auth, session, mobile: false),
                       ),
                       Expanded(child: content),
@@ -272,22 +382,6 @@ class _AppShellState extends State<AppShell> {
               ],
             )
           : content,
-      bottomNavigationBar: wide
-          ? null
-          : NavigationBar(
-              selectedIndex: index < 5 ? index : 0,
-              labelBehavior:
-                  NavigationDestinationLabelBehavior.onlyShowSelected,
-              onDestinationSelected: (value) => setState(() => index = value),
-              destinations: [
-                for (final item in destinations.take(5))
-                  NavigationDestination(
-                    icon: Icon(item.icon),
-                    selectedIcon: Icon(item.selectedIcon),
-                    label: item.label,
-                  ),
-              ],
-            ),
     );
   }
 
@@ -300,12 +394,17 @@ class _AppShellState extends State<AppShell> {
     primary: mobile,
     backgroundColor: mobile ? ItbColors.navy : Colors.white,
     foregroundColor: mobile ? Colors.white : ItbColors.navy,
+    elevation: 0,
     title: mobile
         ? Text(
             title ?? '',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+            ),
           )
         : const SizedBox.shrink(),
     actions: [
@@ -314,33 +413,68 @@ class _AppShellState extends State<AppShell> {
         padding: const EdgeInsets.symmetric(horizontal: 8),
         child: PopupMenuButton<String>(
           tooltip: 'Conta',
+          offset: const Offset(0, 48),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: const BorderSide(color: ItbColors.surfaceBorder),
+          ),
           onSelected: (value) {
             if (value == 'logout') auth.logout();
           },
           itemBuilder: (_) => [
             PopupMenuItem(
               enabled: false,
-              child: Text(
-                session.name,
-                style: const TextStyle(fontWeight: FontWeight.w700),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    session.name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: ItbColors.navy,
+                    ),
+                  ),
+                  Text(
+                    session.role.label,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: ItbColors.textSecondary,
+                    ),
+                  ),
+                ],
               ),
             ),
             const PopupMenuDivider(),
             const PopupMenuItem(
               value: 'logout',
               child: ListTile(
-                leading: Icon(Icons.logout),
-                title: Text('Sair'),
+                leading: Icon(Icons.logout, color: ItbColors.red, size: 20),
+                title: Text(
+                  'Sair',
+                  style: TextStyle(
+                    color: ItbColors.red,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 contentPadding: EdgeInsets.zero,
               ),
             ),
           ],
-          child: CircleAvatar(
-            backgroundColor: ItbColors.cyan,
-            foregroundColor: ItbColors.navy,
+          child: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: ItbColors.cyan,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            alignment: Alignment.center,
             child: Text(
               session.name.substring(0, 1).toUpperCase(),
-              style: const TextStyle(fontWeight: FontWeight.w900),
+              style: const TextStyle(
+                fontWeight: FontWeight.w900,
+                color: ItbColors.navy,
+                fontSize: 15,
+              ),
             ),
           ),
         ),
@@ -366,13 +500,16 @@ class _SyncAction extends StatelessWidget {
         onPressed: auth.offline || sync.syncing ? null : sync.synchronize,
         icon: sync.syncing
             ? const SizedBox.square(
-                dimension: 20,
+                dimension: 18,
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
             : Icon(
                 auth.offline || sync.error != null
                     ? Icons.cloud_off_outlined
                     : Icons.cloud_done_outlined,
+                color: auth.offline || sync.error != null
+                    ? ItbColors.orange
+                    : (sync.lastSync != null ? ItbColors.green : null),
               ),
       ),
     );
