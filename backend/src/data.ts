@@ -415,11 +415,21 @@ interface StudentRow extends JsonRecord {
 
 async function clearStudent(env: Env, row: StudentRow): Promise<JsonRecord> {
   const { encrypted_name, encrypted_cpf, encrypted_contact, ...safe } = row;
+  let name = `Aluno ${row.registration_number || row.id.slice(0, 8)}`;
+  let cpf: string | null = null;
+  let contact: string | null = null;
+  try {
+    name = await decryptText(env, encrypted_name);
+    cpf = encrypted_cpf ? await decryptText(env, encrypted_cpf) : null;
+    contact = encrypted_contact ? await decryptText(env, encrypted_contact) : null;
+  } catch {
+    // fallback gracefully
+  }
   return {
     ...safe,
-    name: await decryptText(env, encrypted_name),
-    cpf: encrypted_cpf ? await decryptText(env, encrypted_cpf) : null,
-    contact: encrypted_contact ? await decryptText(env, encrypted_contact) : null,
+    name,
+    cpf,
+    contact,
   };
 }
 
@@ -530,7 +540,13 @@ async function listAttendance(url: URL, env: Env, user: AuthUser): Promise<unkno
   const result = await env.DB.prepare(sql).bind(...binds).all<StudentRow & JsonRecord>();
   const items = await Promise.all(result.results.map(async (row) => {
     const { encrypted_name, ...item } = row;
-    return { ...item, student_name: await decryptText(env, encrypted_name) };
+    let student_name = `Aluno ${item.registration_number || item.student_id || ''}`;
+    try {
+      student_name = await decryptText(env, encrypted_name);
+    } catch {
+      // fallback
+    }
+    return { ...item, student_name };
   }));
   const generalNote = date ? await env.DB.prepare(`SELECT notes FROM class_notes WHERE class_id = ? AND date = ? AND deleted_at IS NULL`).bind(classId, parseDate(date)).first<{ notes: string | null }>() : null;
   return { items, generalNotes: generalNote?.notes ?? null };
@@ -635,10 +651,20 @@ async function dashboard(url: URL, env: Env, user: AuthUser): Promise<unknown> {
     : `SELECT s.encrypted_name, s.registration_number, SUM(CASE WHEN a.status = 'F' THEN 1 ELSE 0 END) AS absences, ROUND(100.0 * SUM(CASE WHEN a.status = 'P' THEN 1 ELSE 0 END) / COUNT(*), 1) AS attendance_rate FROM attendance_records a JOIN students s ON s.id = a.student_id WHERE a.deleted_at IS NULL AND a.date BETWEEN ? AND ? GROUP BY s.id, s.encrypted_name, s.registration_number HAVING absences > 0 ORDER BY absences DESC, attendance_rate ASC LIMIT 5`;
   const absenteeStatement = env.DB.prepare(absenteeSql);
   const absenteeRows = user.role === 'professor' ? await absenteeStatement.bind(user.id, from, to).all<{ encrypted_name: string; registration_number: string; absences: number; attendance_rate: number }>() : await absenteeStatement.bind(from, to).all<{ encrypted_name: string; registration_number: string; absences: number; attendance_rate: number }>();
-  const topAbsentees = await Promise.all(absenteeRows.results.map(async (row) => ({
-    name: await decryptText(env, row.encrypted_name), registrationNumber: row.registration_number,
-    absences: Number(row.absences), attendanceRate: Number(row.attendance_rate),
-  })));
+  const topAbsentees = await Promise.all(absenteeRows.results.map(async (row) => {
+    let name = `Aluno ${row.registration_number || ''}`;
+    try {
+      name = await decryptText(env, row.encrypted_name);
+    } catch {
+      // fallback
+    }
+    return {
+      name,
+      registrationNumber: row.registration_number,
+      absences: Number(row.absences),
+      attendanceRate: Number(row.attendance_rate),
+    };
+  }));
   const teacherSql = `SELECT u.id, u.name, COUNT(DISTINCT ct.class_id) AS classes, COUNT(DISTINCT e.student_id) AS students
      FROM users u JOIN class_teachers ct ON ct.user_id = u.id AND ct.deleted_at IS NULL
      JOIN classes c ON c.id = ct.class_id AND c.deleted_at IS NULL

@@ -383,10 +383,16 @@ async function mayReadChange(env: Env, user: AuthUser, entity: SyncEntity, paylo
 async function clientPayload(env: Env, entity: SyncEntity, payload: Row): Promise<Row> {
   if (entity !== 'students' || !payload.encrypted_name) return payload;
   const result = { ...payload };
-  result.name = await decryptText(env, String(payload.encrypted_name));
-  result.cpf = payload.encrypted_cpf ? await decryptText(env, String(payload.encrypted_cpf)) : null;
-  result.contact = payload.encrypted_contact ? await decryptText(env, String(payload.encrypted_contact)) : null;
-  delete result.encrypted_name; delete result.encrypted_cpf; delete result.encrypted_contact;
+  try {
+    result.name = await decryptText(env, String(payload.encrypted_name));
+    result.cpf = payload.encrypted_cpf ? await decryptText(env, String(payload.encrypted_cpf)) : null;
+    result.contact = payload.encrypted_contact ? await decryptText(env, String(payload.encrypted_contact)) : null;
+  } catch {
+    result.name = result.name || `Aluno ${result.registration_number || result.id || ''}`;
+  }
+  delete result.encrypted_name;
+  delete result.encrypted_cpf;
+  delete result.encrypted_contact;
   return result;
 }
 
