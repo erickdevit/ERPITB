@@ -261,21 +261,16 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Top Header */}
+      {/* Top Header Controls (without duplicate title) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900">
-            Lançamento de Frequência
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            P = presente, F = falta, J = justificada, A = atraso e R = reposição.
-          </p>
-        </div>
+        <p className="text-xs sm:text-sm text-slate-500 text-left font-medium">
+          Legenda: <strong className="text-slate-800">P</strong> = presente, <strong className="text-slate-800">F</strong> = falta, <strong className="text-slate-800">J</strong> = justificada, <strong className="text-slate-800">A</strong> = atraso e <strong className="text-slate-800">R</strong> = reposição.
+        </p>
         <button
           type="button"
           disabled={!access.editable || !rows.length || saving}
           onClick={() => void save()}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-slate-950 hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-semibold rounded-lg shadow-xs transition-colors cursor-pointer"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-slate-950 hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-semibold rounded-lg shadow-xs transition-colors cursor-pointer shrink-0"
         >
           <Save className="w-4 h-4" />
           <span>{saving ? 'Salvando…' : 'Salvar chamada'}</span>

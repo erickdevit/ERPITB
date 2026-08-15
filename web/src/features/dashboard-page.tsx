@@ -195,16 +195,11 @@ export function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900">
-            Visão Geral
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Olá, {session.name.split(' ')[0]}. Acompanhe os indicadores pedagógicos e frequência consolidada.
-          </p>
-        </div>
+      {/* Header Greeting */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-left">
+        <p className="text-xs sm:text-sm text-slate-500 font-medium">
+          Olá, {session.name.split(' ')[0]}. Indicadores pedagógicos e taxa de presença consolidada no período.
+        </p>
       </div>
 
       {/* Period Selector Card */}

@@ -1,30 +1,93 @@
-import React, { useEffect, useState, type PropsWithChildren } from 'react';
-import { AlertCircle, X } from 'lucide-react';
+import React, { Component, useEffect, useState, type ErrorInfo, type PropsWithChildren, type ReactNode } from 'react';
+import { AlertCircle, RefreshCw, X } from 'lucide-react';
 import { parseBrazilDate, formatDate } from './lib/date';
 
+export class ErrorBoundary extends Component<
+  PropsWithChildren<{ fallbackTitle?: string }>,
+  { hasError: boolean; error?: Error }
+> {
+  constructor(props: PropsWithChildren<{ fallbackTitle?: string }>) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('ErrorBoundary caught an error:', error, errorInfo);
+  }
+
+  reset = () => {
+    this.setState({ hasError: false, error: undefined });
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="w-full p-6 sm:p-8 my-4 rounded-2xl bg-white border border-rose-200 shadow-sm text-left">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+              <AlertCircle className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-slate-900">
+                {this.props.fallbackTitle ?? 'Ocorreu um problema ao carregar esta tela'}
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Os dados locais salvos foram preservados e continuam seguros.
+              </p>
+            </div>
+          </div>
+
+          {this.state.error && (
+            <div className="p-3 my-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-700 overflow-x-auto">
+              {this.state.error.message}
+            </div>
+          )}
+
+          <div className="flex items-center gap-3 mt-4">
+            <button
+              type="button"
+              onClick={this.reset}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Tentar novamente</span>
+            </button>
+            <a
+              href="/"
+              className="inline-flex items-center px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-colors"
+            >
+              Voltar ao Início
+            </a>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 export function Section({
-  title,
   subtitle,
   action,
   children,
 }: PropsWithChildren<{ title?: string; subtitle?: string; action?: React.ReactNode }>) {
+  if (!subtitle && !action && !children) return null;
+
   return (
     <div className="flex flex-col gap-4">
-      {(title || action) && (
+      {(subtitle || action) && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
-          {title ? (
-            <div>
-              <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900">
-                {title}
-              </h1>
-              {subtitle && (
-                <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                  {subtitle}
-                </p>
-              )}
-            </div>
+          {subtitle ? (
+            <p className="text-xs sm:text-sm text-slate-500 text-left font-medium">
+              {subtitle}
+            </p>
           ) : <div />}
-          {action && <div className="flex items-center gap-2 flex-wrap">{action}</div>}
+          {action && <div className="flex items-center gap-2 flex-wrap justify-end">{action}</div>}
         </div>
       )}
       {children}
@@ -70,7 +133,7 @@ export function PageDialog({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="relative w-full max-w-lg rounded-2xl bg-white border border-slate-200 shadow-2xl p-6 z-10 transition-all"
+        className="relative w-full max-w-lg rounded-2xl bg-white border border-slate-200 shadow-2xl p-6 z-10 transition-all text-left"
       >
         <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-100">
           <h2 className="text-base font-bold text-slate-900 tracking-tight">{title}</h2>
