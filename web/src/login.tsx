@@ -1,22 +1,5 @@
-import { useState } from 'react';
-import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
-import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
-import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
-import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
-import FingerprintIcon from '@mui/icons-material/Fingerprint';
-import {
-  Alert,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  CircularProgress,
-  IconButton,
-  InputAdornment,
-  Stack,
-  TextField,
-  Typography,
-} from '@mui/material';
+import React, { useState } from 'react';
+import { Eye, EyeOff, Lock, Mail, Fingerprint, Loader2, AlertCircle, Info } from 'lucide-react';
 import { ApiClient, OfflineError } from './lib/api';
 import { LocalStore } from './lib/db';
 import type { UserSession } from './types';
@@ -55,131 +38,110 @@ export function Login({ onLogin, notice }: { onLogin: (session: UserSession, sto
   }
 
   return (
-    <Box
-      sx={{
-        minHeight: '100vh',
-        display: 'grid',
-        placeItems: 'center',
-        p: 2.5,
-        bgcolor: '#F8FAFC',
-      }}
-    >
-      <Box sx={{ width: '100%', maxWidth: 390 }}>
+    <div className="min-h-screen w-full flex items-center justify-center p-4 bg-slate-50">
+      <div className="w-full max-w-sm">
         {/* Brand Header */}
-        <Stack spacing={1.5} alignItems="center" sx={{ mb: 3.5, textAlign: 'center' }}>
-          <Box
-            sx={{
-              width: 44,
-              height: 44,
-              borderRadius: 2.5,
-              bgcolor: '#0F172A',
-              color: '#FFFFFF',
-              display: 'grid',
-              placeItems: 'center',
-              boxShadow: '0 4px 12px rgba(15, 23, 42, 0.15)',
-            }}
-          >
-            <FingerprintIcon sx={{ fontSize: 24 }} />
-          </Box>
-          <Box>
-            <Typography variant="h5" component="h1" color="#0F172A" fontWeight={800} letterSpacing="-0.03em">
-              Frequência ITB
-            </Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25, fontSize: 13 }}>
-              Instituto Transforma Brasil
-            </Typography>
-          </Box>
-        </Stack>
+        <div className="flex flex-col items-center text-center mb-8">
+          <div className="w-12 h-12 rounded-2xl bg-slate-950 text-white flex items-center justify-center shadow-lg shadow-slate-950/10 mb-4 ring-1 ring-white/20">
+            <Fingerprint className="w-6 h-6 text-slate-100" />
+          </div>
+          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+            Frequência ITB
+          </h1>
+          <p className="text-xs text-slate-500 font-medium mt-1">
+            Instituto Transforma Brasil
+          </p>
+        </div>
 
-        {/* Auth Card */}
-        <Card
-          sx={{
-            borderRadius: 3,
-            border: '1px solid #E2E8F0',
-            bgcolor: '#FFFFFF',
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
-          }}
-        >
-          <CardContent sx={{ p: { xs: 3, sm: 3.5 } }}>
-            <Box component="form" onSubmit={submit} sx={{ display: 'grid', gap: 2 }}>
-              {notice && <Alert severity="info" sx={{ borderRadius: 2 }}>{notice}</Alert>}
+        {/* Card Container */}
+        <div className="bg-white border border-slate-200/80 rounded-2xl shadow-xl shadow-slate-200/50 p-6 sm:p-8">
+          <form onSubmit={submit} className="flex flex-col gap-4">
+            {notice && (
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-sky-50 border border-sky-200 text-xs text-sky-800">
+                <Info className="w-4 h-4 shrink-0 text-sky-600 mt-0.5" />
+                <span>{notice}</span>
+              </div>
+            )}
 
-              <TextField
-                required
-                fullWidth
-                label="E-mail institucional"
-                type="email"
-                size="small"
-                autoComplete="username"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <EmailOutlinedIcon color="action" sx={{ fontSize: 18 }} />
-                    </InputAdornment>
-                  ),
-                }}
-              />
+            <div className="flex flex-col gap-1.5 text-left">
+              <label htmlFor="email-input" className="text-xs font-semibold text-slate-700">
+                E-mail institucional
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                  <Mail className="w-4 h-4" />
+                </div>
+                <input
+                  id="email-input"
+                  required
+                  type="email"
+                  autoComplete="username"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="nome@itbcursos.com"
+                  className="w-full pl-9 pr-3 py-2 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all placeholder:text-slate-400"
+                />
+              </div>
+            </div>
 
-              <TextField
-                required
-                fullWidth
-                label="Senha de acesso"
-                size="small"
-                type={showPassword ? 'text' : 'password'}
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <LockOutlinedIcon color="action" sx={{ fontSize: 18 }} />
-                    </InputAdornment>
-                  ),
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton
-                        size="small"
-                        aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
-                        onClick={() => setShowPassword((value) => !value)}
-                        edge="end"
-                      >
-                        {showPassword ? <VisibilityOffOutlinedIcon sx={{ fontSize: 18 }} /> : <VisibilityOutlinedIcon sx={{ fontSize: 18 }} />}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                }}
-              />
+            <div className="flex flex-col gap-1.5 text-left">
+              <label htmlFor="password-input" className="text-xs font-semibold text-slate-700">
+                Senha de acesso
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <input
+                  id="password-input"
+                  required
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full pl-9 pr-10 py-2 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all placeholder:text-slate-400"
+                />
+                <button
+                  type="button"
+                  aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
 
-              {error && <Alert severity="error" sx={{ borderRadius: 2 }}>{error}</Alert>}
+            {error && (
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800" role="alert">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
+                <span>{error}</span>
+              </div>
+            )}
 
-              <Button
-                type="submit"
-                variant="contained"
-                disabled={busy}
-                sx={{
-                  py: 1.1,
-                  mt: 0.5,
-                  fontWeight: 650,
-                  fontSize: 14,
-                  bgcolor: '#0F172A',
-                  color: '#FFFFFF',
-                  borderRadius: 2,
-                  '&:hover': { bgcolor: '#1E293B' },
-                }}
-              >
-                {busy ? <CircularProgress size={20} color="inherit" /> : 'Entrar no sistema'}
-              </Button>
-            </Box>
-          </CardContent>
-        </Card>
+            <button
+              type="submit"
+              disabled={busy}
+              className="mt-2 w-full py-2.5 px-4 bg-slate-950 hover:bg-slate-800 disabled:opacity-60 text-white text-sm font-semibold rounded-lg shadow-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+            >
+              {busy ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Acessando...</span>
+                </>
+              ) : (
+                'Entrar no sistema'
+              )}
+            </button>
+          </form>
+        </div>
 
         {/* Footer Note */}
-        <Typography variant="caption" color="#94A3B8" textAlign="center" sx={{ display: 'block', mt: 3, fontSize: 11.5 }}>
-          Sistema de presença e frequência escolar offline-first
-        </Typography>
-      </Box>
-    </Box>
+        <p className="text-center text-[11px] text-slate-400 mt-6 font-medium">
+          Sistema escolar offline-first • Instituto Transforma Brasil
+        </p>
+      </div>
+    </div>
   );
 }

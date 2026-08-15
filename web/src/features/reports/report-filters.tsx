@@ -1,4 +1,5 @@
-import { Box, Button, Card, CardContent, Stack } from '@mui/material';
+import React from 'react';
+import { RotateCcw } from 'lucide-react';
 import { DateField, SelectField } from '../../components';
 import { formatDate, parseBrazilDate } from '../../lib/date';
 import type { LocalRecord, Role } from '../../types';
@@ -51,6 +52,7 @@ export function ReportFiltersBar({
   const availableStudents = students
     .filter((item) => active(item) && studentIds.has(item.id))
     .sort((left, right) => text(left, 'name').localeCompare(text(right, 'name')));
+
   const showCourse = filters.type === 'course' || filters.type === 'dropoutRisk';
   const showClass = filters.type === 'classDiary' || filters.type === 'student' || filters.type === 'dropoutRisk';
 
@@ -61,119 +63,143 @@ export function ReportFiltersBar({
       to: filters.to,
       teacherId: filters.teacherId,
     });
+
   const changeDate = (field: 'from' | 'to', value: string) => {
     try {
       const parsed = parseBrazilDate(value);
       if (parsed) onChange({ ...filters, [field]: parsed });
     } catch {
-      // DateField mantém visualmente o último valor válido e a mensagem nativa do campo.
+      // DateField mantém visualmente o último valor válido
     }
   };
 
   return (
-    <Card sx={{ border: '1px solid #E2E8F0', borderRadius: 3 }}>
-      <CardContent sx={{ p: { xs: 2, md: 2.25 }, '&:last-child': { pb: { xs: 2, md: 2.25 } } }}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.5} flexWrap="wrap" alignItems={{ sm: 'flex-start' }}>
-          <Box sx={{ width: { xs: '100%', sm: 260 } }}>
-            <SelectField label="Tipo de relatório" value={filters.type} onChange={changeType} options={reportTypeOptions} />
-          </Box>
-          {canManage(role) && (
-            <Box sx={{ width: { xs: '100%', sm: 220 } }}>
-              <SelectField
-                label="Professor"
-                value={filters.teacherId ?? ''}
-                onChange={(teacherId) =>
-                  onChange({
-                    ...filters,
-                    teacherId: teacherId || undefined,
-                    courseId: undefined,
-                    classId: undefined,
-                    studentId: undefined,
-                  })
-                }
-                options={[
-                  { value: '', label: 'Todos os professores' },
-                  ...teachers.map((item) => ({
-                    value: item.id,
-                    label: text(item, 'name') || `Professor ${item.id.slice(0, 8)}`,
-                  })),
-                ]}
-              />
-            </Box>
-          )}
-          {showCourse && (
-            <Box sx={{ width: { xs: '100%', sm: 230 } }}>
-              <SelectField
-                label="Curso"
-                value={filters.courseId ?? ''}
-                onChange={(courseId) =>
-                  onChange({
-                    ...filters,
-                    courseId: courseId || undefined,
-                    classId: undefined,
-                    studentId: undefined,
-                  })
-                }
-                options={[
-                  { value: '', label: filters.type === 'dropoutRisk' ? 'Todos os cursos' : 'Selecione um curso' },
-                  ...availableCourses.map((item) => ({
-                    value: item.id,
-                    label: `${text(item, 'code') ? `${text(item, 'code')} · ` : ''}${text(item, 'name')}`,
-                  })),
-                ]}
-              />
-            </Box>
-          )}
-          {showClass && (
-            <Box sx={{ width: { xs: '100%', sm: 230 } }}>
-              <SelectField
-                label="Turma"
-                value={filters.classId ?? ''}
-                onChange={(classId) =>
-                  onChange({
-                    ...filters,
-                    classId: classId || undefined,
-                    studentId: undefined,
-                  })
-                }
-                options={[
-                  { value: '', label: filters.type === 'dropoutRisk' ? 'Todas as turmas' : 'Selecione uma turma' },
-                  ...availableClasses.map((item) => ({ value: item.id, label: text(item, 'name') })),
-                ]}
-              />
-            </Box>
-          )}
-          {filters.type === 'student' && (
-            <Box sx={{ width: { xs: '100%', sm: 260 } }}>
-              <SelectField
-                label="Aluno"
-                value={filters.studentId ?? ''}
-                onChange={(studentId) => onChange({ ...filters, studentId: studentId || undefined })}
-                options={[
-                  { value: '', label: 'Selecione um aluno' },
-                  ...availableStudents.map((item) => ({
-                    value: item.id,
-                    label: `${text(item, 'name')} · ${text(item, 'registration_number')}`,
-                  })),
-                ]}
-              />
-            </Box>
-          )}
-          <Box sx={{ width: { xs: '100%', sm: 170 } }}>
-            <DateField label="Data inicial" value={formatDate(filters.from)} onChange={(value) => changeDate('from', value)} />
-          </Box>
-          <Box sx={{ width: { xs: '100%', sm: 170 } }}>
-            <DateField label="Data final" value={formatDate(filters.to)} onChange={(value) => changeDate('to', value)} />
-          </Box>
-          <Button
-            size="small"
+    <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs text-left">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
+        <div className="lg:col-span-2">
+          <SelectField
+            label="Tipo de relatório"
+            value={filters.type}
+            onChange={changeType}
+            options={reportTypeOptions}
+          />
+        </div>
+
+        {canManage(role) && (
+          <div>
+            <SelectField
+              label="Professor"
+              value={filters.teacherId ?? ''}
+              onChange={(teacherId) =>
+                onChange({
+                  ...filters,
+                  teacherId: teacherId || undefined,
+                  courseId: undefined,
+                  classId: undefined,
+                  studentId: undefined,
+                })
+              }
+              options={[
+                { value: '', label: 'Todos os professores' },
+                ...teachers.map((item) => ({
+                  value: item.id,
+                  label: text(item, 'name') || `Professor ${item.id.slice(0, 8)}`,
+                })),
+              ]}
+            />
+          </div>
+        )}
+
+        {showCourse && (
+          <div>
+            <SelectField
+              label="Curso"
+              value={filters.courseId ?? ''}
+              onChange={(courseId) =>
+                onChange({
+                  ...filters,
+                  courseId: courseId || undefined,
+                  classId: undefined,
+                  studentId: undefined,
+                })
+              }
+              options={[
+                { value: '', label: 'Selecione um curso' },
+                ...availableCourses.map((c) => ({
+                  value: c.id,
+                  label: `${text(c, 'name')} (${text(c, 'code') || '—'})`,
+                })),
+              ]}
+            />
+          </div>
+        )}
+
+        {showClass && (
+          <div>
+            <SelectField
+              label="Turma"
+              value={filters.classId ?? ''}
+              onChange={(classId) =>
+                onChange({
+                  ...filters,
+                  classId: classId || undefined,
+                  studentId: undefined,
+                })
+              }
+              options={[
+                { value: '', label: 'Selecione uma turma' },
+                ...availableClasses.map((c) => ({ value: c.id, label: text(c, 'name') })),
+              ]}
+            />
+          </div>
+        )}
+
+        {filters.type === 'student' && filters.classId && (
+          <div>
+            <SelectField
+              label="Aluno"
+              value={filters.studentId ?? ''}
+              onChange={(studentId) => onChange({ ...filters, studentId: studentId || undefined })}
+              options={[
+                { value: '', label: 'Selecione um aluno' },
+                ...availableStudents.map((s) => ({
+                  value: s.id,
+                  label: `${text(s, 'name')} (${text(s, 'registration_number') || '—'})`,
+                })),
+              ]}
+            />
+          </div>
+        )}
+
+        <div>
+          <DateField
+            label="Data inicial"
+            value={formatDate(filters.from)}
+            onChange={(val) => changeDate('from', val)}
+            allowFuture
+          />
+        </div>
+
+        <div>
+          <DateField
+            label="Data final"
+            value={formatDate(filters.to)}
+            onChange={(val) => changeDate('to', val)}
+            allowFuture
+          />
+        </div>
+
+        <div>
+          <button
+            type="button"
             onClick={onReset}
-            sx={{ minHeight: 40, alignSelf: { sm: 'center' }, color: 'text.secondary', fontWeight: 600, fontSize: 13 }}
+            className="w-full py-2 px-3 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
           >
-            Limpar filtros
-          </Button>
-        </Stack>
-      </CardContent>
-    </Card>
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Redefinir filtros</span>
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

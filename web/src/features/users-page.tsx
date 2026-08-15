@@ -1,334 +1,322 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import AddIcon from '@mui/icons-material/Add';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
-import ManageAccountsOutlinedIcon from '@mui/icons-material/ManageAccountsOutlined';
-import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
-import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Alert, Avatar, Box, Button, Card, CardContent, Chip, IconButton, InputAdornment, LinearProgress, Stack,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Tooltip,
-  Typography, useMediaQuery, useTheme,
-} from '@mui/material';
+  Plus,
+  Search,
+  UserX,
+  UserCheck,
+  Shield,
+  KeyRound,
+  Mail,
+  User,
+} from 'lucide-react';
 import { useApp } from '../app-context';
-import { ErrorNotice, PageDialog, Section, SelectField } from '../components';
-import type { LocalRecord, Role } from '../types';
-import { roleLabel } from '../types';
-import { filterUsers } from './directory-model';
+import { PageDialog, Section, SelectField } from '../components';
+import { roleLabel, type Role, type UserSession } from '../types';
+import type { LocalRecord } from '../types';
 
-const identifier = () => crypto.randomUUID();
-const text = (record: LocalRecord | undefined, key: string) => String(record?.[key] ?? '');
-const enabled = (record: LocalRecord) => record.active !== 0 && record.active !== false;
-type UserForm = { name: string; email: string; password: string; role: Role; active: 'true' | 'false' };
-const emptyForm = (): UserForm => ({ name: '', email: '', password: '', role: 'professor', active: 'true' });
+const text = (record: Record<string, unknown> | undefined, key: string) => String(record?.[key] ?? '');
+const active = (record: LocalRecord) => !record.deleted_at && record.active !== 0 && record.active !== false;
+
+const roleOptions: Array<{ value: Role; label: string }> = [
+  { value: 'professor', label: 'Professor' },
+  { value: 'pedagogico', label: 'Pedagógico' },
+  { value: 'admin', label: 'Administrador' },
+];
 
 export function UsersPage() {
   const { api, session } = useApp();
-  const theme = useTheme();
-  const compact = useMediaQuery(theme.breakpoints.down('md'));
   const [users, setUsers] = useState<LocalRecord[]>([]);
-  const [query, setQuery] = useState('');
-  const [role, setRole] = useState<Role | ''>('');
-  const [active, setActive] = useState<'' | 'true' | 'false'>('');
-  const [editing, setEditing] = useState<LocalRecord>();
-  const [form, setForm] = useState<UserForm>(emptyForm);
-  const [notice, setNotice] = useState<string>();
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const shown = useMemo(() => filterUsers(users, query, role, active), [active, query, role, users]);
+  const [search, setSearch] = useState('');
+  const [filterRole, setFilterRole] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
 
-  const load = useCallback(async () => {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<Role>('professor');
+  const [password, setPassword] = useState('');
+  const [formError, setFormError] = useState<string>();
+  const [saving, setSaving] = useState(false);
+
+  const loadUsers = async () => {
     setLoading(true);
     try {
-      setUsers((await api.get<{ items: LocalRecord[] }>('/users')).items);
-      setNotice(undefined);
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Não foi possível carregar os usuários.');
+      const result = await api.get<{ items: LocalRecord[] }>('/users');
+      setUsers(result.items);
+    } catch (e) {
+      console.error(e);
     } finally {
       setLoading(false);
     }
-  }, [api]);
+  };
 
   useEffect(() => {
-    if (session.role === 'admin') void load();
-  }, [load, session.role]);
+    void loadUsers();
+  }, []);
 
-  if (session.role !== 'admin') return <ErrorNotice>Somente administradores podem gerenciar usuários.</ErrorNotice>;
+  const filteredUsers = useMemo(() => {
+    return users.filter((u) => {
+      if (filterRole !== 'all' && u.role !== filterRole) return false;
+      if (filterStatus === 'active' && !active(u)) return false;
+      if (filterStatus === 'inactive' && active(u)) return false;
 
-  const edit = (user?: LocalRecord) => {
-    setEditing(user ?? { id: identifier() });
-    setForm(
-      user
-        ? {
-            name: text(user, 'name'),
-            email: text(user, 'email'),
-            password: '',
-            role: text(user, 'role') as Role,
-            active: enabled(user) ? 'true' : 'false',
-          }
-        : emptyForm(),
-    );
-    setNotice(undefined);
+      const term = search.trim().toLocaleLowerCase('pt-BR');
+      if (!term) return true;
+
+      const userName = text(u, 'name').toLocaleLowerCase('pt-BR');
+      const userEmail = text(u, 'email').toLocaleLowerCase('pt-BR');
+      return userName.includes(term) || userEmail.includes(term);
+    });
+  }, [users, filterRole, filterStatus, search]);
+
+  const openCreate = () => {
+    setName('');
+    setEmail('');
+    setRole('professor');
+    setPassword('');
+    setFormError(undefined);
+    setDialogOpen(true);
   };
 
-  const save = async () => {
-    if (!editing || busy) return;
-    if (!form.name.trim() || !form.email.trim() || (!editing.created_at && form.password.length < 6)) {
-      setNotice('Preencha nome, e-mail e uma senha com pelo menos 6 caracteres.');
+  const saveUser = async () => {
+    if (!name.trim() || !email.trim() || !password.trim()) {
+      setFormError('Todos os campos são obrigatórios.');
       return;
     }
-    setBusy(true);
+
+    setSaving(true);
     try {
-      const payload = {
-        name: form.name.trim(),
-        email: form.email.trim(),
-        role: form.role,
-        active: form.active === 'true',
-        ...(form.password ? { password: form.password } : {}),
-      };
-      if (editing.created_at) await api.request(`/users/${editing.id}`, 'PATCH', payload);
-      else await api.post('/users', payload);
-      setEditing(undefined);
-      await load();
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Não foi possível salvar o usuário.');
+      await api.post('/users', {
+        name: name.trim(),
+        email: email.trim(),
+        role,
+        password,
+      });
+      await loadUsers();
+      setDialogOpen(false);
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : 'Erro ao cadastrar usuário.');
     } finally {
-      setBusy(false);
+      setSaving(false);
     }
   };
 
-  const remove = async (user: LocalRecord) => {
-    if (user.id === session.id) {
-      setNotice('Você não pode inativar seu próprio usuário.');
-      return;
-    }
-    if (!window.confirm(`Inativar ${text(user, 'name')}? O histórico e os vínculos serão preservados.`)) return;
+  const toggleUserStatus = async (user: LocalRecord) => {
+    const isAct = active(user);
+    const actionName = isAct ? 'inativar' : 'reativar';
+    if (!window.confirm(`Deseja realmente ${actionName} o usuário "${text(user, 'name')}"?`)) return;
+
     try {
-      await api.request(`/users/${user.id}`, 'DELETE');
-      await load();
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Não foi possível inativar o usuário.');
+      if (isAct) {
+        await api.request(`/users/${user.id}`, 'DELETE');
+      } else {
+        await api.request(`/users/${user.id}`, 'PATCH', { active: 1 });
+      }
+      await loadUsers();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Erro ao alterar situação do usuário.');
     }
   };
-
-  const actions = (user: LocalRecord) => (
-    <Stack direction="row" justifyContent="flex-end" spacing={0.5}>
-      <Tooltip title="Editar">
-        <IconButton aria-label={`Editar ${text(user, 'name')}`} onClick={() => edit(user)} size="small">
-          <EditOutlinedIcon fontSize="small" />
-        </IconButton>
-      </Tooltip>
-      {enabled(user) && user.id !== session.id && (
-        <Tooltip title="Inativar">
-          <IconButton color="error" aria-label={`Inativar ${text(user, 'name')}`} onClick={() => void remove(user)} size="small">
-            <DeleteOutlineIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      )}
-    </Stack>
-  );
 
   return (
-    <Section
-      title="Usuários"
-      subtitle="Controle de acessos, perfis e contas institucionais"
-      action={
-        <Stack direction="row" gap={1}>
-          <Button
-            variant="outlined"
-            startIcon={<RefreshOutlinedIcon fontSize="small" />}
-            onClick={() => void load()}
-            disabled={loading}
-            sx={{ px: 2, py: 0.8, borderRadius: 2, fontWeight: 650 }}
+    <div className="flex flex-col gap-5 text-left">
+      <Section
+        title="Gestão de Usuários"
+        subtitle="Controle de acesso, contas de professores, coordenadores e administradores."
+        action={
+          <button
+            type="button"
+            onClick={openCreate}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-950 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg shadow-xs transition-colors cursor-pointer"
           >
-            Atualizar
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => edit()}
-            sx={{ px: 2.25, py: 0.8, borderRadius: 2, fontWeight: 650 }}
-          >
-            Novo usuário
-          </Button>
-        </Stack>
-      }
-    >
-      {notice && (
-        <Alert severity="warning" onClose={() => setNotice(undefined)} sx={{ borderRadius: 2 }}>
-          {notice}
-        </Alert>
-      )}
+            <Plus className="w-4 h-4" />
+            <span>Novo usuário</span>
+          </button>
+        }
+      />
 
-      <Card sx={{ border: '1px solid #E2E8F0', borderRadius: 3 }}>
-        <CardContent sx={{ p: { xs: 2, md: 2.25 }, '&:last-child': { pb: { xs: 2, md: 2.25 } } }}>
-          <Stack direction={{ xs: 'column', md: 'row' }} gap={1.5}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Buscar nome ou e-mail"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchOutlinedIcon color="action" fontSize="small" />
-                  </InputAdornment>
-                ),
-              }}
+      {/* Filter Bar */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+          <div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="search-user" className="text-xs font-semibold text-slate-700">
+                Buscar nome ou e-mail
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                  <Search className="w-4 h-4" />
+                </div>
+                <input
+                  id="search-user"
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Nome ou e-mail..."
+                  className="w-full pl-9 pr-3 py-2 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all placeholder:text-slate-400"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <SelectField
+              label="Perfil de acesso"
+              value={filterRole}
+              onChange={setFilterRole}
+              options={[{ value: 'all', label: 'Todos os perfis' }, ...roleOptions]}
             />
-            <Box sx={{ minWidth: { xs: '100%', md: 220 } }}>
-              <SelectField
-                label="Perfil"
-                value={role}
-                onChange={(value) => setRole(value as Role | '')}
-                options={[{ value: '', label: 'Todos os perfis' }, ...Object.entries(roleLabel).map(([value, label]) => ({ value, label }))]}
-              />
-            </Box>
-            <Box sx={{ minWidth: { xs: '100%', md: 160 } }}>
-              <SelectField
-                label="Situação"
-                value={active}
-                onChange={(value) => setActive(value as typeof active)}
-                options={[{ value: '', label: 'Todas' }, { value: 'true', label: 'Ativos' }, { value: 'false', label: 'Inativos' }]}
-              />
-            </Box>
-          </Stack>
-        </CardContent>
-      </Card>
+          </div>
 
-      {loading && <LinearProgress aria-label="Carregando usuários" sx={{ height: 2 }} />}
+          <div>
+            <SelectField
+              label="Situação"
+              value={filterStatus}
+              onChange={setFilterStatus}
+              options={[
+                { value: 'all', label: 'Todas' },
+                { value: 'active', label: 'Ativos' },
+                { value: 'inactive', label: 'Inativos' },
+              ]}
+            />
+          </div>
+        </div>
+      </div>
 
-      {!loading && shown.length === 0 && (
-        <Card sx={{ border: '1px solid #E2E8F0', borderRadius: 3 }}>
-          <CardContent sx={{ py: 6, textAlign: 'center' }}>
-            <ManageAccountsOutlinedIcon color="disabled" sx={{ fontSize: 44 }} />
-            <Typography mt={1} fontWeight={700} color="#0F172A">
-              {query || role || active ? 'Nenhum usuário corresponde aos filtros.' : 'Nenhum usuário cadastrado.'}
-            </Typography>
-          </CardContent>
-        </Card>
-      )}
-
-      {!loading &&
-        shown.length > 0 &&
-        (compact ? (
-          <Stack gap={1.25}>
-            {shown.map((user) => (
-              <Card key={user.id} sx={{ border: '1px solid #E2E8F0', borderRadius: 2.5 }}>
-                <CardContent sx={{ p: 2 }}>
-                  <Stack direction="row" justifyContent="space-between" gap={1.5} alignItems="flex-start">
-                    <Stack direction="row" spacing={1.5} alignItems="center" minWidth={0}>
-                      <Avatar sx={{ bgcolor: '#F1F5F9', color: '#0F172A', width: 38, height: 38, borderRadius: 2, fontWeight: 700, fontSize: 15 }}>
+      {/* Users Table */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xs overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50/75 text-slate-500 uppercase tracking-wider font-bold text-[11px]">
+                <th className="py-3 px-4">Usuário</th>
+                <th className="py-3 px-4">E-mail</th>
+                <th className="py-3 px-4">Perfil</th>
+                <th className="py-3 px-4">Situação</th>
+                <th className="py-3 px-4 text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+              {filteredUsers.map((user) => (
+                <tr key={user.id} className="hover:bg-slate-50/75 transition-colors">
+                  <td className="py-3 px-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 text-slate-800 font-bold text-xs flex items-center justify-center">
                         {text(user, 'name').slice(0, 1).toUpperCase()}
-                      </Avatar>
-                      <Stack minWidth={0}>
-                        <Typography fontWeight={750} color="#0F172A" fontSize={14.5} noWrap>
-                          {text(user, 'name')}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
-                          {text(user, 'email')}
-                        </Typography>
-                        <Stack direction="row" gap={0.75} mt={0.5}>
-                          <Chip size="small" label={roleLabel[text(user, 'role') as Role]} sx={{ fontWeight: 600, height: 20, fontSize: 10.5 }} />
-                          <Chip
-                            size="small"
-                            color={enabled(user) ? 'success' : 'default'}
-                            label={enabled(user) ? 'Ativo' : 'Inativo'}
-                            sx={{ fontWeight: 600, height: 20, fontSize: 10.5 }}
-                          />
-                        </Stack>
-                      </Stack>
-                    </Stack>
-                    {actions(user)}
-                  </Stack>
-                </CardContent>
-              </Card>
-            ))}
-          </Stack>
-        ) : (
-          <Card sx={{ border: '1px solid #E2E8F0', borderRadius: 2.5 }}>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Nome</TableCell>
-                    <TableCell>E-mail</TableCell>
-                    <TableCell>Perfil</TableCell>
-                    <TableCell>Situação</TableCell>
-                    <TableCell align="right">Ações</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {shown.map((user) => (
-                    <TableRow key={user.id} hover>
-                      <TableCell sx={{ fontWeight: 700, color: '#0F172A' }}>{text(user, 'name')}</TableCell>
-                      <TableCell sx={{ color: '#475569' }}>{text(user, 'email')}</TableCell>
-                      <TableCell>
-                        <Chip size="small" label={roleLabel[text(user, 'role') as Role]} sx={{ fontWeight: 600, height: 20, fontSize: 10.5 }} />
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          size="small"
-                          color={enabled(user) ? 'success' : 'default'}
-                          label={enabled(user) ? 'Ativo' : 'Inativo'}
-                          sx={{ fontWeight: 600, height: 20, fontSize: 10.5 }}
-                        />
-                      </TableCell>
-                      <TableCell align="right">{actions(user)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Card>
-        ))}
+                      </div>
+                      <span className="font-bold text-slate-900">{text(user, 'name')}</span>
+                    </div>
+                  </td>
+                  <td className="py-3 px-4 text-slate-600">{text(user, 'email')}</td>
+                  <td className="py-3 px-4">
+                    <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                      {roleLabel[text(user, 'role') as Role] ?? text(user, 'role')}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4">
+                    <span
+                      className={`px-2 py-0.5 text-[10px] font-bold rounded-md border ${
+                        active(user)
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-slate-100 text-slate-600 border-slate-200'
+                      }`}
+                    >
+                      {active(user) ? 'Ativo' : 'Inativo'}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-right">
+                    {user.id !== session.id && (
+                      <button
+                        type="button"
+                        aria-label={`Inativar ${text(user, 'name')}`}
+                        onClick={() => void toggleUserStatus(user)}
+                        title={active(user) ? 'Inativar usuário' : 'Reativar usuário'}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                      >
+                        {active(user) ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {!filteredUsers.length && !loading && (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-slate-400 font-medium">
+                    Nenhum usuário encontrado.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
+      {/* Create Modal */}
       <PageDialog
-        open={Boolean(editing)}
-        title={editing?.created_at ? 'Editar usuário' : 'Novo usuário'}
-        onClose={() => setEditing(undefined)}
-        onSave={() => void save()}
-        saveText={busy ? 'Salvando…' : 'Salvar'}
+        open={dialogOpen}
+        title="Novo usuário"
+        onClose={() => setDialogOpen(false)}
+        onSave={saveUser}
       >
-        <TextField
-          required
-          size="small"
-          label="Nome completo"
-          value={form.name}
-          inputProps={{ maxLength: 120 }}
-          onChange={(event) => setForm({ ...form, name: event.target.value })}
-        />
-        <TextField
-          required
-          size="small"
-          type="email"
-          label="E-mail"
-          value={form.email}
-          onChange={(event) => setForm({ ...form, email: event.target.value })}
-        />
-        <TextField
-          required={!editing?.created_at}
-          size="small"
-          type="password"
-          label={editing?.created_at ? 'Nova senha (opcional)' : 'Senha (mínimo 6 caracteres)'}
-          value={form.password}
-          inputProps={{ minLength: 6, maxLength: 200 }}
-          onChange={(event) => setForm({ ...form, password: event.target.value })}
-        />
+        {formError && (
+          <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800">
+            {formError}
+          </div>
+        )}
+
+        <div className="flex flex-col gap-1.5 text-left">
+          <label htmlFor="user-name-input" className="text-xs font-semibold text-slate-700">
+            Nome completo <span className="text-rose-500">*</span>
+          </label>
+          <input
+            id="user-name-input"
+            type="text"
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Nome do colaborador"
+            className="w-full px-3 py-2 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5 text-left">
+          <label htmlFor="user-email-input" className="text-xs font-semibold text-slate-700">
+            E-mail institucional <span className="text-rose-500">*</span>
+          </label>
+          <input
+            id="user-email-input"
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="email@itbcursos.com"
+            className="w-full px-3 py-2 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all"
+          />
+        </div>
+
         <SelectField
-          label="Perfil"
-          value={form.role}
-          onChange={(value) => setForm({ ...form, role: value as Role })}
-          options={Object.entries(roleLabel).map(([value, label]) => ({ value, label }))}
+          label="Papel / Perfil de acesso"
+          value={role}
+          onChange={(val) => setRole(val as Role)}
+          options={roleOptions}
         />
-        <SelectField
-          label="Situação"
-          value={form.active}
-          onChange={(value) => setForm({ ...form, active: value as 'true' | 'false' })}
-          options={[{ value: 'true', label: 'Ativo' }, { value: 'false', label: 'Inativo' }]}
-        />
+
+        <div className="flex flex-col gap-1.5 text-left">
+          <label htmlFor="user-pwd-input" className="text-xs font-semibold text-slate-700">
+            Senha inicial de acesso <span className="text-rose-500">*</span>
+          </label>
+          <input
+            id="user-pwd-input"
+            type="password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            className="w-full px-3 py-2 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all"
+          />
+        </div>
       </PageDialog>
-    </Section>
+    </div>
   );
 }

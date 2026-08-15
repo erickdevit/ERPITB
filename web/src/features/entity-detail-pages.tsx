@@ -1,489 +1,390 @@
-import ArrowBackOutlinedIcon from '@mui/icons-material/ArrowBackOutlined';
-import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
-import { Alert, Box, Button, Card, CardContent, Chip, Divider, Grid, LinearProgress, Stack, Typography } from '@mui/material';
-import { Link, useParams } from 'react-router-dom';
-import { CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import React, { useMemo } from 'react';
+import {
+  ArrowLeft,
+  Calendar,
+  Clock,
+  FlaskConical,
+  GraduationCap,
+  Users,
+  BookOpen,
+  UserCheck,
+  TrendingUp,
+  AlertCircle,
+} from 'lucide-react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import {
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import { useApp } from '../app-context';
+import { Section } from '../components';
+import { buildAnalytics } from '../lib/analytics';
+import { formatDate } from '../lib/date';
 import { useEntity } from '../lib/use-entity';
-import { buildAnalytics, type AnalyticsResult } from '../lib/analytics';
-import { formatDate, todayInSaoPaulo } from '../lib/date';
 import type { LocalRecord } from '../types';
+import { shiftLabel } from './classes-model';
 
-const text = (record: LocalRecord | undefined, field: string) => String(record?.[field] ?? '');
-const active = (record: LocalRecord) => !record.deleted_at && record.active !== 0 && record.active !== false;
-const statusLabel: Record<string, string> = {
-  P: 'Presente',
-  F: 'Falta',
-  J: 'Justificada',
-  A: 'Atraso',
-  R: 'Reposição',
-  RC: 'Reposição concluída',
+const text = (record: Record<string, unknown> | undefined, key: string) => String(record?.[key] ?? '');
+
+const statusColors = {
+  P: '#10B981',
+  F: '#F43F5E',
+  J: '#0284C7',
+  A: '#F59E0B',
+  R: '#8B5CF6',
 };
-const statusColors = ['#2E7D32', '#D32F2F', '#00838F', '#ED6C02', '#7B1FA2'];
 
-function daysAgo(days: number) {
-  const value = new Date(`${todayInSaoPaulo()}T12:00:00Z`);
-  value.setUTCDate(value.getUTCDate() - days);
-  return value.toISOString().slice(0, 10);
-}
-
-function Metric({ label, value, detail }: { label: string; value: string | number; detail?: string }) {
-  return (
-    <Card sx={{ border: '1px solid #E2E8F0', borderRadius: 2.5 }}>
-      <CardContent sx={{ p: 1.75, '&:last-child': { pb: 1.75 } }}>
-        <Typography variant="caption" color="text.secondary" fontWeight={600}>
-          {label}
-        </Typography>
-        <Typography variant="h6" component="p" color="#0F172A" fontWeight={800} sx={{ my: 0.25, letterSpacing: '-0.02em' }}>
-          {value}
-        </Typography>
-        {detail && (
-          <Typography variant="caption" color="text.secondary">
-            {detail}
-          </Typography>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function Overview({ analytics, calls }: { analytics: AnalyticsResult; calls: number }) {
-  const distribution = [
-    { name: 'Presentes', value: analytics.present },
-    { name: 'Faltas', value: analytics.absent },
-    { name: 'Justificadas', value: analytics.justified },
-    { name: 'Atrasos', value: analytics.delayed },
-    { name: 'Reposições', value: analytics.replacements },
-  ];
-  return (
-    <>
-      <Grid container spacing={1.25} columns={{ xs: 2, sm: 6, lg: 12 }}>
-        <Grid size={{ xs: 1, sm: 2 }}>
-          <Metric label="Frequência" value={`${analytics.attendanceRate}%`} />
-        </Grid>
-        <Grid size={{ xs: 1, sm: 2 }}>
-          <Metric label="Alunos ativos" value={analytics.activeStudents} />
-        </Grid>
-        <Grid size={{ xs: 1, sm: 2 }}>
-          <Metric label="Chamadas" value={calls} detail="Turma e data distintas" />
-        </Grid>
-        <Grid size={{ xs: 1, sm: 2 }}>
-          <Metric label="Presenças" value={analytics.present} />
-        </Grid>
-        <Grid size={{ xs: 1, sm: 2 }}>
-          <Metric label="Faltas" value={analytics.absent} />
-        </Grid>
-        <Grid size={{ xs: 1, sm: 2 }}>
-          <Metric label="Em risco" value={analytics.riskStudents} />
-        </Grid>
-      </Grid>
-      <Grid container spacing={1.5}>
-        <Grid size={{ xs: 12, lg: 7 }}>
-          <Card sx={{ border: '1px solid #E2E8F0', borderRadius: 3 }}>
-            <CardContent sx={{ p: 2.25 }}>
-              <Typography variant="subtitle2" fontWeight={750} color="#0F172A">
-                Evolução da frequência
-              </Typography>
-              <Box sx={{ height: 260, mt: 1.5 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={analytics.evolution}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                    <XAxis dataKey="date" tickFormatter={formatDate} minTickGap={28} tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
-                    <YAxis domain={[0, 100]} unit="%" tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
-                    <Tooltip
-                      labelFormatter={(value) => formatDate(String(value))}
-                      contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0' }}
-                    />
-                    <Line type="monotone" dataKey="rate" name="Frequência" stroke="#2563EB" strokeWidth={2.5} dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid size={{ xs: 12, lg: 5 }}>
-          <Card sx={{ border: '1px solid #E2E8F0', borderRadius: 3 }}>
-            <CardContent sx={{ p: 2.25 }}>
-              <Typography variant="subtitle2" fontWeight={750} color="#0F172A">
-                Distribuição das marcações
-              </Typography>
-              <Box sx={{ height: 230 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={distribution} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} paddingAngle={2}>
-                      {distribution.map((item, index) => (
-                        <Cell key={item.name} fill={statusColors[index]} />
-                      ))}
-                    </Pie>
-                    <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0' }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </Box>
-              <Stack direction="row" flexWrap="wrap" gap={0.75} justifyContent="center">
-                {distribution.map((item, index) => (
-                  <Chip
-                    key={item.name}
-                    size="small"
-                    label={`${item.name}: ${item.value}`}
-                    sx={{ borderColor: statusColors[index], fontWeight: 600, height: 22, fontSize: 11 }}
-                    variant="outlined"
-                  />
-                ))}
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-    </>
-  );
-}
-
-function DetailHeader({
-  backTo,
-  backLabel,
-  title,
-  subtitle,
-  activeRecord = true,
+function AnalyticsCard({
+  attendance,
+  classes,
+  students,
+  enrollments,
+  classTeachers,
+  filter,
 }: {
-  backTo: string;
-  backLabel: string;
-  title: string;
-  subtitle?: string;
-  activeRecord?: boolean;
+  attendance: LocalRecord[];
+  classes: LocalRecord[];
+  students: LocalRecord[];
+  enrollments: LocalRecord[];
+  classTeachers: LocalRecord[];
+  filter?: { classId?: string; studentId?: string };
 }) {
-  return (
-    <Card sx={{ border: '1px solid #E2E8F0', borderRadius: 3 }}>
-      <CardContent sx={{ p: { xs: 2, md: 2.25 } }}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" gap={2} alignItems={{ sm: 'center' }}>
-          <Box>
-            <Button
-              component={Link}
-              to={backTo}
-              startIcon={<ArrowBackOutlinedIcon fontSize="small" />}
-              sx={{ px: 0, fontWeight: 650, color: 'text.secondary', mb: 0.5, fontSize: 13, minWidth: 0, '&:hover': { bgcolor: 'transparent' } }}
-            >
-              {backLabel}
-            </Button>
-            <Typography variant="h5" fontWeight={800} color="#0F172A" letterSpacing="-0.02em">
-              {title}
-            </Typography>
-            {subtitle && (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
-                {subtitle}
-              </Typography>
-            )}
-          </Box>
-          <Chip
-            label={activeRecord ? 'Ativo' : 'Inativo'}
-            color={activeRecord ? 'success' : 'default'}
-            sx={{ alignSelf: { xs: 'flex-start', sm: 'center' }, fontWeight: 650, height: 24 }}
-          />
-        </Stack>
-      </CardContent>
-    </Card>
-  );
-}
+  const filteredAttendance = useMemo(() => {
+    return attendance.filter((item) => {
+      if (item.deleted_at) return false;
+      if (filter?.classId && item.class_id !== filter.classId) return false;
+      if (filter?.studentId && item.student_id !== filter.studentId) return false;
+      return true;
+    });
+  }, [attendance, filter]);
 
-function LoadingState() {
-  return <LinearProgress aria-label="Carregando detalhes" sx={{ height: 2 }} />;
-}
-function Missing({ label }: { label: string }) {
+  const analytics = useMemo(() => {
+    return buildAnalytics(
+      {
+        attendance: filteredAttendance,
+        classes,
+        students,
+        enrollments,
+        classTeachers,
+      },
+      {
+        from: '2000-01-01',
+        to: '2100-12-31',
+        classId: filter?.classId,
+        studentId: filter?.studentId,
+      },
+    );
+  }, [filteredAttendance, classes, students, enrollments, classTeachers, filter]);
+
+  const distribution = [
+    { key: 'P', name: 'Presenças', value: analytics.present },
+    { key: 'F', name: 'Faltas', value: analytics.absent },
+    { key: 'J', name: 'Justificadas', value: analytics.justified },
+    { key: 'A', name: 'Atrasos', value: analytics.delayed },
+    { key: 'R', name: 'Reposições', value: analytics.replacements },
+  ];
+
   return (
-    <Alert severity="warning" sx={{ borderRadius: 2 }}>
-      {label} não encontrado ou indisponível para este perfil.
-    </Alert>
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 text-left">
+      <div className="lg:col-span-2 bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs">
+        <h3 className="text-sm font-bold text-slate-900 mb-1">Evolução da Frequência</h3>
+        <p className="text-xs text-slate-500 mb-4">Taxa de presença ao longo do tempo</p>
+        <div className="w-full h-60">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={analytics.evolution}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+              <XAxis dataKey="date" tickFormatter={formatDate} minTickGap={28} tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
+              <YAxis domain={[0, 100]} unit="%" tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
+              <Tooltip labelFormatter={(val) => formatDate(String(val))} contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0' }} />
+              <Line type="monotone" dataKey="rate" name="Frequência" stroke="#2563EB" strokeWidth={2.5} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs">
+        <h3 className="text-sm font-bold text-slate-900 mb-1">Distribuição das Marcações</h3>
+        <p className="text-xs text-slate-500 mb-4">Total de registros por situação</p>
+        <div className="w-full h-60">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={distribution} dataKey="value" nameKey="name" innerRadius={45} outerRadius={70} paddingAngle={2}>
+                {distribution.map((entry) => (
+                  <Cell key={entry.key} fill={statusColors[entry.key as keyof typeof statusColors]} />
+                ))}
+              </Pie>
+              <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0' }} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
   );
 }
 
 export function CourseDetailPage() {
-  const { courseId = '' } = useParams();
+  const { courseId } = useParams<{ courseId: string }>();
+  const navigate = useNavigate();
   const courses = useEntity('courses');
   const classes = useEntity('classes');
-  const enrollments = useEntity('enrollments');
-  const students = useEntity('students');
   const attendance = useEntity('attendance_records');
+  const students = useEntity('students');
+  const enrollments = useEntity('enrollments');
   const classTeachers = useEntity('class_teachers');
-  if ([courses, classes, enrollments, students, attendance, classTeachers].some((value) => value.loading))
-    return <LoadingState />;
-  const course = courses.items.find((item) => item.id === courseId);
-  if (!course) return <Missing label="Curso" />;
-  const ownClasses = classes.items.filter((item) => item.course_id === courseId && active(item));
-  const ownIds = new Set(ownClasses.map((item) => item.id));
-  const ownRecords = attendance.items.filter((item) => ownIds.has(String(item.class_id)) && String(item.date) >= daysAgo(89));
-  const analytics = buildAnalytics(
-    {
-      attendance: attendance.items,
-      classes: classes.items,
-      students: students.items,
-      enrollments: enrollments.items,
-      classTeachers: classTeachers.items,
-    },
-    { from: daysAgo(89), to: todayInSaoPaulo(), courseId },
-  );
-  const calls = new Set(ownRecords.map((item) => `${item.class_id}:${item.date}`)).size;
+
+  const course = courses.items.find((c) => c.id === courseId);
+  const ownClasses = useMemo(() => classes.items.filter((c) => !c.deleted_at && c.course_id === courseId), [classes.items, courseId]);
+
+  if (!course && !courses.loading) {
+    return (
+      <div className="p-8 text-center text-slate-500 bg-white border border-slate-200 rounded-2xl">
+        Curso não encontrado.
+      </div>
+    );
+  }
 
   return (
-    <Stack gap={2}>
-      <DetailHeader
-        backTo="/cursos"
-        backLabel="Voltar para cursos"
-        title={text(course, 'name')}
-        subtitle={`Código: ${text(course, 'code') || 'não informado'} · últimos 90 dias`}
-        activeRecord={active(course)}
+    <div className="flex flex-col gap-5 text-left">
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => navigate('/cursos')}
+          className="p-2 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </button>
+        <div>
+          <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+            {text(course, 'name')}
+          </h1>
+          <p className="text-xs text-slate-500 font-medium mt-0.5">
+            Código {text(course, 'code') || 'não informado'}
+          </p>
+        </div>
+      </div>
+
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs">
+        <h2 className="text-sm font-bold text-slate-900 mb-3">Turmas vinculadas a este curso ({ownClasses.length})</h2>
+        <div className="divide-y divide-slate-100">
+          {ownClasses.map((cls) => (
+            <div key={cls.id} className="py-2.5 flex items-center justify-between">
+              <Link to={`/turmas/${cls.id}`} className="font-bold text-xs sm:text-sm text-slate-900 hover:text-blue-600 hover:underline">
+                {text(cls, 'name')}
+              </Link>
+              <span className="text-xs text-slate-500 font-medium">
+                {shiftLabel(text(cls, 'shift'))} {text(cls, 'week_day') ? `· ${text(cls, 'week_day')}` : ''}
+              </span>
+            </div>
+          ))}
+          {!ownClasses.length && (
+            <p className="text-xs text-slate-400 py-3">Nenhuma turma cadastrada para este curso.</p>
+          )}
+        </div>
+      </div>
+
+      <AnalyticsCard
+        attendance={attendance.items}
+        classes={classes.items}
+        students={students.items}
+        enrollments={enrollments.items}
+        classTeachers={classTeachers.items}
       />
-      <Overview analytics={analytics} calls={calls} />
-      <Card sx={{ border: '1px solid #E2E8F0', borderRadius: 3 }}>
-        <CardContent sx={{ p: 2.25 }}>
-          <Typography variant="subtitle1" fontWeight={750} color="#0F172A" mb={1}>
-            Turmas do curso
-          </Typography>
-          <Stack divider={<Divider flexItem sx={{ borderColor: '#F1F5F9' }} />}>
-            {ownClasses.map((item) => {
-              const summary = analytics.byClass.find((value) => value.id === item.id);
-              return (
-                <Button
-                  key={item.id}
-                  component={Link}
-                  to={`/turmas/${item.id}`}
-                  sx={{ justifyContent: 'space-between', py: 1.25, color: '#0F172A', fontWeight: 650, borderRadius: 2 }}
-                >
-                  <span>
-                    {text(item, 'name')} · {text(item, 'shift')}
-                  </span>
-                  <Chip
-                    size="small"
-                    label={`${summary?.rate ?? 0}%`}
-                    color={(summary?.rate ?? 0) < 75 ? 'error' : 'success'}
-                    sx={{ fontWeight: 650, height: 22, fontSize: 11 }}
-                  />
-                </Button>
-              );
-            })}
-            {!ownClasses.length && <Typography color="text.secondary" variant="body2">Nenhuma turma ativa neste curso.</Typography>}
-          </Stack>
-        </CardContent>
-      </Card>
-    </Stack>
+    </div>
   );
 }
 
 export function ClassDetailPage() {
-  const { classId = '' } = useParams();
+  const { classId } = useParams<{ classId: string }>();
+  const navigate = useNavigate();
   const classes = useEntity('classes');
   const courses = useEntity('courses');
-  const labs = useEntity('laboratories');
+  const laboratories = useEntity('laboratories');
   const enrollments = useEntity('enrollments');
   const students = useEntity('students');
   const attendance = useEntity('attendance_records');
   const classTeachers = useEntity('class_teachers');
-  const replacements = useEntity('replacements');
-  if ([classes, courses, labs, enrollments, students, attendance, classTeachers, replacements].some((value) => value.loading))
-    return <LoadingState />;
-  const classRecord = classes.items.find((item) => item.id === classId);
-  if (!classRecord) return <Missing label="Turma" />;
-  const course = courses.items.find((item) => item.id === classRecord.course_id);
-  const lab = labs.items.find((item) => item.id === classRecord.laboratory_id);
-  const ownEnrollments = enrollments.items.filter((item) => item.class_id === classId && item.status === 'ativa' && !item.deleted_at);
-  const roster = ownEnrollments
-    .map((item) => students.items.find((student) => student.id === item.student_id))
-    .filter((item): item is LocalRecord => Boolean(item));
-  const ownRecords = attendance.items.filter((item) => item.class_id === classId && String(item.date) >= daysAgo(89));
-  const analytics = buildAnalytics(
-    {
-      attendance: attendance.items,
-      classes: classes.items,
-      students: students.items,
-      enrollments: enrollments.items,
-      classTeachers: classTeachers.items,
-    },
-    { from: daysAgo(89), to: todayInSaoPaulo(), classId },
+
+  const classRecord = classes.items.find((c) => c.id === classId);
+  const course = courses.items.find((c) => c.id === classRecord?.course_id);
+  const lab = laboratories.items.find((l) => l.id === classRecord?.laboratory_id);
+
+  const ownEnrollments = useMemo(
+    () => enrollments.items.filter((e) => !e.deleted_at && e.class_id === classId && e.status === 'active'),
+    [enrollments.items, classId],
   );
-  const calls = new Set(ownRecords.map((item) => String(item.date))).size;
-  const openReplacements = replacements.items.filter((item) => item.class_id === classId && !item.completed_at).length;
+
+  const enrolledStudents = useMemo(() => {
+    return ownEnrollments.map((enr) => {
+      const student = students.items.find((s) => s.id === enr.student_id);
+      return { ...student, enrollmentId: enr.id };
+    });
+  }, [ownEnrollments, students.items]);
+
+  if (!classRecord && !classes.loading) {
+    return (
+      <div className="p-8 text-center text-slate-500 bg-white border border-slate-200 rounded-2xl">
+        Turma não encontrada.
+      </div>
+    );
+  }
 
   return (
-    <Stack gap={2}>
-      <DetailHeader
-        backTo="/turmas"
-        backLabel="Voltar para turmas"
-        title={text(classRecord, 'name')}
-        subtitle={`${text(course, 'name') || 'Curso não informado'} · ${text(classRecord, 'shift')} · ${text(classRecord, 'week_day') || 'dia não informado'} · ${text(lab, 'name') || 'sem laboratório'}`}
-        activeRecord={active(classRecord)}
+    <div className="flex flex-col gap-5 text-left">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => navigate('/turmas')}
+            className="p-2 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+              {text(classRecord, 'name')}
+            </h1>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">
+              {text(course, 'name')} · {shiftLabel(text(classRecord, 'shift'))}{' '}
+              {text(classRecord, 'week_day') ? `· ${text(classRecord, 'week_day')}` : ''}
+            </p>
+          </div>
+        </div>
+
+        <Link
+          to="/frequencia"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-slate-950 hover:bg-slate-800 text-white text-xs sm:text-sm font-semibold rounded-lg shadow-xs transition-colors"
+        >
+          <span>Fazer chamada</span>
+        </Link>
+      </div>
+
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs">
+        <h2 className="text-sm font-bold text-slate-900 mb-3">Alunos Matriculados ({enrolledStudents.length})</h2>
+        <div className="divide-y divide-slate-100">
+          {enrolledStudents.map((st) => (
+            <div key={st.id} className="py-2.5 flex items-center justify-between">
+              <Link to={`/alunos/${st.id}`} className="font-bold text-xs sm:text-sm text-slate-900 hover:text-blue-600 hover:underline">
+                {text(st, 'name')}
+              </Link>
+              <span className="text-xs text-slate-400 font-medium">
+                Matrícula {text(st, 'registration_number') || '—'}
+              </span>
+            </div>
+          ))}
+          {!enrolledStudents.length && (
+            <p className="text-xs text-slate-400 py-3">Nenhum aluno ativo matriculado nesta turma.</p>
+          )}
+        </div>
+      </div>
+
+      <AnalyticsCard
+        attendance={attendance.items}
+        classes={classes.items}
+        students={students.items}
+        enrollments={enrollments.items}
+        classTeachers={classTeachers.items}
+        filter={{ classId }}
       />
-      <Overview analytics={analytics} calls={calls} />
-      <Card sx={{ border: '1px solid #E2E8F0', borderRadius: 3 }}>
-        <CardContent sx={{ p: 2.25 }}>
-          <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" gap={1} alignItems={{ sm: 'center' }}>
-            <Box>
-              <Typography variant="subtitle1" fontWeight={750} color="#0F172A">
-                Alunos da turma
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {roster.length} matrículas ativas · {openReplacements} reposições em aberto
-              </Typography>
-            </Box>
-            <Button
-              component={Link}
-              to={`/frequencia?turma=${classId}`}
-              variant="outlined"
-              size="small"
-              startIcon={<FactCheckOutlinedIcon fontSize="small" />}
-              sx={{ borderRadius: 2, fontWeight: 650 }}
-            >
-              Abrir frequência
-            </Button>
-          </Stack>
-          <Divider sx={{ my: 1.25, borderColor: '#F1F5F9' }} />
-          <Stack divider={<Divider flexItem sx={{ borderColor: '#F1F5F9' }} />}>
-            {roster
-              .sort((left, right) => text(left, 'name').localeCompare(text(right, 'name')))
-              .map((student) => {
-                const ranking = analytics.topAbsentees.find((item) => item.studentId === student.id);
-                return (
-                  <Button
-                    key={student.id}
-                    component={Link}
-                    to={`/alunos/${student.id}`}
-                    sx={{ justifyContent: 'space-between', py: 1, color: '#0F172A', fontWeight: 650, borderRadius: 2 }}
-                  >
-                    <span>
-                      {text(student, 'name')} · {text(student, 'registration_number')}
-                    </span>
-                    <Typography variant="body2" color={ranking ? 'error.main' : 'text.secondary'} fontWeight={600}>
-                      {ranking ? `${ranking.rate}% · ${ranking.absences} faltas` : 'Sem faltas no período'}
-                    </Typography>
-                  </Button>
-                );
-              })}
-            {!roster.length && <Typography color="text.secondary" variant="body2">Nenhum aluno com matrícula ativa.</Typography>}
-          </Stack>
-        </CardContent>
-      </Card>
-    </Stack>
+    </div>
   );
 }
 
 export function StudentDetailPage() {
-  const { studentId = '' } = useParams();
+  const { studentId } = useParams<{ studentId: string }>();
+  const navigate = useNavigate();
   const students = useEntity('students');
+  const enrollments = useEntity('enrollments');
   const classes = useEntity('classes');
-  const courses = useEntity('courses');
-  const enrollments = useEntity('enrollments', true);
-  const attendance = useEntity('attendance_records', true);
+  const attendance = useEntity('attendance_records');
   const classTeachers = useEntity('class_teachers');
-  const replacements = useEntity('replacements', true);
-  if ([students, classes, courses, enrollments, attendance, classTeachers, replacements].some((value) => value.loading))
-    return <LoadingState />;
-  const student = students.items.find((item) => item.id === studentId);
-  if (!student) return <Missing label="Aluno" />;
-  const ownEnrollments = enrollments.items
-    .filter((item) => item.student_id === studentId)
-    .sort((left, right) => text(right, 'updated_at').localeCompare(text(left, 'updated_at')));
-  const currentEnrollment = ownEnrollments.find((item) => item.status === 'ativa' && !item.deleted_at);
-  const currentClass = classes.items.find((item) => item.id === currentEnrollment?.class_id);
-  const course = courses.items.find((item) => item.id === currentClass?.course_id);
-  const ownRecords = attendance.items
-    .filter((item) => item.student_id === studentId && !item.deleted_at && String(item.date) >= daysAgo(89))
-    .sort((left, right) => text(right, 'date').localeCompare(text(left, 'date')));
-  const analytics = buildAnalytics(
-    {
-      attendance: attendance.items,
-      classes: classes.items,
-      students: students.items,
-      enrollments: enrollments.items,
-      classTeachers: classTeachers.items,
-    },
-    { from: daysAgo(89), to: todayInSaoPaulo(), studentId },
+
+  const student = students.items.find((s) => s.id === studentId);
+  const ownEnrollments = useMemo(
+    () => enrollments.items.filter((e) => !e.deleted_at && e.student_id === studentId),
+    [enrollments.items, studentId],
   );
-  const calls = new Set(ownRecords.map((item) => `${item.class_id}:${item.date}`)).size;
-  const ownReplacements = replacements.items.filter((item) => item.student_id === studentId && !item.deleted_at);
+
+  if (!student && !students.loading) {
+    return (
+      <div className="p-8 text-center text-slate-500 bg-white border border-slate-200 rounded-2xl">
+        Aluno não encontrado.
+      </div>
+    );
+  }
 
   return (
-    <Stack gap={2}>
-      <DetailHeader
-        backTo="/alunos"
-        backLabel="Voltar para alunos"
-        title={text(student, 'name')}
-        subtitle={`Matrícula: ${text(student, 'registration_number')} · ${text(course, 'name') || 'curso não informado'} / ${text(currentClass, 'name') || 'sem turma ativa'}`}
-        activeRecord={active(student)}
+    <div className="flex flex-col gap-5 text-left">
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => navigate('/alunos')}
+          className="p-2 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </button>
+        <div>
+          <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+            {text(student, 'name')}
+          </h1>
+          <p className="text-xs text-slate-500 font-medium mt-0.5">
+            Matrícula {text(student, 'registration_number') || 'não informada'} · Contato:{' '}
+            {text(student, 'contact') || 'não informado'}
+          </p>
+        </div>
+      </div>
+
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs">
+        <h2 className="text-sm font-bold text-slate-900 mb-3">Histórico de Matrículas</h2>
+        <div className="divide-y divide-slate-100">
+          {ownEnrollments.map((enr) => {
+            const cls = classes.items.find((c) => c.id === enr.class_id);
+            return (
+              <div key={enr.id} className="py-2.5 flex items-center justify-between">
+                <div>
+                  <Link
+                    to={`/turmas/${enr.class_id}`}
+                    className="font-bold text-xs sm:text-sm text-slate-900 hover:text-blue-600 hover:underline"
+                  >
+                    {text(cls, 'name') || 'Turma removida'}
+                  </Link>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Data: {formatDate(text(enr, 'registration_date'))}
+                  </p>
+                </div>
+                <span
+                  className={`px-2 py-0.5 text-[10px] font-bold rounded-md border ${
+                    enr.status === 'active'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-slate-100 text-slate-600 border-slate-200'
+                  }`}
+                >
+                  {enr.status === 'active' ? 'Ativa' : 'Inativa'}
+                </span>
+              </div>
+            );
+          })}
+          {!ownEnrollments.length && (
+            <p className="text-xs text-slate-400 py-3">Nenhuma matrícula registrada.</p>
+          )}
+        </div>
+      </div>
+
+      <AnalyticsCard
+        attendance={attendance.items}
+        classes={classes.items}
+        students={students.items}
+        enrollments={enrollments.items}
+        classTeachers={classTeachers.items}
+        filter={{ studentId }}
       />
-      <Overview analytics={analytics} calls={calls} />
-      <Grid container spacing={1.5}>
-        <Grid size={{ xs: 12, lg: 5 }}>
-          <Card sx={{ border: '1px solid #E2E8F0', borderRadius: 3 }}>
-            <CardContent sx={{ p: 2.25 }}>
-              <Typography variant="subtitle1" fontWeight={750} color="#0F172A">
-                Histórico de matrículas
-              </Typography>
-              <Stack divider={<Divider flexItem sx={{ borderColor: '#F1F5F9' }} />} mt={1.25}>
-                {ownEnrollments.map((item) => {
-                  const classRecord = classes.items.find((value) => value.id === item.class_id);
-                  return (
-                    <Box key={item.id} py={0.75}>
-                      <Button component={Link} to={`/turmas/${item.class_id}`} sx={{ px: 0, fontWeight: 700, color: '#0F172A', minWidth: 0, '&:hover': { color: '#2563EB', textDecoration: 'underline', bgcolor: 'transparent' } }}>
-                        {text(classRecord, 'name') || 'Turma removida'}
-                      </Button>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                        {text(item, 'status')} · atualização {formatDate(text(item, 'updated_at').slice(0, 10))}
-                      </Typography>
-                    </Box>
-                  );
-                })}
-                {!ownEnrollments.length && <Typography color="text.secondary" variant="body2">Nenhuma matrícula encontrada.</Typography>}
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid size={{ xs: 12, lg: 7 }}>
-          <Card sx={{ border: '1px solid #E2E8F0', borderRadius: 3 }}>
-            <CardContent sx={{ p: 2.25 }}>
-              <Typography variant="subtitle1" fontWeight={750} color="#0F172A">
-                Linha do tempo de frequência
-              </Typography>
-              <Stack divider={<Divider flexItem sx={{ borderColor: '#F1F5F9' }} />} mt={1.25}>
-                {ownRecords.slice(0, 30).map((record) => {
-                  const replacement = ownReplacements.find((item) => item.attendance_record_id === record.id);
-                  return (
-                    <Box key={record.id} py={0.75}>
-                      <Stack direction="row" justifyContent="space-between" gap={1} alignItems="center">
-                        <Typography fontWeight={650} color="#0F172A" fontSize={13.5}>
-                          {formatDate(text(record, 'date'))} · {text(classes.items.find((item) => item.id === record.class_id), 'name')}
-                        </Typography>
-                        <Chip
-                          size="small"
-                          label={statusLabel[text(record, 'status')] ?? text(record, 'status')}
-                          color={
-                            text(record, 'status') === 'P'
-                              ? 'success'
-                              : text(record, 'status') === 'F'
-                              ? 'error'
-                              : text(record, 'status') === 'R' || text(record, 'status') === 'RC'
-                              ? 'secondary'
-                              : 'info'
-                          }
-                          sx={{ fontWeight: 650, height: 20, fontSize: 10.5 }}
-                        />
-                      </Stack>
-                      {text(record, 'notes') && (
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
-                          {text(record, 'notes')}
-                        </Typography>
-                      )}
-                      {replacement && (
-                        <Typography variant="caption" color="primary.main" fontWeight={600} sx={{ display: 'block', mt: 0.25 }}>
-                          Reposição: {formatDate(text(replacement, 'scheduled_date'))} às {text(replacement, 'scheduled_time')}{' '}
-                          {replacement.completed_at ? '· concluída' : '· pendente'}
-                        </Typography>
-                      )}
-                    </Box>
-                  );
-                })}
-                {!ownRecords.length && <Typography color="text.secondary" variant="body2">Nenhuma frequência nos últimos 90 dias.</Typography>}
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-    </Stack>
+    </div>
   );
 }
-

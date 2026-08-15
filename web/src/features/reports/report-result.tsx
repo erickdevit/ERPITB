@@ -1,117 +1,79 @@
-import { Box, Card, CardContent, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography, useMediaQuery } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+import React from 'react';
 import type { ExportValue } from '../../lib/exports';
 import type { ReportMetric, ReportView } from './model';
 
 function MetricGrid({ metrics }: { metrics: ReportMetric[] }) {
   return (
-    <Box
-      component="section"
+    <div
       aria-label="Indicadores do relatório"
-      sx={{
-        display: 'grid',
-        gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' },
-        gap: 1.25,
-      }}
+      className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-left"
     >
       {metrics.map((metric) => (
-        <Card key={metric.label} sx={{ border: '1px solid #E2E8F0', borderRadius: 2.5 }}>
-          <CardContent sx={{ p: 1.75, '&:last-child': { pb: 1.75 } }}>
-            <Typography variant="caption" color="text.secondary" fontWeight={600}>
-              {metric.label}
-            </Typography>
-            <Typography variant="h6" component="p" fontWeight={800} color="#0F172A" sx={{ mt: 0.25, letterSpacing: '-0.02em' }}>
-              {metric.value}
-            </Typography>
-          </CardContent>
-        </Card>
+        <div key={metric.label} className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs">
+          <p className="text-xs font-semibold text-slate-500 truncate">{metric.label}</p>
+          <p className="text-xl font-extrabold text-slate-900 tracking-tight mt-1 leading-none">
+            {metric.value}
+          </p>
+        </div>
       ))}
-    </Box>
-  );
-}
-
-function MobileRows({ headers, rows }: { headers: string[]; rows: ExportValue[][] }) {
-  return (
-    <Stack divider={<Box sx={{ borderTop: '1px solid #F1F5F9' }} />}>
-      {rows.map((row, rowIndex) => (
-        <Box
-          component="dl"
-          key={rowIndex}
-          sx={{ display: 'grid', gridTemplateColumns: 'minmax(108px, 40%) 1fr', gap: 0.5, m: 0, p: 1.75 }}
-        >
-          {headers.map((header, index) => (
-            <Box key={`${header}-${index}`} sx={{ display: 'contents' }}>
-              <Typography component="dt" variant="caption" color="text.secondary" fontWeight={700}>
-                {header}
-              </Typography>
-              <Typography component="dd" variant="body2" sx={{ m: 0, overflowWrap: 'anywhere', color: '#1E293B' }}>
-                {String(row[index] ?? '—')}
-              </Typography>
-            </Box>
-          ))}
-        </Box>
-      ))}
-    </Stack>
+    </div>
   );
 }
 
 export function ReportResult({ view }: { view: ReportView }) {
-  const theme = useTheme();
-  const compact = useMediaQuery(theme.breakpoints.down('sm'));
-
+  const displayTitle = view.tableTitle || view.title;
   return (
-    <Stack gap={1.5}>
+    <div className="flex flex-col gap-4 text-left">
       <MetricGrid metrics={view.metrics} />
-      <Card component="section" aria-labelledby="report-table-title" sx={{ border: '1px solid #E2E8F0', borderRadius: 3 }}>
-        <CardContent sx={{ p: 2, pb: 1.25, borderBottom: '1px solid #F1F5F9' }}>
-          <Typography id="report-table-title" fontWeight={750} color="#0F172A" fontSize={15}>
-            {view.tableTitle}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            {view.rows.length.toLocaleString('pt-BR')} linha(s) encontrada(s)
-          </Typography>
-        </CardContent>
+
+      <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xs overflow-hidden">
+        <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+          <div>
+            <h2 id="report-table-title" className="text-sm font-bold text-slate-900 tracking-tight">
+              {displayTitle}
+            </h2>
+            <p className="text-xs text-slate-400 font-medium mt-0.5">
+              {view.rows.length.toLocaleString('pt-BR')} linha(s) encontrada(s)
+            </p>
+          </div>
+        </div>
+
         {!view.rows.length ? (
-          <Typography color="text.secondary" textAlign="center" variant="body2" sx={{ px: 2, py: 5 }}>
+          <div className="p-8 text-center text-slate-400 text-xs font-medium">
             Nenhum dado para os filtros selecionados.
-          </Typography>
-        ) : compact && !view.matrix ? (
-          <MobileRows headers={view.headers} rows={view.rows} />
+          </div>
         ) : (
-          <TableContainer sx={{ maxHeight: { xs: 520, lg: 680 } }}>
-            <Table size="small" stickyHeader aria-label={view.tableTitle}>
-              <TableHead>
-                <TableRow>
+          <div className="overflow-x-auto max-h-[560px]">
+            <table className="w-full text-left text-xs border-collapse" aria-label={displayTitle}>
+              <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-xs z-1 border-b border-slate-200">
+                <tr className="text-slate-500 uppercase tracking-wider font-bold text-[11px]">
                   {view.headers.map((header, index) => (
-                    <TableCell key={`${header}-${index}`} sx={{ whiteSpace: 'nowrap', fontWeight: 750 }}>
+                    <th key={`${header}-${index}`} className="py-3 px-4 whitespace-nowrap">
                       {header}
-                    </TableCell>
+                    </th>
                   ))}
-                </TableRow>
-              </TableHead>
-              <TableBody>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                 {view.rows.map((row, rowIndex) => (
-                  <TableRow key={rowIndex} hover>
+                  <tr key={rowIndex} className="hover:bg-slate-50/75 transition-colors">
                     {row.map((value, index) => (
-                      <TableCell
+                      <td
                         key={`${rowIndex}-${index}`}
-                        sx={{
-                          minWidth: index < 2 ? 112 : undefined,
-                          whiteSpace: view.matrix && index >= 2 ? 'nowrap' : undefined,
-                          color: '#334155',
-                          fontSize: 13,
-                        }}
+                        className={`py-2.5 px-4 ${
+                          index === 0 ? 'font-bold text-slate-900' : 'text-slate-600'
+                        } ${view.matrix && index >= 2 ? 'whitespace-nowrap' : ''}`}
                       >
                         {String(value ?? '—')}
-                      </TableCell>
+                      </td>
                     ))}
-                  </TableRow>
+                  </tr>
                 ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+              </tbody>
+            </table>
+          </div>
         )}
-      </Card>
-    </Stack>
+      </div>
+    </div>
   );
 }

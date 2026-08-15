@@ -1,7 +1,5 @@
-import { useMemo, useState } from 'react';
-import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
-import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined';
-import { Alert, Box, Button, LinearProgress, Stack, Typography } from '@mui/material';
+import React, { useMemo, useState } from 'react';
+import { Download, FileText, FileSpreadsheet, RotateCcw } from 'lucide-react';
 import { useApp } from '../../app-context';
 import { Section } from '../../components';
 import { exportExcelCsv, exportExcelXlsx, exportSimplePdf } from '../../lib/exports';
@@ -35,52 +33,51 @@ export function ReportsCenterPage() {
   const exportMetadata = view.context.map((item, index) => [`Contexto ${index + 1}`, item] as [string, string]);
 
   return (
-    <Section
-      title="Central de Relatórios"
-      subtitle="Emissão e exportação de diários de classe, desempenho e relatórios pedagógicos"
-      action={
-        <Stack direction="row" gap={1} flexWrap="wrap" aria-label="Opções de exportação do relatório">
-          <Button
-            size="small"
-            variant="outlined"
-            disabled={!view.ready}
-            startIcon={<PictureAsPdfOutlinedIcon fontSize="small" />}
-            onClick={() => void exportSimplePdf(filename, view.title, view.context, view.headers, view.rows)}
-            sx={{ borderRadius: 2, fontWeight: 650, px: 1.75, py: 0.6 }}
-          >
-            PDF
-          </Button>
-          <Button
-            size="small"
-            variant="outlined"
-            disabled={!view.ready}
-            startIcon={<FileDownloadOutlinedIcon fontSize="small" />}
-            onClick={() =>
-              void exportExcelXlsx(
-                filename,
-                view.metrics.map((item) => [item.label, item.value]),
-                view.headers,
-                view.rows,
-                exportMetadata,
-              )
-            }
-            sx={{ borderRadius: 2, fontWeight: 650, px: 1.75, py: 0.6 }}
-          >
-            Excel
-          </Button>
-          <Button
-            size="small"
-            variant="outlined"
-            disabled={!view.ready}
-            startIcon={<FileDownloadOutlinedIcon fontSize="small" />}
-            onClick={() => exportExcelCsv(filename, view.headers, view.rows)}
-            sx={{ borderRadius: 2, fontWeight: 650, px: 1.75, py: 0.6 }}
-          >
-            CSV
-          </Button>
-        </Stack>
-      }
-    >
+    <div className="flex flex-col gap-5 text-left">
+      <Section
+        title="Central de Relatórios"
+        subtitle="Emissão e exportação de diários de classe, desempenho e relatórios pedagógicos"
+        action={
+          <div className="flex items-center gap-2 flex-wrap" aria-label="Opções de exportação do relatório">
+            <button
+              type="button"
+              disabled={!view.ready}
+              onClick={() => void exportSimplePdf(filename, view.title, view.context, view.headers, view.rows)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
+            >
+              <FileText className="w-3.5 h-3.5 text-rose-600" />
+              <span>PDF</span>
+            </button>
+            <button
+              type="button"
+              disabled={!view.ready}
+              onClick={() =>
+                void exportExcelXlsx(
+                  filename,
+                  view.metrics.map((item) => [item.label, item.value]),
+                  view.headers,
+                  view.rows,
+                  exportMetadata,
+                )
+              }
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Excel</span>
+            </button>
+            <button
+              type="button"
+              disabled={!view.ready}
+              onClick={() => exportExcelCsv(filename, view.headers, view.rows)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5 text-sky-600" />
+              <span>CSV</span>
+            </button>
+          </div>
+        }
+      />
+
       <ReportFiltersBar
         filters={filters}
         onChange={setFilters}
@@ -90,43 +87,25 @@ export function ReportsCenterPage() {
         onReset={() => setFilters(defaults)}
       />
 
-      {loading && <LinearProgress aria-label="Carregando relatórios" sx={{ height: 2 }} />}
+      {loading && (
+        <div className="w-full bg-slate-100 h-1 rounded-full overflow-hidden" aria-label="Carregando relatórios">
+          <div className="bg-slate-950 h-full w-1/3 animate-pulse" />
+        </div>
+      )}
+
       {directoryError && (
-        <Alert severity="warning" sx={{ borderRadius: 2 }}>
+        <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800">
           A lista de professores não pôde ser atualizada. {directoryError}
-        </Alert>
+        </div>
       )}
 
       {!view.ready ? (
-        <Alert severity="info" sx={{ borderRadius: 2 }}>
-          {view.requiredMessage}
-        </Alert>
+        <div className="p-8 text-center bg-white border border-slate-200/90 rounded-2xl text-slate-400 text-xs font-medium">
+          {view.notices.length ? view.notices.join(' ') : 'Selecione os parâmetros acima para visualizar o relatório.'}
+        </div>
       ) : (
-        <>
-          <Box sx={{ mt: 0.5 }}>
-            <Typography variant="h6" component="h2" fontWeight={800} color="#0F172A" letterSpacing="-0.01em">
-              {view.title}
-            </Typography>
-            {view.description && (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
-                {view.description}
-              </Typography>
-            )}
-          </Box>
-          <ReportResult view={view} />
-          {view.notices.filter(Boolean).length > 0 && (
-            <Alert severity="info" sx={{ borderRadius: 2 }}>
-              <Stack component="ul" sx={{ m: 0, pl: 2.5 }}>
-                {view.notices.filter(Boolean).map((notice) => (
-                  <li key={notice}>
-                    <Typography variant="body2">{notice}</Typography>
-                  </li>
-                ))}
-              </Stack>
-            </Alert>
-          )}
-        </>
+        <ReportResult view={view} />
       )}
-    </Section>
+    </div>
   );
 }

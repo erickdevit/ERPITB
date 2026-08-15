@@ -1,33 +1,70 @@
-import { useEffect, useMemo, useState } from 'react';
-import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
-import EditNoteOutlinedIcon from '@mui/icons-material/EditNoteOutlined';
-import EventRepeatOutlinedIcon from '@mui/icons-material/EventRepeatOutlined';
-import LockClockOutlinedIcon from '@mui/icons-material/LockClockOutlined';
-import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
-import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Alert, Avatar, Box, Button, Card, CardContent, Chip, Collapse, Dialog, DialogActions,
-  DialogContent, DialogTitle, IconButton, InputAdornment, Snackbar, Stack, TextField,
-  Tooltip, Typography,
-} from '@mui/material';
+  Calendar,
+  Clock,
+  Edit3,
+  Lock,
+  Save,
+  Search,
+  CheckCircle2,
+  XCircle,
+  HelpCircle,
+  AlertCircle,
+  RotateCcw,
+} from 'lucide-react';
 import { useApp } from '../app-context';
-import { DateField, SelectField } from '../components';
+import { DateField, PageDialog, SelectField } from '../components';
 import { formatDate, parseBrazilDate, todayInSaoPaulo } from '../lib/date';
 import { useEntity } from '../lib/use-entity';
 import {
-  attendanceCallAccess, buildAttendanceDraftRows, replacementDraftError, saveAttendanceCall,
-  toggleAttendanceStatus, type AttendanceDraftRow, type EditableAttendanceStatus,
+  attendanceCallAccess,
+  buildAttendanceDraftRows,
+  replacementDraftError,
+  saveAttendanceCall,
+  toggleAttendanceStatus,
+  type AttendanceDraftRow,
+  type EditableAttendanceStatus,
 } from './attendance-model';
 
 const statusConfig: Record<
   EditableAttendanceStatus,
-  { label: string; activeBg: string; activeColor: string; hoverBg: string; borderColor: string }
+  { label: string; activeBg: string; activeText: string; activeBorder: string; hoverBg: string }
 > = {
-  P: { label: 'Presente', activeBg: '#10B981', activeColor: '#FFFFFF', hoverBg: '#E2E8F0', borderColor: '#10B981' },
-  F: { label: 'Falta', activeBg: '#F43F5E', activeColor: '#FFFFFF', hoverBg: '#E2E8F0', borderColor: '#F43F5E' },
-  J: { label: 'Justificada', activeBg: '#0284C7', activeColor: '#FFFFFF', hoverBg: '#E2E8F0', borderColor: '#0284C7' },
-  A: { label: 'Atraso', activeBg: '#F59E0B', activeColor: '#FFFFFF', hoverBg: '#E2E8F0', borderColor: '#F59E0B' },
-  R: { label: 'Reposição', activeBg: '#8B5CF6', activeColor: '#FFFFFF', hoverBg: '#E2E8F0', borderColor: '#8B5CF6' },
+  P: {
+    label: 'Presente',
+    activeBg: 'bg-emerald-600',
+    activeText: 'text-white',
+    activeBorder: 'border-emerald-600',
+    hoverBg: 'hover:bg-emerald-50 hover:text-emerald-700',
+  },
+  F: {
+    label: 'Falta',
+    activeBg: 'bg-rose-600',
+    activeText: 'text-white',
+    activeBorder: 'border-rose-600',
+    hoverBg: 'hover:bg-rose-50 hover:text-rose-700',
+  },
+  J: {
+    label: 'Justificada',
+    activeBg: 'bg-sky-600',
+    activeText: 'text-white',
+    activeBorder: 'border-sky-600',
+    hoverBg: 'hover:bg-sky-50 hover:text-sky-700',
+  },
+  A: {
+    label: 'Atraso',
+    activeBg: 'bg-amber-500',
+    activeText: 'text-white',
+    activeBorder: 'border-amber-500',
+    hoverBg: 'hover:bg-amber-50 hover:text-amber-700',
+  },
+  R: {
+    label: 'Reposição',
+    activeBg: 'bg-purple-600',
+    activeText: 'text-white',
+    activeBorder: 'border-purple-600',
+    hoverBg: 'hover:bg-purple-50 hover:text-purple-700',
+  },
 };
 
 const text = (record: Record<string, unknown> | undefined, field: string) => String(record?.[field] ?? '');
@@ -55,6 +92,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   const attendance = useEntity('attendance_records', true);
   const classNotes = useEntity('class_notes', true);
   const replacements = useEntity('replacements', true);
+
   const [classId, setClassId] = useState('');
   const [date, setDate] = useState(formatDate(today));
   const [search, setSearch] = useState('');
@@ -65,20 +103,33 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ severity: 'success' | 'error'; message: string }>();
 
-  const loading = classes.loading || courses.loading || students.loading || enrollments.loading
-    || attendance.loading || classNotes.loading || replacements.loading;
+  const loading =
+    classes.loading ||
+    courses.loading ||
+    students.loading ||
+    enrollments.loading ||
+    attendance.loading ||
+    classNotes.loading ||
+    replacements.loading;
+
   const canonicalDate = useMemo(() => {
-    try { return parseBrazilDate(date, { allowFuture: true }) ?? ''; } catch { return ''; }
+    try {
+      return parseBrazilDate(date, { allowFuture: true }) ?? '';
+    } catch {
+      return '';
+    }
   }, [date]);
 
   useEffect(() => {
     if (!classId && classes.items.length) setClassId(classes.items[0]!.id);
   }, [classId, classes.items]);
 
-  const existingClassNote = classNotes.items.find((item) => !item.deleted_at
-    && item.class_id === classId && item.date === canonicalDate);
-  const existingCall = attendance.items.some((item) => !item.deleted_at
-    && item.class_id === classId && item.date === canonicalDate);
+  const existingClassNote = classNotes.items.find(
+    (item) => !item.deleted_at && item.class_id === classId && item.date === canonicalDate,
+  );
+  const existingCall = attendance.items.some(
+    (item) => !item.deleted_at && item.class_id === classId && item.date === canonicalDate,
+  );
   const access = attendanceCallAccess(session.role, canonicalDate, today, existingCall);
 
   useEffect(() => {
@@ -87,14 +138,16 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
       setGeneralNotes('');
       return;
     }
-    setRows(buildAttendanceDraftRows({
-      classId,
-      date: canonicalDate,
-      students: students.items,
-      enrollments: enrollments.items,
-      attendance: attendance.items,
-      replacements: replacements.items,
-    }));
+    setRows(
+      buildAttendanceDraftRows({
+        classId,
+        date: canonicalDate,
+        students: students.items,
+        enrollments: enrollments.items,
+        attendance: attendance.items,
+        replacements: replacements.items,
+      }),
+    );
     setGeneralNotes(text(existingClassNote, 'notes'));
     setExpandedNotes(new Set());
   }, [attendance.items, canonicalDate, classId, enrollments.items, existingClassNote, loading, replacements.items, students.items]);
@@ -102,8 +155,11 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   const visibleRows = useMemo(() => {
     const term = search.trim().toLocaleLowerCase('pt-BR');
     if (!term) return rows;
-    return rows.filter((row) => `${text(row.student, 'name')} ${text(row.student, 'registration_number')}`
-      .toLocaleLowerCase('pt-BR').includes(term));
+    return rows.filter((row) =>
+      `${text(row.student, 'name')} ${text(row.student, 'registration_number')}`
+        .toLocaleLowerCase('pt-BR')
+        .includes(term),
+    );
   }, [rows, search]);
 
   const stats = useMemo(() => {
@@ -125,7 +181,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   });
 
   const updateRow = (index: number, update: (row: AttendanceDraftRow) => AttendanceDraftRow) => {
-    setRows((current) => current.map((row, currentIndex) => currentIndex === index ? update(row) : row));
+    setRows((current) => current.map((row, currentIndex) => (currentIndex === index ? update(row) : row)));
   };
 
   const openReplacement = (rowIndex: number) => {
@@ -143,21 +199,31 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   const selectStatus = (rowIndex: number, status: EditableAttendanceStatus) => {
     const row = rows[rowIndex];
     if (!row || !access.editable) return;
-    if (status === 'R' && row.status !== 'R') { openReplacement(rowIndex); return; }
+    if (status === 'R' && row.status !== 'R') {
+      openReplacement(rowIndex);
+      return;
+    }
     updateRow(rowIndex, (current) => toggleAttendanceStatus(current, status));
   };
 
   const confirmReplacement = () => {
     if (!replacementDialog) return;
     let scheduledDate = '';
-    try { scheduledDate = parseBrazilDate(replacementDialog.date, { allowFuture: true }) ?? ''; }
-    catch (error) {
-      setReplacementDialog({ ...replacementDialog, error: error instanceof Error ? error.message : 'Data inválida.' });
+    try {
+      scheduledDate = parseBrazilDate(replacementDialog.date, { allowFuture: true }) ?? '';
+    } catch (error) {
+      setReplacementDialog({
+        ...replacementDialog,
+        error: error instanceof Error ? error.message : 'Data inválida.',
+      });
       return;
     }
     const replacement = { scheduledDate, scheduledTime: replacementDialog.time, notes: replacementDialog.notes };
     const error = replacementDraftError(replacement);
-    if (error) { setReplacementDialog({ ...replacementDialog, error }); return; }
+    if (error) {
+      setReplacementDialog({ ...replacementDialog, error });
+      return;
+    }
     updateRow(replacementDialog.rowIndex, (row) => ({ ...row, status: 'R', replacement, statusChanged: true }));
     setExpandedNotes((current) => new Set(current).add(rows[replacementDialog.rowIndex]!.student.id));
     setReplacementDialog(undefined);
@@ -165,7 +231,8 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
 
   const save = async () => {
     if (!access.editable || !classId || !canonicalDate || saving) return;
-    setSaving(true); setNotice(undefined);
+    setSaving(true);
+    setNotice(undefined);
     try {
       await saveAttendanceCall({
         store,
@@ -177,373 +244,365 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
         existingClassNote,
       });
       await Promise.all([attendance.reload(), classNotes.reload(), replacements.reload()]);
-      setNotice({ severity: 'success', message: 'Chamada salva neste dispositivo. A sincronização seguirá em segundo plano.' });
+      setNotice({
+        severity: 'success',
+        message: 'Chamada salva neste dispositivo. A sincronização seguirá em segundo plano.',
+      });
       void sync();
     } catch (error) {
-      setNotice({ severity: 'error', message: error instanceof Error ? error.message : 'Não foi possível salvar a chamada.' });
-    } finally { setSaving(false); }
+      setNotice({
+        severity: 'error',
+        message: error instanceof Error ? error.message : 'Não foi possível salvar a chamada.',
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <Stack gap={2}>
-      <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.5} justifyContent="space-between" alignItems={{ sm: 'center' }}>
-        <Box>
-          <Typography variant="h5" component="h1" fontWeight={800} color="#0F172A" letterSpacing="-0.025em">
+    <div className="flex flex-col gap-5">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900">
             Lançamento de Frequência
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
-            Registre presenças, faltas, justificativas, atrasos e reposições de aula.
-          </Typography>
-        </Box>
-        <Button
-          variant="contained"
-          size="medium"
-          startIcon={<SaveOutlinedIcon sx={{ fontSize: 18 }} />}
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+            P = presente, F = falta, J = justificada, A = atraso e R = reposição.
+          </p>
+        </div>
+        <button
+          type="button"
           disabled={!access.editable || !rows.length || saving}
           onClick={() => void save()}
-          sx={{ px: 2.5, py: 0.8, borderRadius: 2, fontWeight: 650 }}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-slate-950 hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-semibold rounded-lg shadow-xs transition-colors cursor-pointer"
         >
-          {saving ? 'Salvando…' : 'Salvar chamada'}
-        </Button>
-      </Stack>
+          <Save className="w-4 h-4" />
+          <span>{saving ? 'Salvando…' : 'Salvar chamada'}</span>
+        </button>
+      </div>
 
-      <Card sx={{ border: '1px solid #E2E8F0', borderRadius: 3 }}>
-        <CardContent sx={{ p: { xs: 2, md: 2.25 }, '&:last-child': { pb: { xs: 2, md: 2.25 } } }}>
-          <Stack direction={{ xs: 'column', md: 'row' }} gap={1.5}>
-            <Box sx={{ flex: 1, minWidth: 240 }}>
-              <SelectField label="Turma" value={classId} onChange={setClassId} options={classOptions} />
-            </Box>
-            <Box sx={{ width: { xs: '100%', md: 220 } }}>
-              <DateField label="Data da chamada" value={date} onChange={setDate} required />
-            </Box>
-          </Stack>
-        </CardContent>
-      </Card>
+      {/* Class & Date Filter */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="md:col-span-2">
+            <SelectField label="Turma" value={classId} onChange={setClassId} options={classOptions} />
+          </div>
+          <div>
+            <DateField label="Data da chamada" value={date} onChange={setDate} required />
+          </div>
+        </div>
+      </div>
 
+      {/* Read-only Alert */}
       {!access.editable && classId && canonicalDate && (
-        <Alert severity="warning" icon={<LockClockOutlinedIcon />} sx={{ borderRadius: 2 }}>
-          <strong>Somente leitura.</strong> {access.message}
-        </Alert>
+        <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs sm:text-sm text-amber-800" role="alert">
+          <Lock className="w-5 h-5 shrink-0 text-amber-600 mt-0.5" />
+          <div>
+            <strong>Somente leitura.</strong> {access.message}
+          </div>
+        </div>
       )}
 
       {classId && canonicalDate && (
         <>
+          {/* Real-time Summary Ribbon */}
           {rows.length > 0 && (
-            <Card sx={{ border: '1px solid #E2E8F0', borderRadius: 2.5, bgcolor: '#FFFFFF' }}>
-              <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                <Stack direction="row" gap={1.5} flexWrap="wrap" alignItems="center" justifyContent="space-between">
-                  <Stack direction="row" gap={2} flexWrap="wrap" alignItems="center">
-                    <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                      Total: <strong style={{ color: '#0F172A' }}>{stats.total}</strong>
-                    </Typography>
-                    <Typography variant="caption" color="#059669" fontWeight={600}>
-                      Presentes: <strong>{stats.present}</strong> ({stats.rate}%)
-                    </Typography>
-                    <Typography variant="caption" color="#E11D48" fontWeight={600}>
-                      Faltas: <strong>{stats.absent}</strong>
-                    </Typography>
-                    {stats.justified > 0 && (
-                      <Typography variant="caption" color="#0284C7" fontWeight={600}>
-                        Justificadas: <strong>{stats.justified}</strong>
-                      </Typography>
-                    )}
-                    {stats.late > 0 && (
-                      <Typography variant="caption" color="#D97706" fontWeight={600}>
-                        Atrasos: <strong>{stats.late}</strong>
-                      </Typography>
-                    )}
-                    {stats.replacement > 0 && (
-                      <Typography variant="caption" color="#7C3AED" fontWeight={600}>
-                        Reposições: <strong>{stats.replacement}</strong>
-                      </Typography>
-                    )}
-                  </Stack>
-                  {stats.unset > 0 && (
-                    <Chip
-                      size="small"
-                      label={`${stats.unset} pendente(s)`}
-                      variant="outlined"
-                      sx={{ height: 20, fontSize: 10.5, fontWeight: 600, color: '#64748B', borderColor: '#E2E8F0' }}
-                    />
-                  )}
-                </Stack>
-              </CardContent>
-            </Card>
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-4 text-xs font-semibold">
+                <span className="text-slate-600">
+                  Total: <strong className="text-slate-900">{stats.total}</strong> alunos
+                </span>
+                <span className="text-emerald-700">
+                  Presentes: <strong>{stats.present}</strong> ({stats.rate}%)
+                </span>
+                <span className="text-rose-700">
+                  Faltas: <strong>{stats.absent}</strong>
+                </span>
+                {stats.justified > 0 && (
+                  <span className="text-sky-700">
+                    Justificadas: <strong>{stats.justified}</strong>
+                  </span>
+                )}
+                {stats.late > 0 && (
+                  <span className="text-amber-700">
+                    Atrasos: <strong>{stats.late}</strong>
+                  </span>
+                )}
+                {stats.replacement > 0 && (
+                  <span className="text-purple-700">
+                    Reposições: <strong>{stats.replacement}</strong>
+                  </span>
+                )}
+              </div>
+
+              {stats.unset > 0 && (
+                <span className="px-2.5 py-1 text-[11px] font-bold text-slate-500 bg-slate-100 border border-slate-200 rounded-full">
+                  {stats.unset} pendente(s)
+                </span>
+              )}
+            </div>
           )}
 
-          <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.5}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Buscar aluno na chamada"
-              placeholder="Buscar por nome ou matrícula"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchOutlinedIcon color="action" sx={{ fontSize: 18 }} />
-                  </InputAdornment>
-                ),
-              }}
+          {/* Search Bar */}
+          <div className="flex flex-col gap-1.5 text-left">
+            <label htmlFor="search-student" className="text-xs font-semibold text-slate-700">
+              Buscar aluno na chamada
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                <Search className="w-4 h-4" />
+              </div>
+              <input
+                id="search-student"
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar por nome ou matrícula"
+                className="w-full pl-9 pr-3 py-2 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all placeholder:text-slate-400"
+              />
+            </div>
+          </div>
+
+          {/* General Class Note */}
+          <div className="flex flex-col gap-1.5 text-left">
+            <label htmlFor="general-notes" className="text-xs font-semibold text-slate-700">
+              Observação geral da turma nesta chamada
+            </label>
+            <textarea
+              id="general-notes"
+              rows={2}
+              maxLength={2000}
+              disabled={!access.editable}
+              value={generalNotes}
+              onChange={(e) => setGeneralNotes(e.target.value)}
+              placeholder="Anotações sobre a aula ou ocorrências gerais..."
+              className="w-full p-3 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all disabled:bg-slate-50 disabled:text-slate-400 placeholder:text-slate-400"
             />
-          </Stack>
+            <span className="text-xs text-slate-400 text-right">{generalNotes.length}/2000</span>
+          </div>
 
-          <TextField
-            fullWidth
-            size="small"
-            multiline
-            minRows={2}
-            label="Observação geral da turma nesta chamada"
-            value={generalNotes}
-            disabled={!access.editable}
-            inputProps={{ maxLength: 2000 }}
-            onChange={(event) => setGeneralNotes(event.target.value)}
-            helperText={`${generalNotes.length}/2000`}
-          />
-
+          {/* Empty States */}
           {!loading && rows.length === 0 && (
-            <Alert severity="info" sx={{ borderRadius: 2 }}>
+            <div className="p-4 rounded-xl bg-sky-50 border border-sky-200 text-xs sm:text-sm text-sky-800">
               A turma selecionada não possui matrículas ativas.
-            </Alert>
-          )}
-          {!loading && rows.length > 0 && visibleRows.length === 0 && (
-            <Alert severity="info" sx={{ borderRadius: 2 }}>
-              Nenhum aluno corresponde à busca.
-            </Alert>
+            </div>
           )}
 
-          <Stack gap={1}>
+          {!loading && rows.length > 0 && visibleRows.length === 0 && (
+            <div className="p-4 rounded-xl bg-slate-100 border border-slate-200 text-xs sm:text-sm text-slate-600">
+              Nenhum aluno corresponde à busca.
+            </div>
+          )}
+
+          {/* Student Calling Cards */}
+          <div className="flex flex-col gap-2.5">
             {visibleRows.map((row) => {
               const rowIndex = rows.findIndex((candidate) => candidate.student.id === row.student.id);
               const noteOpen = expandedNotes.has(row.student.id);
-              const activeBorderColor = row.status ? statusConfig[row.status]?.borderColor : 'transparent';
+
               return (
-                <Card
+                <div
                   key={row.student.id}
-                  sx={{
-                    border: '1px solid #E2E8F0',
-                    borderLeft: row.status ? `4px solid ${activeBorderColor}` : '1px solid #E2E8F0',
-                    borderRadius: 2.5,
-                    transition: 'border-color 0.15s ease',
-                    '&:hover': { borderColor: '#CBD5E1' },
-                  }}
+                  className={`bg-white border rounded-xl p-3.5 sm:p-4 shadow-2xs transition-all ${
+                    row.status === 'P'
+                      ? 'border-l-4 border-l-emerald-500 border-slate-200'
+                      : row.status === 'F'
+                      ? 'border-l-4 border-l-rose-500 border-slate-200'
+                      : row.status === 'J'
+                      ? 'border-l-4 border-l-sky-500 border-slate-200'
+                      : row.status === 'A'
+                      ? 'border-l-4 border-l-amber-500 border-slate-200'
+                      : row.status === 'R'
+                      ? 'border-l-4 border-l-purple-500 border-slate-200'
+                      : 'border-slate-200 hover:border-slate-300'
+                  }`}
                 >
-                  <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                    <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.25} alignItems={{ sm: 'center' }} justifyContent="space-between">
-                      <Stack direction="row" gap={1.25} alignItems="center" sx={{ minWidth: 200, flex: 1 }}>
-                        <Avatar
-                          sx={{
-                            bgcolor: '#F1F5F9',
-                            color: '#0F172A',
-                            fontWeight: 700,
-                            fontSize: 13,
-                            width: 32,
-                            height: 32,
-                            borderRadius: 1.5,
-                          }}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    {/* Student Info */}
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-800 font-bold text-xs flex items-center justify-center shrink-0 border border-slate-200">
+                        {text(row.student, 'name').slice(0, 1).toUpperCase()}
+                      </div>
+                      <div className="min-w-0 text-left">
+                        <p className="text-sm font-bold text-slate-900 truncate">
+                          {text(row.student, 'name')}
+                        </p>
+                        <p className="text-xs text-slate-400 font-medium truncate">
+                          Matrícula {text(row.student, 'registration_number') || 'não informada'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Calling Controls */}
+                    <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-end">
+                      {/* Segmented Pill Group */}
+                      <div className="inline-flex p-1 bg-slate-100 rounded-lg gap-1 border border-slate-200">
+                        {(['P', 'F', 'J', 'A', 'R'] as EditableAttendanceStatus[]).map((statusKey) => {
+                          const selected = row.status === statusKey;
+                          const cfg = statusConfig[statusKey];
+                          return (
+                            <button
+                              key={statusKey}
+                              type="button"
+                              disabled={!access.editable}
+                              aria-pressed={selected}
+                              onClick={() => selectStatus(rowIndex, statusKey)}
+                              className={`w-7 h-7 sm:w-8 sm:h-8 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
+                                selected
+                                  ? `${cfg.activeBg} ${cfg.activeText} shadow-xs scale-105`
+                                  : `text-slate-600 ${cfg.hoverBg}`
+                              } disabled:opacity-50`}
+                            >
+                              {statusKey}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Replacement Schedule Tag */}
+                      {row.status === 'R' && (
+                        <button
+                          type="button"
+                          onClick={access.editable ? () => openReplacement(rowIndex) : undefined}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-purple-200 bg-purple-50 text-purple-700 text-xs font-semibold hover:bg-purple-100 transition-colors cursor-pointer"
                         >
-                          {text(row.student, 'name').slice(0, 1).toUpperCase()}
-                        </Avatar>
-                        <Box minWidth={0}>
-                          <Typography fontWeight={700} color="#0F172A" fontSize={13.5} noWrap>
-                            {text(row.student, 'name')}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            Matrícula {text(row.student, 'registration_number') || 'não informada'}
-                          </Typography>
-                        </Box>
-                      </Stack>
+                          <Calendar className="w-3.5 h-3.5" />
+                          <span>
+                            {row.replacement
+                              ? `${formatDate(row.replacement.scheduledDate)} às ${row.replacement.scheduledTime}`
+                              : 'Definir data/hora'}
+                          </span>
+                        </button>
+                      )}
 
-                      <Stack direction="row" gap={1} flexWrap="wrap" alignItems="center">
-                        <Box
-                          sx={{
-                            display: 'inline-flex',
-                            p: '2px',
-                            bgcolor: '#F1F5F9',
-                            borderRadius: 2,
-                            gap: '2px',
-                          }}
-                        >
-                          {(['P', 'F', 'J', 'A', 'R'] as EditableAttendanceStatus[]).map((statusKey) => {
-                            const selected = row.status === statusKey;
-                            const cfg = statusConfig[statusKey];
-                            return (
-                              <Button
-                                key={statusKey}
-                                size="small"
-                                disabled={!access.editable}
-                                aria-pressed={selected}
-                                onClick={() => selectStatus(rowIndex, statusKey)}
-                                sx={{
-                                  minWidth: 30,
-                                  width: 30,
-                                  height: 30,
-                                  p: 0,
-                                  fontWeight: selected ? 800 : 600,
-                                  fontSize: 12.5,
-                                  borderRadius: 1.5,
-                                  border: 'none',
-                                  bgcolor: selected ? cfg.activeBg : 'transparent',
-                                  color: selected ? cfg.activeColor : '#64748B',
-                                  boxShadow: selected ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
-                                  '&:hover': {
-                                    bgcolor: selected ? cfg.activeBg : cfg.hoverBg,
-                                    color: selected ? cfg.activeColor : '#0F172A',
-                                  },
-                                }}
-                              >
-                                {statusKey}
-                              </Button>
-                            );
-                          })}
-                        </Box>
+                      {/* Student Note Toggle Button */}
+                      <button
+                        type="button"
+                        aria-label={`Anotação de ${text(row.student, 'name')}`}
+                        onClick={() =>
+                          setExpandedNotes((current) => {
+                            const next = new Set(current);
+                            if (next.has(row.student.id)) next.delete(row.student.id);
+                            else next.add(row.student.id);
+                            return next;
+                          })
+                        }
+                        className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                          row.notes.trim()
+                            ? 'bg-sky-50 border-sky-200 text-sky-700'
+                            : 'bg-white border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
 
-                        {row.status === 'R' && (
-                          <Chip
-                            size="small"
-                            icon={<CalendarMonthOutlinedIcon style={{ fontSize: 13 }} />}
-                            color="secondary"
-                            variant="outlined"
-                            label={
-                              row.replacement
-                                ? `${formatDate(row.replacement.scheduledDate)} às ${row.replacement.scheduledTime}`
-                                : 'Definir data/hora'
-                            }
-                            onClick={access.editable ? () => openReplacement(rowIndex) : undefined}
-                            sx={{ fontWeight: 600, height: 26, borderRadius: 1.5 }}
-                          />
-                        )}
-
-                        <Tooltip title={noteOpen ? 'Fechar anotação' : 'Anotação do aluno'}>
-                          <IconButton
-                            size="small"
-                            aria-label={`Anotação de ${text(row.student, 'name')}`}
-                            color={row.notes.trim() ? 'primary' : 'default'}
-                            onClick={() =>
-                              setExpandedNotes((current) => {
-                                const next = new Set(current);
-                                if (next.has(row.student.id)) next.delete(row.student.id);
-                                else next.add(row.student.id);
-                                return next;
-                              })
-                            }
-                            sx={{
-                              width: 30,
-                              height: 30,
-                              bgcolor: row.notes.trim() ? 'primary.light' : 'transparent',
-                            }}
-                          >
-                            <EditNoteOutlinedIcon sx={{ fontSize: 18 }} />
-                          </IconButton>
-                        </Tooltip>
-                      </Stack>
-                    </Stack>
-
-                    <Collapse in={noteOpen}>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        multiline
-                        minRows={2}
-                        sx={{ mt: 1.25 }}
-                        label="Anotação do aluno"
-                        value={row.notes}
+                  {/* Note Expandable Box */}
+                  {noteOpen && (
+                    <div className="mt-3 pt-3 border-t border-slate-100 flex flex-col gap-1 text-left">
+                      <label htmlFor={`note-${row.student.id}`} className="text-xs font-semibold text-slate-700">
+                        Anotação do aluno
+                      </label>
+                      <textarea
+                        id={`note-${row.student.id}`}
+                        rows={2}
+                        maxLength={1000}
                         disabled={!access.editable || !row.status}
-                        inputProps={{ maxLength: 1000 }}
-                        helperText={
-                          row.status ? `${row.notes.length}/1000` : 'Selecione uma situação para registrar uma anotação.'
+                        value={row.notes}
+                        onChange={(e) =>
+                          updateRow(rowIndex, (current) => ({ ...current, notes: e.target.value }))
                         }
-                        onChange={(event) =>
-                          updateRow(rowIndex, (current) => ({ ...current, notes: event.target.value }))
+                        placeholder={
+                          row.status
+                            ? 'Adicione uma observação individual...'
+                            : 'Selecione uma situação para registrar uma anotação.'
                         }
+                        className="w-full p-2.5 text-xs sm:text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all disabled:bg-slate-50 disabled:text-slate-400 placeholder:text-slate-400"
                       />
-                    </Collapse>
-                  </CardContent>
-                </Card>
+                      <span className="text-[11px] text-slate-400 text-right">
+                        {row.status ? `${row.notes.length}/1000` : 'Selecione uma situação para registrar uma anotação.'}
+                      </span>
+                    </div>
+                  )}
+                </div>
               );
             })}
-          </Stack>
+          </div>
         </>
       )}
 
-      <Dialog
+      {/* Replacement Modal via PageDialog */}
+      <PageDialog
         open={Boolean(replacementDialog)}
+        title="Agendar reposição"
         onClose={() => setReplacementDialog(undefined)}
-        fullWidth
-        maxWidth="sm"
-        PaperProps={{ sx: { borderRadius: 3 } }}
+        onSave={confirmReplacement}
+        saveText="Confirmar reposição"
       >
-        <DialogTitle sx={{ fontWeight: 750, color: '#0F172A', px: 3, pt: 2.5, pb: 1 }}>
-          <Stack direction="row" gap={1} alignItems="center">
-            <EventRepeatOutlinedIcon color="secondary" fontSize="small" />
-            Agendar reposição
-          </Stack>
-        </DialogTitle>
-        <DialogContent sx={{ px: 3, py: 1 }}>
-          <Stack gap={2} sx={{ pt: 1 }}>
-            {replacementDialog?.error && <Alert severity="error" sx={{ borderRadius: 2 }}>{replacementDialog.error}</Alert>}
-            <DateField
-              label="Data da reposição"
-              value={replacementDialog?.date ?? ''}
-              allowFuture
-              required
-              onChange={(value) =>
-                setReplacementDialog((current) => (current ? { ...current, date: value, error: undefined } : current))
-              }
-            />
-            <TextField
-              required
-              size="small"
-              label="Horário da reposição"
-              type="time"
-              value={replacementDialog?.time ?? ''}
-              InputLabelProps={{ shrink: true }}
-              onChange={(event) =>
-                setReplacementDialog((current) =>
-                  current ? { ...current, time: event.target.value, error: undefined } : current,
-                )
-              }
-            />
-            <TextField
-              size="small"
-              label="Observação da reposição"
-              multiline
-              minRows={3}
-              value={replacementDialog?.notes ?? ''}
-              inputProps={{ maxLength: 1000 }}
-              placeholder="Motivo ou conteúdo a ser reposto"
-              onChange={(event) =>
-                setReplacementDialog((current) =>
-                  current ? { ...current, notes: event.target.value, error: undefined } : current,
-                )
-              }
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid #F1F5F9' }}>
-          <Button onClick={() => setReplacementDialog(undefined)} sx={{ color: 'text.secondary', fontWeight: 600 }}>
-            Cancelar
-          </Button>
-          <Button variant="contained" onClick={confirmReplacement} sx={{ px: 2.5, fontWeight: 650 }}>
-            Confirmar reposição
-          </Button>
-        </DialogActions>
-      </Dialog>
+        {replacementDialog?.error && (
+          <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800">
+            {replacementDialog.error}
+          </div>
+        )}
 
-      <Snackbar
-        open={Boolean(notice)}
-        autoHideDuration={6000}
-        onClose={() => setNotice(undefined)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-      >
-        {notice ? (
-          <Alert severity={notice.severity} variant="filled" onClose={() => setNotice(undefined)} sx={{ borderRadius: 2 }}>
-            {notice.message}
-          </Alert>
-        ) : undefined}
-      </Snackbar>
-    </Stack>
+        <DateField
+          label="Data da reposição"
+          value={replacementDialog?.date ?? ''}
+          allowFuture
+          required
+          onChange={(value) =>
+            setReplacementDialog((cur) => (cur ? { ...cur, date: value, error: undefined } : cur))
+          }
+        />
+
+        <div className="flex flex-col gap-1.5 text-left">
+          <label htmlFor="rep-time" className="text-xs font-semibold text-slate-700">
+            Horário da reposição
+          </label>
+          <input
+            id="rep-time"
+            type="time"
+            required
+            value={replacementDialog?.time ?? ''}
+            onChange={(e) =>
+              setReplacementDialog((cur) => (cur ? { ...cur, time: e.target.value, error: undefined } : cur))
+            }
+            className="w-full px-3 py-2 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5 text-left">
+          <label htmlFor="rep-notes" className="text-xs font-semibold text-slate-700">
+            Observação da reposição
+          </label>
+          <textarea
+            id="rep-notes"
+            rows={3}
+            maxLength={1000}
+            value={replacementDialog?.notes ?? ''}
+            placeholder="Motivo ou conteúdo a ser reposto"
+            onChange={(e) =>
+              setReplacementDialog((cur) => (cur ? { ...cur, notes: e.target.value, error: undefined } : cur))
+            }
+            className="w-full p-2.5 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all placeholder:text-slate-400"
+          />
+        </div>
+      </PageDialog>
+
+      {/* Save Notice Toast */}
+      {notice && (
+        <div
+          className={`fixed bottom-4 right-4 z-50 max-w-md p-4 rounded-xl shadow-xl text-xs font-semibold flex items-center gap-3 ${
+            notice.severity === 'success'
+              ? 'bg-emerald-950 text-emerald-100 border border-emerald-800'
+              : 'bg-rose-950 text-rose-100 border border-rose-800'
+          }`}
+        >
+          <span>{notice.message}</span>
+        </div>
+      )}
+    </div>
   );
 }
-

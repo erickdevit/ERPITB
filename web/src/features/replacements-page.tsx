@@ -1,358 +1,278 @@
-import { useMemo, useState } from 'react';
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
-import EditCalendarOutlinedIcon from '@mui/icons-material/EditCalendarOutlined';
-import EventAvailableOutlinedIcon from '@mui/icons-material/EventAvailableOutlined';
-import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
-import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
+import React, { useMemo, useState } from 'react';
 import {
-  Alert, Avatar, Box, Button, Card, CardContent, Chip, InputAdornment, LinearProgress,
-  Stack, TextField, Typography,
-} from '@mui/material';
+  Calendar,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  RotateCcw,
+  Search,
+  Check,
+} from 'lucide-react';
 import { useApp } from '../app-context';
 import { DateField, PageDialog, Section, SelectField } from '../components';
 import { formatDate, parseBrazilDate, todayInSaoPaulo } from '../lib/date';
 import { useEntity } from '../lib/use-entity';
-import { replacementDraftError } from './attendance-model';
-import { buildReplacementViews, filterReplacementViews, type ReplacementView } from './replacements-model';
+import type { LocalRecord } from '../types';
 
-const identifier = () => crypto.randomUUID();
-const addDays = (date: string, days: number) => {
-  const value = new Date(`${date}T12:00:00Z`);
-  value.setUTCDate(value.getUTCDate() + days);
-  return value.toISOString().slice(0, 10);
-};
-const formatCompletion = (value: string) => {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? value
-    : new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }).format(date);
-};
+const text = (record: Record<string, unknown> | undefined, key: string) => String(record?.[key] ?? '');
 
-export function ReplacementsPage({ history = false, today = todayInSaoPaulo() }: { history?: boolean; today?: string }) {
+export function ReplacementsPage({
+  today = todayInSaoPaulo(),
+  history = false,
+}: {
+  today?: string;
+  history?: boolean;
+}) {
   const { store, sync, session } = useApp();
-  const attendance = useEntity('attendance_records', true);
   const replacements = useEntity('replacements', true);
-  const students = useEntity('students', true);
+  const students = useEntity('students');
   const classes = useEntity('classes');
-  const [query, setQuery] = useState('');
-  const [classId, setClassId] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
-  const [editing, setEditing] = useState<ReplacementView>();
-  const [form, setForm] = useState({ date: '', time: '', notes: '' });
-  const [notice, setNotice] = useState<string>();
-  const [busy, setBusy] = useState(false);
-  const loading = attendance.loading || replacements.loading || students.loading || classes.loading;
-  const canonical = (value: string) => {
-    try {
-      return value ? parseBrazilDate(value, { allowFuture: true }) ?? '' : '';
-    } catch {
-      return '';
-    }
-  };
-  const fromDate = canonical(from);
-  const toDate = canonical(to);
-  const invalidRange = Boolean(fromDate && toDate && fromDate > toDate);
-  const allRows = useMemo(
-    () =>
-      buildReplacementViews({
-        attendance: attendance.items,
-        replacements: replacements.items,
-        students: students.items,
-        classes: classes.items,
-      }),
-    [attendance.items, classes.items, replacements.items, students.items],
-  );
-  const rows = useMemo(
-    () => (invalidRange ? [] : filterReplacementViews(allRows, { history, query, classId, from: fromDate, to: toDate })),
-    [allRows, classId, fromDate, history, invalidRange, query, toDate],
-  );
 
-  const openSchedule = (row: ReplacementView) => {
-    setEditing(row);
-    setNotice(undefined);
-    setForm({
-      date: formatDate(row.scheduledDate || addDays(today, 1)),
-      time: row.scheduledTime || '14:00',
-      notes: row.notes || '',
-    });
+  const [search, setSearch] = useState('');
+  const [completeItem, setCompleteItem] = useState<LocalRecord>();
+  const [scheduleDate, setScheduleDate] = useState(formatDate(today));
+  const [scheduleTime, setScheduleTime] = useState('14:00');
+  const [notes, setNotes] = useState('');
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [formError, setFormError] = useState<string>();
+
+  const rows = useMemo(() => {
+    return replacements.items
+      .filter((item) => {
+        if (item.deleted_at) return false;
+        const isCompleted = Boolean(item.completed_at || item.status === 'completed');
+        if (history ? !isCompleted : isCompleted) return false;
+
+        const student = students.items.find((s) => s.id === item.student_id);
+        const cls = classes.items.find((c) => c.id === item.class_id);
+        const term = search.trim().toLocaleLowerCase('pt-BR');
+        if (!term) return true;
+
+        const studentName = text(student, 'name').toLocaleLowerCase('pt-BR');
+        const className = text(cls, 'name').toLocaleLowerCase('pt-BR');
+        return studentName.includes(term) || className.includes(term);
+      })
+      .map((item) => {
+        const student = students.items.find((s) => s.id === item.student_id);
+        const cls = classes.items.find((c) => c.id === item.class_id);
+        return {
+          ...item,
+          studentName: text(student, 'name'),
+          registrationNumber: text(student, 'registration_number'),
+          className: text(cls, 'name'),
+        };
+      });
+  }, [replacements.items, students.items, classes.items, history, search]);
+
+  const openSchedule = (item: LocalRecord) => {
+    setCompleteItem(item);
+    setScheduleDate(formatDate(text(item, 'scheduled_date') || today));
+    setScheduleTime(text(item, 'scheduled_time') || '14:00');
+    setNotes(text(item, 'notes') || '');
+    setFormError(undefined);
+    setDialogOpen(true);
+  };
+
+  const markCompleted = async (item: LocalRecord) => {
+    if (!window.confirm(`Deseja concluir a reposição de "${text(item, 'studentName')}"?`)) return;
+    try {
+      const attendanceId = text(item, 'attendance_record_id');
+      const now = new Date().toISOString();
+
+      if (store.mutateBatch) {
+        await store.mutateBatch([
+          ...(attendanceId
+            ? [{ entity: 'attendance_records' as const, data: { id: attendanceId, status: 'RC' } }]
+            : []),
+          {
+            entity: 'replacements' as const,
+            data: { id: item.id, completed_at: now, completed_by: session.id },
+          },
+        ]);
+      } else {
+        await store.mutate('replacements', {
+          id: item.id,
+          completed_at: now,
+          completed_by: session.id,
+        });
+      }
+
+      await replacements.reload();
+      void sync();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Erro ao concluir reposição.');
+    }
   };
 
   const saveSchedule = async () => {
-    if (!editing || busy) return;
-    let scheduledDate = '';
+    if (!completeItem) return;
     try {
-      scheduledDate = parseBrazilDate(form.date, { allowFuture: true }) ?? '';
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Data inválida.');
-      return;
-    }
-    const error = replacementDraftError({ scheduledDate, scheduledTime: form.time, notes: form.notes });
-    if (error) {
-      setNotice(error);
-      return;
-    }
-    setBusy(true);
-    try {
+      const parsedDate = parseBrazilDate(scheduleDate, { allowFuture: true }) ?? '';
       await store.mutate('replacements', {
-        ...editing.schedule,
-        id: editing.schedule?.id ?? identifier(),
-        attendance_record_id: editing.attendance.id,
-        class_id: editing.attendance.class_id,
-        student_id: editing.attendance.student_id,
-        attendance_date: editing.attendanceDate,
-        scheduled_date: scheduledDate,
-        scheduled_time: form.time,
-        notes: form.notes.trim() || null,
-        completed_at: editing.completedAt || null,
-        recorded_by_user_id: session.id,
+        id: completeItem.id,
+        scheduled_date: parsedDate,
+        scheduled_time: scheduleTime,
+        notes: notes.trim() || null,
       });
-      setEditing(undefined);
       await replacements.reload();
+      setDialogOpen(false);
       void sync();
-    } catch (cause) {
-      setNotice(cause instanceof Error ? cause.message : 'Não foi possível salvar a agenda.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const complete = async (row: ReplacementView) => {
-    if (!row.schedule) {
-      setNotice('Agende a data e o horário antes de concluir a reposição.');
-      return;
-    }
-    if (!window.confirm(`Confirmar a reposição de ${row.studentName}?`)) return;
-    const completedAt = new Date().toISOString();
-    try {
-      await store.mutateBatch([
-        {
-          entity: 'attendance_records',
-          data: {
-            ...row.attendance,
-            status: 'RC',
-            completed_at: completedAt,
-            recorded_by_user_id: session.id,
-          },
-        },
-        {
-          entity: 'replacements',
-          data: {
-            ...row.schedule,
-            completed_at: completedAt,
-            recorded_by_user_id: session.id,
-          },
-        },
-      ]);
-      await Promise.all([attendance.reload(), replacements.reload()]);
-      void sync();
-    } catch (cause) {
-      setNotice(cause instanceof Error ? cause.message : 'Não foi possível concluir a reposição.');
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : 'Erro ao agendar.');
     }
   };
 
   return (
-    <Section
-      title={history ? 'Histórico de reposições' : 'Reposições em aberto'}
-      subtitle={
-        history
-          ? 'Registro completo de reposições de aula concluídas e confirmadas'
-          : 'Alunos marcados para reposição de conteúdo ou aula pendente'
-      }
-    >
-      {notice && (
-        <Alert severity="warning" onClose={() => setNotice(undefined)} sx={{ borderRadius: 2 }}>
-          {notice}
-        </Alert>
-      )}
-      {invalidRange && (
-        <Alert severity="error" sx={{ borderRadius: 2 }}>
-          A data inicial não pode ser posterior à data final.
-        </Alert>
-      )}
+    <div className="flex flex-col gap-5 text-left">
+      <Section
+        title={history ? 'Histórico de Reposições' : 'Reposições em Aberto'}
+        subtitle={
+          history
+            ? 'Registro consolidado de reposições de aula já realizadas.'
+            : 'Acompanhamento e conclusão de reposições agendadas para alunos.'
+        }
+      />
 
-      <Card sx={{ border: '1px solid #E2E8F0', borderRadius: 3 }}>
-        <CardContent sx={{ p: { xs: 2, md: 2.25 }, '&:last-child': { pb: { xs: 2, md: 2.25 } } }}>
-          <Stack direction={{ xs: 'column', lg: 'row' }} gap={1.5}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Buscar aluno ou matrícula"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchOutlinedIcon color="action" fontSize="small" />
-                  </InputAdornment>
-                ),
-              }}
+      {/* Filter Bar */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs">
+        <div className="flex flex-col gap-1.5 max-w-md">
+          <label htmlFor="search-replacements" className="text-xs font-semibold text-slate-700">
+            Buscar reposição
+          </label>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+              <Search className="w-4 h-4" />
+            </div>
+            <input
+              id="search-replacements"
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar por aluno ou turma..."
+              className="w-full pl-9 pr-3 py-2 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all placeholder:text-slate-400"
             />
-            <Box sx={{ minWidth: { xs: '100%', lg: 240 } }}>
-              <SelectField
-                label="Turma"
-                value={classId}
-                onChange={setClassId}
-                options={[
-                  { value: '', label: 'Todas as turmas' },
-                  ...classes.items.map((item) => ({ value: item.id, label: String(item.name ?? '') })),
-                ]}
-              />
-            </Box>
-            <Box sx={{ minWidth: { xs: '100%', sm: 180 } }}>
-              <DateField label="Data inicial" value={from} onChange={setFrom} />
-            </Box>
-            <Box sx={{ minWidth: { xs: '100%', sm: 180 } }}>
-              <DateField label="Data final" value={to} onChange={setTo} />
-            </Box>
-          </Stack>
-        </CardContent>
-        {loading && <LinearProgress aria-label="Carregando reposições" sx={{ height: 2 }} />}
-      </Card>
+          </div>
+        </div>
+      </div>
 
-      <Typography variant="caption" color="text.secondary" fontWeight={600}>
-        {rows.length} {rows.length === 1 ? 'reposição encontrada' : 'reposições encontradas'}
-      </Typography>
+      {/* Table */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xs overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50/75 text-slate-500 uppercase tracking-wider font-bold text-[11px]">
+                <th className="py-3 px-4">Aluno</th>
+                <th className="py-3 px-4">Turma</th>
+                <th className="py-3 px-4">Data e Horário</th>
+                <th className="py-3 px-4">Observações</th>
+                <th className="py-3 px-4 text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+              {rows.map((row) => (
+                <tr key={row.id} className="hover:bg-slate-50/75 transition-colors">
+                  <td className="py-3 px-4">
+                    <p className="font-bold text-slate-900">{row.studentName}</p>
+                    <p className="text-[11px] text-slate-400 font-medium">
+                      Matrícula: {row.registrationNumber || 'não informada'}
+                    </p>
+                  </td>
+                  <td className="py-3 px-4 text-slate-600 font-semibold">{row.className}</td>
+                  <td className="py-3 px-4 text-slate-500 font-semibold">
+                    {formatDate(text(row, 'scheduled_date'))} às {text(row, 'scheduled_time') || '—'}
+                  </td>
+                  <td className="py-3 px-4 text-slate-500 max-w-xs truncate">
+                    {text(row, 'notes') || 'Sem observações'}
+                  </td>
+                  <td className="py-3 px-4 text-right">
+                    {!history && (
+                      <div className="inline-flex items-center gap-1.5 justify-end">
+                        <button
+                          type="button"
+                          onClick={() => openSchedule(row)}
+                          className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                        >
+                          Agendar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void markCompleted(row)}
+                          className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-colors cursor-pointer"
+                        >
+                          Concluir
+                        </button>
+                      </div>
+                    )}
+                    {history && (
+                      <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        Concluída
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {!rows.length && (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-slate-400 font-medium">
+                    Nenhuma reposição {history ? 'no histórico' : 'em aberto'}.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-      {!loading && rows.length === 0 && (
-        <Card sx={{ border: '1px solid #E2E8F0', borderRadius: 3 }}>
-          <CardContent sx={{ py: 6, textAlign: 'center' }}>
-            {history ? (
-              <HistoryOutlinedIcon color="disabled" sx={{ fontSize: 44 }} />
-            ) : (
-              <EventAvailableOutlinedIcon color="disabled" sx={{ fontSize: 44 }} />
-            )}
-            <Typography mt={1} fontWeight={700} color="#0F172A">
-              {history ? 'Nenhuma reposição concluída.' : 'Nenhuma reposição pendente.'}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {history
-                ? 'As reposições confirmadas aparecerão aqui.'
-                : 'Alunos marcados com R na chamada aparecerão aqui.'}
-            </Typography>
-          </CardContent>
-        </Card>
-      )}
-
-      <Stack gap={1.25}>
-        {rows.map((row) => (
-          <Card
-            key={row.id}
-            sx={{
-              border: '1px solid #E2E8F0',
-              borderRadius: 2.5,
-              transition: 'border-color 0.15s ease',
-              '&:hover': { borderColor: '#CBD5E1' },
-            }}
-          >
-            <CardContent sx={{ p: 2 }}>
-              <Stack direction={{ xs: 'column', md: 'row' }} gap={1.75} alignItems={{ md: 'flex-start' }}>
-                <Avatar
-                  sx={{
-                    bgcolor: row.completed ? '#ECFDF5' : '#F5F3FF',
-                    color: row.completed ? '#059669' : '#7C3AED',
-                    width: 38,
-                    height: 38,
-                    borderRadius: 2,
-                    fontWeight: 700,
-                    fontSize: 15,
-                  }}
-                >
-                  {row.studentName.slice(0, 1).toUpperCase()}
-                </Avatar>
-                <Stack flex={1} minWidth={0} gap={0.5}>
-                  <Stack direction="row" gap={1} flexWrap="wrap" alignItems="center">
-                    <Typography fontWeight={750} color="#0F172A" fontSize={15}>
-                      {row.studentName}
-                    </Typography>
-                    <Chip
-                      size="small"
-                      color={row.completed ? 'success' : 'secondary'}
-                      label={row.completed ? 'Concluída' : 'Pendente'}
-                      sx={{ fontWeight: 650, height: 20, fontSize: 10.5 }}
-                    />
-                  </Stack>
-                  <Typography variant="caption" color="text.secondary">
-                    Matrícula: {row.registrationNumber} • Turma: {row.className}
-                  </Typography>
-                  <Typography variant="caption" color="#475569" sx={{ fontSize: 12.5 }}>
-                    <strong style={{ color: '#0F172A' }}>Data da chamada:</strong> {formatDate(row.attendanceDate)}
-                  </Typography>
-                  <Typography variant="caption" color="#475569" sx={{ fontSize: 12.5 }}>
-                    <strong style={{ color: '#0F172A' }}>Agendamento:</strong>{' '}
-                    {row.scheduledDate ? `${formatDate(row.scheduledDate)} às ${row.scheduledTime}` : 'Ainda não agendada'}
-                  </Typography>
-                  {row.completedAt && (
-                    <Typography variant="caption" color="success.dark" fontWeight={600} sx={{ fontSize: 12.5 }}>
-                      <strong>Confirmada em:</strong> {formatCompletion(row.completedAt)}
-                    </Typography>
-                  )}
-                  {row.notes && (
-                    <Box sx={{ p: 1.25, bgcolor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 2, mt: 0.5 }}>
-                      <Typography variant="caption" color="#334155" sx={{ fontSize: 12.5, display: 'block' }}>
-                        {row.notes}
-                      </Typography>
-                    </Box>
-                  )}
-                </Stack>
-                {!history && (
-                  <Stack direction={{ xs: 'row', md: 'column' }} gap={1} flexWrap="wrap" sx={{ alignSelf: { md: 'center' } }}>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={<EditCalendarOutlinedIcon fontSize="small" />}
-                      onClick={() => openSchedule(row)}
-                      sx={{ borderRadius: 2, fontWeight: 650 }}
-                    >
-                      {row.schedule ? 'Editar agenda' : 'Agendar'}
-                    </Button>
-                    <Button
-                      variant="contained"
-                      size="small"
-                      color="success"
-                      startIcon={<CheckCircleOutlineIcon fontSize="small" />}
-                      disabled={!row.schedule}
-                      onClick={() => void complete(row)}
-                      sx={{ borderRadius: 2, fontWeight: 650 }}
-                    >
-                      Concluir
-                    </Button>
-                  </Stack>
-                )}
-              </Stack>
-            </CardContent>
-          </Card>
-        ))}
-      </Stack>
-
+      {/* Schedule Dialog */}
       <PageDialog
-        open={Boolean(editing)}
-        title="Agendar reposição"
-        onClose={() => setEditing(undefined)}
-        onSave={() => void saveSchedule()}
-        saveText={busy ? 'Salvando…' : 'Salvar agenda'}
+        open={dialogOpen}
+        title="Reagendar reposição"
+        onClose={() => setDialogOpen(false)}
+        onSave={saveSchedule}
+        saveText="Salvar agendamento"
       >
-        <DateField label="Data da reposição" value={form.date} onChange={(date) => setForm({ ...form, date })} required allowFuture />
-        <TextField
+        {formError && (
+          <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800">
+            {formError}
+          </div>
+        )}
+
+        <DateField
+          label="Data da reposição"
+          value={scheduleDate}
+          allowFuture
           required
-          size="small"
-          label="Horário da reposição"
-          type="time"
-          value={form.time}
-          InputLabelProps={{ shrink: true }}
-          onChange={(event) => setForm({ ...form, time: event.target.value })}
+          onChange={setScheduleDate}
         />
-        <TextField
-          size="small"
-          label="Observações"
-          multiline
-          minRows={3}
-          value={form.notes}
-          inputProps={{ maxLength: 1000 }}
-          placeholder="Motivo ou conteúdo a ser reposto"
-          onChange={(event) => setForm({ ...form, notes: event.target.value })}
-        />
+
+        <div className="flex flex-col gap-1.5 text-left">
+          <label htmlFor="rep-page-time" className="text-xs font-semibold text-slate-700">
+            Horário da reposição
+          </label>
+          <input
+            id="rep-page-time"
+            type="time"
+            required
+            value={scheduleTime}
+            onChange={(e) => setScheduleTime(e.target.value)}
+            className="w-full px-3 py-2 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5 text-left">
+          <label htmlFor="rep-page-notes" className="text-xs font-semibold text-slate-700">
+            Observações / Conteúdo a ser reposto
+          </label>
+          <textarea
+            id="rep-page-notes"
+            rows={3}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Detalhes sobre a reposição..."
+            className="w-full p-2.5 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all placeholder:text-slate-400"
+          />
+        </div>
       </PageDialog>
-    </Section>
+    </div>
   );
 }

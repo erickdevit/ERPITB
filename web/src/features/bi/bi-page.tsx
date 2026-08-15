@@ -1,29 +1,9 @@
-import { useMemo, useState } from 'react';
-import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
-import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined';
-import DataObjectOutlinedIcon from '@mui/icons-material/DataObjectOutlined';
-import {
-  Alert,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  LinearProgress,
-  Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Typography,
-  useMediaQuery,
-} from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+import React, { useMemo, useState } from 'react';
+import { Download, FileText, FileSpreadsheet, FileJson, RotateCcw } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Section } from '../../components';
 import { exportBiJson, exportExcelCsv, exportExcelXlsx, exportSimplePdf, type ExportValue } from '../../lib/exports';
-import { todayInSaoPaulo } from '../../lib/date';
+import { formatDate, todayInSaoPaulo } from '../../lib/date';
 import type { BiFilters } from './model';
 import { useBiData } from './use-bi-data';
 import { BiFilterBar } from './bi-filter-bar';
@@ -42,6 +22,7 @@ const safeFilename = (value: string) =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
+
 const spreadsheetSafe = (value: ExportValue): ExportValue =>
   typeof value === 'string' && /^[=+\-@]/.test(value.trimStart()) ? `'${value}` : value;
 
@@ -62,11 +43,9 @@ function ExportActions({
 }) {
   const filename = safeFilename(title);
   return (
-    <Stack direction="row" gap={1} flexWrap="wrap" aria-label="Opções de exportação">
-      <Button
-        size="small"
-        variant="outlined"
-        startIcon={<FileDownloadOutlinedIcon fontSize="small" />}
+    <div className="flex items-center gap-2 flex-wrap" aria-label="Opções de exportação">
+      <button
+        type="button"
         onClick={() =>
           void exportExcelXlsx(
             filename,
@@ -76,74 +55,36 @@ function ExportActions({
             context.map((item, index) => [`Contexto ${index + 1}`, item]),
           )
         }
-        sx={{ borderRadius: 2, fontWeight: 650, px: 1.75, py: 0.6 }}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
       >
-        Excel
-      </Button>
-      <Button
-        size="small"
-        variant="outlined"
-        startIcon={<FileDownloadOutlinedIcon fontSize="small" />}
+        <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+        <span>Excel</span>
+      </button>
+      <button
+        type="button"
         onClick={() => exportExcelCsv(filename, headers, rows.map((row) => row.map(spreadsheetSafe)))}
-        sx={{ borderRadius: 2, fontWeight: 650, px: 1.75, py: 0.6 }}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
       >
-        CSV
-      </Button>
-      <Button
-        size="small"
-        variant="outlined"
-        startIcon={<PictureAsPdfOutlinedIcon fontSize="small" />}
+        <Download className="w-3.5 h-3.5 text-sky-600" />
+        <span>CSV</span>
+      </button>
+      <button
+        type="button"
         onClick={() => void exportSimplePdf(filename, title, context, headers, rows)}
-        sx={{ borderRadius: 2, fontWeight: 650, px: 1.75, py: 0.6 }}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
       >
-        PDF
-      </Button>
-      <Button
-        size="small"
-        variant="outlined"
-        startIcon={<DataObjectOutlinedIcon fontSize="small" />}
+        <FileText className="w-3.5 h-3.5 text-rose-600" />
+        <span>PDF</span>
+      </button>
+      <button
+        type="button"
         onClick={() => exportBiJson(filename, payload)}
-        sx={{ borderRadius: 2, fontWeight: 650, px: 1.75, py: 0.6 }}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
       >
-        Dados B.I
-      </Button>
-    </Stack>
-  );
-}
-
-function MetricGrid({ metrics }: { metrics: ReturnType<typeof buildBiView>['metrics'] }) {
-  return (
-    <Box
-      component="section"
-      aria-label="Indicadores"
-      sx={{
-        display: 'grid',
-        gridTemplateColumns: {
-          xs: 'repeat(2, minmax(0, 1fr))',
-          md: 'repeat(4, minmax(0, 1fr))',
-          xl: 'repeat(6, minmax(0, 1fr))',
-        },
-        gap: 1.25,
-      }}
-    >
-      {metrics.map((metric) => (
-        <Card key={metric.label} sx={{ border: '1px solid #E2E8F0', borderRadius: 2.5 }}>
-          <CardContent sx={{ p: 1.75, '&:last-child': { pb: 1.75 } }}>
-            <Typography variant="caption" color="text.secondary" fontWeight={600}>
-              {metric.label}
-            </Typography>
-            <Typography variant="h6" component="p" fontWeight={800} color="#0F172A" sx={{ mt: 0.25, letterSpacing: '-0.02em' }}>
-              {metric.value}
-            </Typography>
-            {metric.detail && (
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25, fontSize: 11.5 }}>
-                {metric.detail}
-              </Typography>
-            )}
-          </CardContent>
-        </Card>
-      ))}
-    </Box>
+        <FileJson className="w-3.5 h-3.5 text-purple-600" />
+        <span>JSON</span>
+      </button>
+    </div>
   );
 }
 
@@ -163,108 +104,20 @@ function AnalyticsChart({ chart }: { chart: BiChart }) {
         <XAxis type="number" unit={chart.valueSuffix} tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
         <YAxis type="category" dataKey={chart.categoryKey} width={110} tick={{ fontSize: 11, fill: '#0F172A', fontWeight: 600 }} stroke="#E2E8F0" />
         <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0', boxShadow: 'none' }} />
-        <Bar dataKey={chart.valueKey} fill="#0284C7" radius={[0, 4, 4, 0]} />
+        <Bar dataKey={chart.valueKey} fill="#0284C7" radius={[0, 4, 4, 0]} maxBarSize={18} />
       </BarChart>
     );
-  return (
-    <Card component="section" sx={{ border: '1px solid #E2E8F0', borderRadius: 3 }}>
-      <CardContent sx={{ p: 2 }}>
-        <Typography fontWeight={750} color="#0F172A" fontSize={15}>
-          {chart.title}
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          {chart.description}
-        </Typography>
-        <Box role="img" aria-label={`${chart.title}. ${chart.description}`} sx={{ height: { xs: 280, md: 320 }, mt: 2 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            {content}
-          </ResponsiveContainer>
-        </Box>
-        <Typography
-          sx={{
-            position: 'absolute',
-            width: 1,
-            height: 1,
-            p: 0,
-            m: -1,
-            overflow: 'hidden',
-            clip: 'rect(0,0,0,0)',
-            whiteSpace: 'nowrap',
-            border: 0,
-          }}
-        >
-          {chart.data.map((item) => `${item[chart.categoryKey]}: ${item[chart.valueKey]}${chart.valueSuffix ?? ''}`).join('; ')}
-        </Typography>
-      </CardContent>
-    </Card>
-  );
-}
 
-function ResultTable({ title, headers, rows }: { title: string; headers: string[]; rows: ExportValue[][] }) {
-  const theme = useTheme();
-  const compact = useMediaQuery(theme.breakpoints.down('sm'));
   return (
-    <Card component="section" aria-labelledby="bi-result-title" sx={{ border: '1px solid #E2E8F0', borderRadius: 3 }}>
-      <CardContent sx={{ p: 2, pb: 1.25, borderBottom: '1px solid #F1F5F9' }}>
-        <Typography id="bi-result-title" fontWeight={750} color="#0F172A" fontSize={15}>
-          {title}
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          {rows.length.toLocaleString('pt-BR')} linha(s)
-        </Typography>
-      </CardContent>
-      {!rows.length ? (
-        <Typography color="text.secondary" textAlign="center" variant="body2" sx={{ px: 2, py: 5 }}>
-          Nenhum dado para os filtros selecionados.
-        </Typography>
-      ) : compact ? (
-        <Stack divider={<Box sx={{ borderTop: '1px solid #F1F5F9' }} />}>
-          {rows.map((row, rowIndex) => (
-            <Box
-              component="dl"
-              key={rowIndex}
-              sx={{ display: 'grid', gridTemplateColumns: 'minmax(110px, 42%) 1fr', gap: 0.5, m: 0, p: 1.75 }}
-            >
-              {headers.map((header, index) => (
-                <Box key={header} sx={{ display: 'contents' }}>
-                  <Typography component="dt" variant="caption" color="text.secondary" fontWeight={700}>
-                    {header}
-                  </Typography>
-                  <Typography component="dd" variant="body2" sx={{ m: 0, overflowWrap: 'anywhere', color: '#1E293B' }}>
-                    {String(row[index] ?? '—')}
-                  </Typography>
-                </Box>
-              ))}
-            </Box>
-          ))}
-        </Stack>
-      ) : (
-        <TableContainer>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                {headers.map((header) => (
-                  <TableCell key={header} sx={{ fontWeight: 750 }}>
-                    {header}
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {rows.map((row, rowIndex) => (
-                <TableRow key={rowIndex} hover>
-                  {row.map((value, index) => (
-                    <TableCell key={`${headers[index]}-${index}`} sx={{ color: '#334155', fontSize: 13 }}>
-                      {String(value ?? '—')}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      )}
-    </Card>
+    <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs text-left">
+      <h3 className="text-sm font-bold text-slate-900 mb-1">{chart.title}</h3>
+      <p className="text-xs text-slate-500 mb-4">{chart.description}</p>
+      <div className="w-full h-64">
+        <ResponsiveContainer width="100%" height="100%">
+          {content}
+        </ResponsiveContainer>
+      </div>
+    </div>
   );
 }
 
@@ -272,66 +125,113 @@ export function BiPage({ viewKey }: { viewKey: BiViewKey }) {
   const today = todayInSaoPaulo();
   const defaults = useMemo(() => initialFilters(today), [today]);
   const [filters, setFilters] = useState<BiFilters>(defaults);
-  const { data, loading, directory, options } = useBiData(filters, today);
-  const view = useMemo(() => buildBiView(viewKey, data), [viewKey, data]);
-  const context = [
-    `Período: ${filters.from} a ${filters.to}`,
-    `Registros no escopo: ${data.analytics.records}`,
-    'Fonte: base local sincronizada do Frequência ITB',
-  ];
-  const invalidPeriod = filters.from > filters.to;
+  const { data, directory, options, loading } = useBiData(filters, today);
+
+  const view = useMemo(
+    () => buildBiView(viewKey, data),
+    [data, viewKey],
+  );
+
+  const context = useMemo(
+    () => [`Período: ${formatDate(filters.from)} a ${formatDate(filters.to)}`],
+    [filters.from, filters.to],
+  );
 
   return (
-    <Section
-      title={`B.I. • ${view.title}`}
-      subtitle={view.description}
-      action={
-        <ExportActions
-          title={view.title}
-          context={context}
-          headers={view.headers}
-          rows={view.rows}
-          payload={view.payload}
-          metrics={view.metrics}
-        />
-      }
-    >
+    <div className="flex flex-col gap-5 text-left">
+      <Section
+        title={view.title}
+        subtitle={view.description}
+        action={
+          <ExportActions
+            title={view.title}
+            context={context}
+            headers={view.headers}
+            rows={view.rows}
+            payload={view.payload}
+            metrics={view.metrics}
+          />
+        }
+      />
+
       <BiFilterBar
         filters={filters}
         onChange={setFilters}
-        courses={options.courses}
-        classes={options.classes}
+        {...options}
         teachers={directory}
         onReset={() => setFilters(defaults)}
       />
 
-      {loading && <LinearProgress aria-label="Carregando dados do B.I" sx={{ height: 2 }} />}
-
-      {invalidPeriod ? (
-        <Alert severity="warning" sx={{ borderRadius: 2 }}>
-          A data inicial precisa ser anterior ou igual à data final.
-        </Alert>
-      ) : (
-        <Stack gap={1.5}>
-          <MetricGrid metrics={view.metrics} />
-          {view.chart && <AnalyticsChart chart={view.chart} />}
-          <ResultTable title={view.tableTitle} headers={view.headers} rows={view.rows} />
-          {view.limitations.length > 0 && (
-            <Alert severity="info" sx={{ borderRadius: 2 }}>
-              <Typography fontWeight={700} variant="body2">
-                Como interpretar
-              </Typography>
-              <Box component="ul" sx={{ my: 0.5, pl: 2.5 }}>
-                {view.limitations.map((item) => (
-                  <li key={item}>
-                    <Typography variant="body2">{item}</Typography>
-                  </li>
-                ))}
-              </Box>
-            </Alert>
-          )}
-        </Stack>
+      {loading && (
+        <div className="w-full bg-slate-100 h-1 rounded-full overflow-hidden" aria-label="Carregando dados analíticos">
+          <div className="bg-slate-950 h-full w-1/3 animate-pulse" />
+        </div>
       )}
-    </Section>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {view.metrics.map((metric) => (
+          <div key={metric.label} className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs">
+            <p className="text-xs font-semibold text-slate-500 truncate">{metric.label}</p>
+            <p className="text-xl font-extrabold text-slate-900 tracking-tight mt-1 leading-none">
+              {metric.value}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* Analytics Chart */}
+      {view.chart && (
+        <div className="w-full">
+          <AnalyticsChart chart={view.chart} />
+        </div>
+      )}
+
+      {/* Data Table */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xs overflow-hidden">
+        <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-bold text-slate-900 tracking-tight">{view.tableTitle}</h2>
+            <p className="text-xs text-slate-400 font-medium mt-0.5">
+              {view.rows.length.toLocaleString('pt-BR')} linha(s) consolidada(s)
+            </p>
+          </div>
+        </div>
+
+        {!view.rows.length ? (
+          <div className="p-8 text-center text-slate-400 text-xs font-medium">
+            Nenhum dado analítico para os filtros selecionados.
+          </div>
+        ) : (
+          <div className="overflow-x-auto max-h-[560px]">
+            <table className="w-full text-left text-xs border-collapse" aria-label={view.tableTitle}>
+              <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-xs z-1 border-b border-slate-200">
+                <tr className="text-slate-500 uppercase tracking-wider font-bold text-[11px]">
+                  {view.headers.map((header, index) => (
+                    <th key={`${header}-${index}`} className="py-3 px-4 whitespace-nowrap">
+                      {header}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                {view.rows.map((row, rowIndex) => (
+                  <tr key={rowIndex} className="hover:bg-slate-50/75 transition-colors">
+                    {row.map((value, index) => (
+                      <td
+                        key={`${rowIndex}-${index}`}
+                        className={`py-2.5 px-4 ${index === 0 ? 'font-bold text-slate-900' : 'text-slate-600'}`}
+                      >
+                        {String(value ?? '—')}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
