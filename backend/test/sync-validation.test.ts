@@ -25,4 +25,11 @@ describe('sync contract', () => {
     expect(schema).toContain('attendance_record_id TEXT NOT NULL UNIQUE');
     expect(schema).toContain('UNIQUE(class_id, student_id, date)');
   });
+
+  it('repairs the conflict table foreign key after rebuilding attendance records', () => {
+    const migration = readFileSync(new URL('../migrations/0006_fix_sync_conflicts_foreign_key.sql', import.meta.url), 'utf8');
+    expect(migration).toContain('attendance_record_id TEXT REFERENCES attendance_records(id)');
+    expect(migration).toContain('INSERT INTO sync_conflicts_v2');
+    expect(migration).not.toContain('attendance_records_old');
+  });
 });
