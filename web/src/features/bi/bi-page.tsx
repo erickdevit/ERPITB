@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Download, FileText, FileSpreadsheet, FileJson, RotateCcw } from 'lucide-react';
+import { Download, FileText, FileSpreadsheet, FileJson } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Section } from '../../components';
 import { exportBiJson, exportExcelCsv, exportExcelXlsx, exportSimplePdf, type ExportValue } from '../../lib/exports';
@@ -42,6 +42,11 @@ function ExportActions({
   metrics: Array<{ label: string; value: string }>;
 }) {
   const filename = safeFilename(title);
+  const safeHeaders = headers ?? [];
+  const safeRows = rows ?? [];
+  const safeMetrics = metrics ?? [];
+  const safeContext = context ?? [];
+
   return (
     <div className="flex items-center gap-2 flex-wrap" aria-label="Opções de exportação">
       <button
@@ -49,10 +54,10 @@ function ExportActions({
         onClick={() =>
           void exportExcelXlsx(
             filename,
-            metrics.map((item) => [item.label, item.value]),
-            headers,
-            rows,
-            context.map((item, index) => [`Contexto ${index + 1}`, item]),
+            safeMetrics.map((item) => [item.label, item.value]),
+            safeHeaders,
+            safeRows,
+            safeContext.map((item, index) => [`Contexto ${index + 1}`, item]),
           )
         }
         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
@@ -62,7 +67,13 @@ function ExportActions({
       </button>
       <button
         type="button"
-        onClick={() => exportExcelCsv(filename, headers, rows.map((row) => row.map(spreadsheetSafe)))}
+        onClick={() =>
+          exportExcelCsv(
+            filename,
+            safeHeaders,
+            safeRows.map((row) => (Array.isArray(row) ? row.map(spreadsheetSafe) : [spreadsheetSafe(row)])),
+          )
+        }
         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
       >
         <Download className="w-3.5 h-3.5 text-sky-600" />
@@ -70,7 +81,7 @@ function ExportActions({
       </button>
       <button
         type="button"
-        onClick={() => void exportSimplePdf(filename, title, context, headers, rows)}
+        onClick={() => void exportSimplePdf(filename, title, safeContext, safeHeaders, safeRows)}
         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
       >
         <FileText className="w-3.5 h-3.5 text-rose-600" />
@@ -89,17 +100,18 @@ function ExportActions({
 }
 
 function AnalyticsChart({ chart }: { chart: BiChart }) {
+  const chartData = chart.data ?? [];
   const content =
     chart.type === 'line' ? (
-      <LineChart data={chart.data} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+      <LineChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
         <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#F1F5F9" />
         <XAxis dataKey={chart.categoryKey} tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
         <YAxis unit={chart.valueSuffix} width={48} tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
         <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0', boxShadow: 'none' }} />
-        <Line type="monotone" dataKey={chart.valueKey} stroke="#2563EB" strokeWidth={2.5} dot={chart.data.length < 20} />
+        <Line type="monotone" dataKey={chart.valueKey} stroke="#2563EB" strokeWidth={2.5} dot={chartData.length < 20} />
       </LineChart>
     ) : (
-      <BarChart data={chart.data} layout="vertical" margin={{ top: 8, right: 20, left: 28, bottom: 8 }}>
+      <BarChart data={chartData} layout="vertical" margin={{ top: 8, right: 20, left: 28, bottom: 8 }}>
         <CartesianGrid horizontal={false} strokeDasharray="3 3" stroke="#F1F5F9" />
         <XAxis type="number" unit={chart.valueSuffix} tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
         <YAxis type="category" dataKey={chart.categoryKey} width={110} tick={{ fontSize: 11, fill: '#0F172A', fontWeight: 600 }} stroke="#E2E8F0" />
@@ -137,6 +149,10 @@ export function BiPage({ viewKey }: { viewKey: BiViewKey }) {
     [filters.from, filters.to],
   );
 
+  const metrics = view.metrics ?? [];
+  const headers = view.headers ?? [];
+  const rows = view.rows ?? [];
+
   return (
     <div className="flex flex-col gap-5 text-left">
       <Section
@@ -146,10 +162,10 @@ export function BiPage({ viewKey }: { viewKey: BiViewKey }) {
           <ExportActions
             title={view.title}
             context={context}
-            headers={view.headers}
-            rows={view.rows}
+            headers={headers}
+            rows={rows}
             payload={view.payload}
-            metrics={view.metrics}
+            metrics={metrics}
           />
         }
       />
@@ -170,7 +186,7 @@ export function BiPage({ viewKey }: { viewKey: BiViewKey }) {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {view.metrics.map((metric) => (
+        {metrics.map((metric) => (
           <div key={metric.label} className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs">
             <p className="text-xs font-semibold text-slate-500 truncate">{metric.label}</p>
             <p className="text-xl font-extrabold text-slate-900 tracking-tight mt-1 leading-none">
@@ -193,12 +209,12 @@ export function BiPage({ viewKey }: { viewKey: BiViewKey }) {
           <div>
             <h2 className="text-sm font-bold text-slate-900 tracking-tight">{view.tableTitle}</h2>
             <p className="text-xs text-slate-400 font-medium mt-0.5">
-              {view.rows.length.toLocaleString('pt-BR')} linha(s) consolidada(s)
+              {rows.length.toLocaleString('pt-BR')} linha(s) consolidada(s)
             </p>
           </div>
         </div>
 
-        {!view.rows.length ? (
+        {!rows.length ? (
           <div className="p-8 text-center text-slate-400 text-xs font-medium">
             Nenhum dado analítico para os filtros selecionados.
           </div>
@@ -207,7 +223,7 @@ export function BiPage({ viewKey }: { viewKey: BiViewKey }) {
             <table className="w-full text-left text-xs border-collapse" aria-label={view.tableTitle}>
               <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-xs z-1 border-b border-slate-200">
                 <tr className="text-slate-500 uppercase tracking-wider font-bold text-[11px]">
-                  {view.headers.map((header, index) => (
+                  {headers.map((header, index) => (
                     <th key={`${header}-${index}`} className="py-3 px-4 whitespace-nowrap">
                       {header}
                     </th>
@@ -215,9 +231,9 @@ export function BiPage({ viewKey }: { viewKey: BiViewKey }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                {view.rows.map((row, rowIndex) => (
+                {rows.map((row, rowIndex) => (
                   <tr key={rowIndex} className="hover:bg-slate-50/75 transition-colors">
-                    {row.map((value, index) => (
+                    {(Array.isArray(row) ? row : [row]).map((value, index) => (
                       <td
                         key={`${rowIndex}-${index}`}
                         className={`py-2.5 px-4 ${index === 0 ? 'font-bold text-slate-900' : 'text-slate-600'}`}

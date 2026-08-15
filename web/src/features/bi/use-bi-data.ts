@@ -15,29 +15,73 @@ export function useBiData(filters: BiFilters, today: string) {
   const courses = useEntity('courses', true);
   const laboratories = useEntity('laboratories', true);
   const replacements = useEntity('replacements', true);
-  const [directory, setDirectory] = useState<LocalRecord[]>([{ id: session.id, name: session.name, role: session.role, active: 1 }]);
+  const [directory, setDirectory] = useState<LocalRecord[]>([
+    { id: session.id, name: session.name, role: session.role, active: 1 },
+  ]);
 
   useEffect(() => {
     if (!canManage(session.role)) return;
     let active = true;
-    void api.get<{ items: LocalRecord[] }>('/users?role=professor&active=true')
-      .then((result) => { if (active) setDirectory(result.items); })
+    void api
+      .get<{ items: LocalRecord[] }>('/users?role=professor&active=true')
+      .then((result) => {
+        if (active && Array.isArray(result?.items)) setDirectory(result.items);
+      })
       .catch(() => undefined);
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [api, session.role]);
 
-  const loading = attendance.loading || classes.loading || students.loading || enrollments.loading || classTeachers.loading || courses.loading || laboratories.loading || replacements.loading;
-  const data = useMemo(() => buildBiDataset({
-    attendance: attendance.items,
-    classes: classes.items,
-    students: students.items,
-    enrollments: enrollments.items,
-    classTeachers: classTeachers.items,
-    courses: courses.items,
-    laboratories: laboratories.items,
-    replacements: replacements.items,
-    directory,
-  }, filters, today), [attendance.items, classes.items, students.items, enrollments.items, classTeachers.items, courses.items, laboratories.items, replacements.items, directory, filters, today]);
+  const loading =
+    attendance.loading ||
+    classes.loading ||
+    students.loading ||
+    enrollments.loading ||
+    classTeachers.loading ||
+    courses.loading ||
+    laboratories.loading ||
+    replacements.loading;
 
-  return { data, loading, directory, options: { courses: courses.items, classes: classes.items } };
+  const data = useMemo(
+    () =>
+      buildBiDataset(
+        {
+          attendance: attendance.items ?? [],
+          classes: classes.items ?? [],
+          students: students.items ?? [],
+          enrollments: enrollments.items ?? [],
+          classTeachers: classTeachers.items ?? [],
+          courses: courses.items ?? [],
+          laboratories: laboratories.items ?? [],
+          replacements: replacements.items ?? [],
+          directory: directory ?? [],
+        },
+        filters,
+        today,
+      ),
+    [
+      attendance.items,
+      classes.items,
+      students.items,
+      enrollments.items,
+      classTeachers.items,
+      courses.items,
+      laboratories.items,
+      replacements.items,
+      directory,
+      filters,
+      today,
+    ],
+  );
+
+  return {
+    data,
+    loading,
+    directory: directory ?? [],
+    options: {
+      courses: courses.items ?? [],
+      classes: classes.items ?? [],
+    },
+  };
 }

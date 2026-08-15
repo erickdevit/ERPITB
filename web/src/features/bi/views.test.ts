@@ -5,7 +5,7 @@ import { buildBiView, type BiViewKey } from './views';
 const dataset = {
   filters: { from: '2026-08-01', to: '2026-08-31' },
   analytics: { present: 1, absent: 1, justified: 0, delayed: 0, replacements: 0, records: 2, attendanceRate: 50, distinctCalls: 1, activeStudents: 2, riskStudents: 1, evolution: [{ date: '2026-08-01', rate: 50, records: 2 }], byClass: [], topAbsentees: [], teacherWorkload: [] },
-  attendance: [], classes: [], courses: [], calls: 1,
+  classes: [], calls: 1,
   classRows: [{ id: 'c1', name: 'Turma A', courseName: 'Curso', shift: 'manha', activeStudents: 2, calls: 1, rate: 50, present: 1, absent: 1, justified: 0, delayed: 0, replacements: 0, records: 2 }],
   courseRows: [{ id: 'course', name: 'Curso', classes: 1, activeStudents: 2, calls: 1, rate: 50, present: 1, absent: 1, justified: 0, delayed: 0, replacements: 0, records: 2 }],
   riskRows: [{ studentId: 's1', name: 'Ana', registrationNumber: '001', className: 'Turma A', absences: 1, consecutiveAbsences: 1, records: 2, rate: 50, reasons: ['Frequência abaixo de 75%'] }],

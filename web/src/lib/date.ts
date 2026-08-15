@@ -7,6 +7,10 @@ export function formatDate(value?: string | null): string {
   return `${day}/${month}/${year}`;
 }
 
+export function displayDate(value?: string | null): string {
+  return formatDate(value) || '—';
+}
+
 export function parseBrazilDate(value: string, { allowFuture = false }: { allowFuture?: boolean } = {}): string | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
