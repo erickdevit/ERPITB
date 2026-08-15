@@ -31,6 +31,7 @@ export class ApiClient {
   }
   async refresh(): Promise<boolean> {
     const session = this.getSession(); if (!session) return false;
+    if (!session.refreshToken) return false;
     try {
       const result = await this.request<{ user: Omit<UserSession, 'accessToken' | 'refreshToken'>; accessToken: string; refreshToken: string }>('/auth/refresh', 'POST', { refreshToken: session.refreshToken }, false);
       await this.updateSession({ ...result.user, accessToken: result.accessToken, refreshToken: result.refreshToken }); return true;

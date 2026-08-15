@@ -2,12 +2,14 @@ import Dexie, { type EntityTable } from 'dexie';
 import { createAccountKey, decrypt, encrypt, type CipherText } from './crypto';
 import { planEnrollmentMove } from './enrollment';
 import { classRevocationTargets, type EntitySnapshot } from './revocation';
+import { emailLookupHash, passwordVerifier, verifierMatches } from './offline-auth';
 import type { Action, Entity, LocalRecord, SyncOperation, UserSession } from '../types';
 
 interface KeyRow { accountId: string; key: CryptoKey }
 interface CipherRow extends CipherText { id: string; accountId: string; entity: string; entityId: string; updatedAt: string }
 interface QueueRow extends CipherText { operationId: string; accountId: string; updatedAt: string }
 interface MetaRow { id: string; accountId: string; cursor: number }
+interface VerifierRow extends CipherText { emailHash: string; accountId: string; salt: Uint8Array; verifier: ArrayBuffer; updatedAt: string }
 
 class FrequenciaDb extends Dexie {
   keys!: EntityTable<KeyRow, 'accountId'>;
@@ -15,11 +17,16 @@ class FrequenciaDb extends Dexie {
   sessions!: EntityTable<CipherRow, 'id'>;
   queue!: EntityTable<QueueRow, 'operationId'>;
   meta!: EntityTable<MetaRow, 'id'>;
+  verifiers!: EntityTable<VerifierRow, 'emailHash'>;
   constructor() {
     super('frequencia-itb-pwa');
     this.version(1).stores({
       keys: 'accountId', records: 'id, [accountId+entity], [accountId+entityId]', sessions: 'id, accountId',
       queue: 'operationId, accountId', meta: 'id, accountId',
+    });
+    this.version(2).stores({
+      keys: 'accountId', records: 'id, [accountId+entity], [accountId+entityId]', sessions: 'id, accountId',
+      queue: 'operationId, accountId', meta: 'id, accountId', verifiers: 'emailHash, accountId',
     });
   }
 }
@@ -56,6 +63,26 @@ export class LocalStore {
     return store;
   }
 
+  static async openOffline(email: string, password: string): Promise<{ store: LocalStore; session: UserSession } | null> {
+    const row = await database.verifiers.get(await emailLookupHash(email));
+    if (!row || !verifierMatches(row.verifier, await passwordVerifier(password, row.salt))) return null;
+    const key = (await database.keys.get(row.accountId))?.key;
+    if (!key) return null;
+    const profile = await decrypt<Omit<UserSession, 'accessToken' | 'refreshToken' | 'offline'>>(key, row);
+    const session: UserSession = { ...profile, accessToken: '', refreshToken: '', offline: true };
+    const store = new LocalStore(row.accountId); store.key = key; await store.saveSession(session);
+    return { store, session };
+  }
+
+  async saveOfflineVerifier(email: string, password: string, session: UserSession): Promise<void> {
+    const emailHash = await emailLookupHash(email);
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const profile = { id: session.id, name: session.name, email: session.email, role: session.role };
+    const cipher = await encrypt(await this.cryptoKey(), profile);
+    await database.verifiers.where('accountId').equals(this.accountId).delete();
+    await database.verifiers.put({ ...cipher, emailHash, accountId: this.accountId, salt, verifier: await passwordVerifier(password, salt), updatedAt: new Date().toISOString() });
+  }
+
   private async cryptoKey(): Promise<CryptoKey> {
     if (!this.key) this.key = (await database.keys.get(this.accountId))?.key;
     if (!this.key) throw new Error('A chave local desta sessão não está disponível.');
@@ -68,12 +95,13 @@ export class LocalStore {
   }
 
   async clear(): Promise<void> {
-    await database.transaction('rw', database.keys, database.records, database.sessions, database.queue, database.meta, async () => {
+    await database.transaction('rw', [database.keys, database.records, database.sessions, database.queue, database.meta, database.verifiers], async () => {
       await database.records.where('accountId').equals(this.accountId).delete();
       await database.queue.where('accountId').equals(this.accountId).delete();
       await database.sessions.delete(sessionId(this.accountId));
       await database.meta.delete(metaId(this.accountId));
       await database.keys.delete(this.accountId);
+      await database.verifiers.where('accountId').equals(this.accountId).delete();
     });
   }
 

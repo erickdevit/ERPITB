@@ -22,7 +22,7 @@ export const useApp = () => {
 export function ApplicationProvider({ initialSession, initialStore, onSignedOut, children }: PropsWithChildren<{ initialSession: UserSession; initialStore: LocalStore; onSignedOut: (notice?: string) => void }>) {
   const [session, setSession] = useState(initialSession); const [store] = useState(initialStore);
   const [syncState, setSyncState] = useState<AppState['syncState']>('idle'); const [message, setMessage] = useState<string>(); const [refresh, setRefresh] = useState(0); const syncing = useRef(false);
-  const api = useMemo(() => new ApiClient(() => session, async (next) => { setSession(next); await store.saveSession(next); }), [session, store]);
+  const api = useMemo(() => new ApiClient(() => session, async (next) => { setSession({ ...next, offline: false }); await store.saveSession({ ...next, offline: false }); }), [session, store]);
   const sync = useCallback(async () => {
     if (syncing.current) return; syncing.current = true; setSyncState('syncing');
     try { await store.deduplicateAttendance(); const result = await new Synchronizer(store, api).run(); setSyncState(result.offline ? 'offline' : result.rejected ? 'warning' : 'idle'); setMessage(result.offline ? 'Sem conexão — alterações protegidas neste dispositivo.' : result.rejected ? `${result.rejected} alteração(ões) não foi(ram) aceita(s). Revise em Conflitos.` : undefined); setRefresh((value) => value + 1); }

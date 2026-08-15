@@ -40,4 +40,17 @@ describe('LocalStore integration', () => {
     expect((await store.list('enrollments')).map((item) => item.id)).toEqual(['enrollment-b-shared']);
     expect((await store.pending()).some((operation) => operation.data.class_id === 'class-a')).toBe(false);
   });
+
+  it('allows an offline login only with the verifier created after an online login', async () => {
+    const accountId = `account-${crypto.randomUUID()}`;
+    const onlineSession = session(accountId);
+    const store = await LocalStore.open(onlineSession); opened.push(store);
+    await store.saveOfflineVerifier(onlineSession.email, 'Senha segura 123!', onlineSession);
+    await store.clearSession();
+
+    await expect(LocalStore.openOffline(onlineSession.email.toUpperCase(), 'Senha incorreta')).resolves.toBeNull();
+    const restored = await LocalStore.openOffline(onlineSession.email, 'Senha segura 123!');
+
+    expect(restored?.session).toMatchObject({ id: accountId, offline: true, accessToken: '', refreshToken: '' });
+  });
 });

@@ -10,6 +10,7 @@ export interface UserSession {
   role: Role;
   accessToken: string;
   refreshToken: string;
+  offline?: boolean;
 }
 
 export interface LocalRecord extends Record<string, unknown> {
