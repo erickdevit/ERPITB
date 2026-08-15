@@ -320,12 +320,13 @@ export async function push(request: Request, env: Env, user: AuthUser): Promise<
     try {
       results.push(await applyOperation(env, user, deviceId, operation));
     } catch (error) {
-      if (!(error instanceof AppError)) throw error;
+      const known = error instanceof AppError;
+      if (!known) console.error(JSON.stringify({ event: 'sync_operation_failed', userId: user.id, operationId: operation.operationId, entity: operation.entity, error: error instanceof Error ? error.message : String(error) }));
       results.push({
         operationId: operation.operationId,
         status: 'rejected',
-        code: error.code,
-        message: error.message,
+        code: known ? error.code : 'SYNC_INTERNAL_ERROR',
+        message: known ? error.message : 'Não foi possível processar esta alteração. Ela foi preservada para revisão.',
       });
     }
   }

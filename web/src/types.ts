@@ -15,7 +15,9 @@ export interface UserSession {
 export interface LocalRecord extends Record<string, unknown> {
   id: string;
   sync_version?: number;
-  sync_status?: 'PENDING' | 'SYNCED' | 'CONFLICT';
+  sync_status?: 'PENDING' | 'SYNCED' | 'CONFLICT' | 'REJECTED';
+  sync_error_code?: string;
+  sync_error_message?: string;
   deleted_at?: string | null;
   updated_at?: string;
 }

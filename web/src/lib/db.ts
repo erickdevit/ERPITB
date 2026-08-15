@@ -75,6 +75,10 @@ export class LocalStore {
     });
   }
 
+  async clearSession(): Promise<void> {
+    await database.sessions.delete(sessionId(this.accountId));
+  }
+
   async list(entity: Entity, includeDeleted = false): Promise<LocalRecord[]> {
     const key = await this.cryptoKey();
     const rows = await database.records.where('[accountId+entity]').equals([this.accountId, entity]).toArray();
@@ -187,6 +191,13 @@ export class LocalStore {
     const operation = await decrypt<SyncOperation>(await this.cryptoKey(), row);
     const record = await this.get(operation.entity, operation.id);
     if (record) await this.writeRecord(operation.entity, { ...record, sync_status: 'CONFLICT' });
+    await database.queue.delete(operationId);
+  }
+  async reject(operationId: string, code: string, message: string): Promise<void> {
+    const row = await database.queue.get(operationId); if (!row) return;
+    const operation = await decrypt<SyncOperation>(await this.cryptoKey(), row);
+    const record = await this.get(operation.entity, operation.id);
+    if (record) await this.writeRecord(operation.entity, { ...record, sync_status: 'REJECTED', sync_error_code: code, sync_error_message: message });
     await database.queue.delete(operationId);
   }
   async cursor(): Promise<number> { return (await database.meta.get(metaId(this.accountId)))?.cursor ?? 0; }
