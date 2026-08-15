@@ -34,9 +34,10 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from
 import { ApplicationProvider, useApp, useBoot } from './app-context';
 import { Login } from './login';
 import {
-  AuditPage, AttendancePage, ClassesPage, ConflictsPage, CoursesPage, LaboratoriesPage,
-  ReplacementsPage, ReportsPage, StudentsPage, UsersPage,
+  AuditPage, AttendancePage, CoursesPage, LaboratoriesPage,
+  ReplacementsPage, StudentsPage, UsersPage,
 } from './pages';
+import { ClassesPage } from './features/classes-page';
 import { ClassDetailPage, CourseDetailPage, StudentDetailPage } from './features/entity-detail-pages';
 import { DashboardPage } from './features/dashboard-page';
 import { canManage, type Role } from './types';
@@ -90,6 +91,8 @@ const BiCoursesClassesPage = lazy(() => import('./features/bi/courses-classes-pa
 const BiTeachersPage = lazy(() => import('./features/bi/teachers-page').then((module) => ({ default: module.BiTeachersPage })));
 const BiLaboratoriesPage = lazy(() => import('./features/bi/laboratories-page').then((module) => ({ default: module.BiLaboratoriesPage })));
 const BiDataQualityPage = lazy(() => import('./features/bi/data-quality-page').then((module) => ({ default: module.BiDataQualityPage })));
+const ReportsCenterPage = lazy(() => import('./features/reports').then((module) => ({ default: module.ReportsCenterPage })));
+const ConflictsPage = lazy(() => import('./features/conflicts-page').then((module) => ({ default: module.ConflictsPage })));
 const deferred = (page: React.ReactNode) => <Suspense fallback={<LinearProgress aria-label="Carregando módulo" />}>{page}</Suspense>;
 
 function AppRoutes() {
@@ -102,7 +105,7 @@ function AppRoutes() {
     <Route path="/alunos" element={<StudentsPage />} />
     <Route path="/alunos/:studentId" element={<StudentDetailPage />} />
     <Route path="/frequencia" element={<AttendancePage />} />
-    <Route path="/relatorios" element={<ReportsPage />} />
+    <Route path="/relatorios" element={deferred(<ReportsCenterPage />)} />
     <Route path="/reposicoes/abertas" element={<ReplacementsPage />} />
     <Route path="/reposicoes/historico" element={<ReplacementsPage history />} />
     <Route path="/cursos" element={manager ? <CoursesPage /> : <Navigate to="/" replace />} />
@@ -117,7 +120,7 @@ function AppRoutes() {
     <Route path="/bi/laboratorios" element={deferred(<BiLaboratoriesPage />)} />
     <Route path="/bi/qualidade" element={manager ? deferred(<BiDataQualityPage />) : <Navigate to="/" replace />} />
     <Route path="/usuarios" element={session.role === 'admin' ? <UsersPage /> : <Navigate to="/" replace />} />
-    <Route path="/conflitos" element={manager ? <ConflictsPage /> : <Navigate to="/" replace />} />
+    <Route path="/conflitos" element={manager ? deferred(<ConflictsPage />) : <Navigate to="/" replace />} />
     <Route path="/auditoria" element={manager ? <AuditPage /> : <Navigate to="/" replace />} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>;

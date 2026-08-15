@@ -1,6 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie';
 import { createAccountKey, decrypt, encrypt, type CipherText } from './crypto';
 import { planEnrollmentMove } from './enrollment';
+import { classRevocationTargets, type EntitySnapshot } from './revocation';
 import type { Action, Entity, LocalRecord, SyncOperation, UserSession } from '../types';
 
 interface KeyRow { accountId: string; key: CryptoKey }
@@ -93,11 +94,34 @@ export class LocalStore {
   }
 
   async putRemote(entity: Entity, record: LocalRecord, action: Action = 'upsert'): Promise<void> {
+    if (entity === 'class_teachers' && action === 'delete' && record.user_id === this.accountId && typeof record.class_id === 'string') {
+      await this.purgeClassScope(record.class_id);
+      return;
+    }
     // A remote pull must never overwrite an unsent local mutation. The server
     // will decide it through the normal baseVersion conflict protocol first.
     if (await this.hasPending(entity, record.id)) return;
     if (action === 'delete') { await database.records.delete(recordId(this.accountId, entity, record.id)); return; }
     await this.writeRecord(entity, { ...record, sync_status: 'SYNCED' });
+  }
+
+  private async purgeClassScope(classId: string): Promise<void> {
+    const entities: Entity[] = ['classes', 'class_teachers', 'students', 'enrollments', 'attendance_records', 'class_notes', 'replacements'];
+    const snapshot: EntitySnapshot = {};
+    for (const entity of entities) snapshot[entity] = await this.list(entity, true);
+    const targets = classRevocationTargets(snapshot, this.accountId, classId);
+    const targetKeys = new Set(targets.map((target) => `${target.entity}:${target.id}`));
+    const key = await this.cryptoKey();
+    const queued = await database.queue.where('accountId').equals(this.accountId).toArray();
+    const queueIds: string[] = [];
+    for (const row of queued) {
+      const operation = await decrypt<SyncOperation>(key, row);
+      if (targetKeys.has(`${operation.entity}:${operation.id}`)) queueIds.push(row.operationId);
+    }
+    await database.transaction('rw', database.records, database.queue, async () => {
+      await database.records.bulkDelete(targets.map((target) => recordId(this.accountId, target.entity, target.id)));
+      await database.queue.bulkDelete(queueIds);
+    });
   }
 
   private async hasPending(entity: Entity, entityId: string): Promise<boolean> {
@@ -119,13 +143,17 @@ export class LocalStore {
     await this.writeRecord(entity, record);
     const operation: SyncOperation = { operationId: crypto.randomUUID(), entity, action, id: record.id, baseVersion: Number(previous?.sync_version ?? 0), updatedAt: now, data: record };
     const cipher = await encrypt(await this.cryptoKey(), operation);
-    await database.transaction('rw', database.queue, async () => {
+    await this.serial('queue', async () => {
       const existing = await database.queue.where('accountId').equals(this.accountId).toArray();
+      const duplicates: string[] = [];
       for (const row of existing) {
         const queued = await decrypt<SyncOperation>(await this.cryptoKey(), row);
-        if (queued.entity === entity && queued.id === record.id) await database.queue.delete(row.operationId);
+        if (queued.entity === entity && queued.id === record.id) duplicates.push(row.operationId);
       }
-      await database.queue.put({ ...cipher, operationId: operation.operationId, accountId: this.accountId, updatedAt: now });
+      await database.transaction('rw', database.queue, async () => {
+        await database.queue.bulkDelete(duplicates);
+        await database.queue.put({ ...cipher, operationId: operation.operationId, accountId: this.accountId, updatedAt: now });
+      });
     });
   }
 
