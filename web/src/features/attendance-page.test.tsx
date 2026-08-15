@@ -19,9 +19,7 @@ const mocks = vi.hoisted(() => {
     } as Record<string, Array<Record<string, unknown>>>,
     store: {
       findAttendance: vi.fn().mockResolvedValue(undefined),
-      setAttendance: vi.fn().mockImplementation(async (record: Record<string, unknown>) => ({ id: 'attendance-1', ...record })),
-      clearAttendance: vi.fn().mockResolvedValue(undefined),
-      mutate: vi.fn().mockResolvedValue(undefined),
+      mutateBatch: vi.fn().mockResolvedValue(undefined),
     },
     sync: vi.fn().mockResolvedValue(undefined),
   };
@@ -67,12 +65,10 @@ describe('AttendancePage', () => {
     expect(await screen.findByText('20/08/2026 às 09:30')).toBeInTheDocument();
     await waitForElementToBeRemoved(() => screen.queryByRole('dialog'));
     await user.click(screen.getByRole('button', { name: 'Salvar chamada' }));
-    await waitFor(() => expect(mocks.store.setAttendance).toHaveBeenCalledWith(expect.objectContaining({
-      class_id: 'class-1', student_id: 'student-1', date: '2026-08-15', status: 'R',
-    })));
-    expect(mocks.store.mutate).toHaveBeenCalledWith('replacements', expect.objectContaining({
-      attendance_record_id: 'attendance-1', scheduled_date: '2026-08-20', scheduled_time: '09:30', notes: 'Reforço do conteúdo',
-    }));
+    await waitFor(() => expect(mocks.store.mutateBatch).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({ entity: 'attendance_records', data: expect.objectContaining({ class_id: 'class-1', student_id: 'student-1', date: '2026-08-15', status: 'R' }) }),
+      expect.objectContaining({ entity: 'replacements', data: expect.objectContaining({ scheduled_date: '2026-08-20', scheduled_time: '09:30', notes: 'Reforço do conteúdo' }) }),
+    ])));
     expect(mocks.sync).toHaveBeenCalledOnce();
   }, 10_000);
 

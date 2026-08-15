@@ -10,9 +10,7 @@ const student = (id: string, name: string): LocalRecord => ({ id, name, registra
 function storeMock() {
   return {
     findAttendance: vi.fn().mockResolvedValue(undefined),
-    setAttendance: vi.fn(async (record: Record<string, unknown>) => ({ id: `attendance-${record.student_id}`, ...record })),
-    clearAttendance: vi.fn().mockResolvedValue(undefined),
-    mutate: vi.fn().mockResolvedValue(undefined),
+    mutateBatch: vi.fn().mockResolvedValue(undefined),
   } satisfies AttendanceCallStore;
 }
 
@@ -66,8 +64,7 @@ describe('saveAttendanceCall', () => {
       store, classId: 'class-1', date: '2026-08-15', userId: 'teacher-1', generalNotes: '',
       rows: [{ student: student('student-1', 'Ana'), status: 'R', notes: '', statusChanged: true }],
     })).rejects.toThrow('Ana: Informe a data e o horário da reposição.');
-    expect(store.setAttendance).not.toHaveBeenCalled();
-    expect(store.mutate).not.toHaveBeenCalled();
+    expect(store.mutateBatch).not.toHaveBeenCalled();
   });
 
   it('persists statuses, replacement metadata, removals and the general note as one logical batch', async () => {
@@ -82,13 +79,13 @@ describe('saveAttendanceCall', () => {
       ],
     });
 
-    expect(store.setAttendance).toHaveBeenCalledWith(expect.objectContaining({ student_id: 'student-1', status: 'R', notes: 'conteúdo' }));
-    expect(store.clearAttendance).toHaveBeenCalledWith('class-1', 'student-2', '2026-08-15');
-    expect(store.mutate).toHaveBeenCalledWith('replacements', expect.objectContaining({
-      id: 'generated-id', attendance_record_id: 'attendance-student-1', scheduled_date: '2026-08-20', scheduled_time: '09:30', notes: 'reforço',
-    }));
-    expect(store.mutate).toHaveBeenCalledWith('replacements', oldReplacement, 'delete');
-    expect(store.mutate).toHaveBeenCalledWith('class_notes', expect.objectContaining({ notes: 'Revisão geral' }));
+    expect(store.mutateBatch).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({ entity: 'attendance_records', data: expect.objectContaining({ student_id: 'student-1', status: 'R', notes: 'conteúdo' }) }),
+      expect.objectContaining({ entity: 'attendance_records', data: oldAttendance, action: 'delete' }),
+      expect.objectContaining({ entity: 'replacements', data: expect.objectContaining({ id: 'generated-id', attendance_record_id: 'generated-id', scheduled_date: '2026-08-20', scheduled_time: '09:30', notes: 'reforço' }) }),
+      expect.objectContaining({ entity: 'replacements', data: oldReplacement, action: 'delete' }),
+      expect.objectContaining({ entity: 'class_notes', data: expect.objectContaining({ notes: 'Revisão geral' }) }),
+    ]));
   });
 
   it('preserves RC and completion metadata when an already completed replacement is saved unchanged', async () => {
@@ -103,7 +100,9 @@ describe('saveAttendanceCall', () => {
         replacement: { scheduledDate: '2026-08-20', scheduledTime: '09:30', notes: '' },
       }],
     });
-    expect(store.setAttendance).toHaveBeenCalledWith(expect.objectContaining({ status: 'RC', completed_at: '2026-08-20T10:00:00Z' }));
-    expect(store.mutate).toHaveBeenCalledWith('replacements', expect.objectContaining({ completed_at: '2026-08-20T10:00:00Z' }));
+    expect(store.mutateBatch).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({ entity: 'attendance_records', data: expect.objectContaining({ status: 'RC', completed_at: '2026-08-20T10:00:00Z' }) }),
+      expect.objectContaining({ entity: 'replacements', data: expect.objectContaining({ completed_at: '2026-08-20T10:00:00Z' }) }),
+    ]));
   });
 });

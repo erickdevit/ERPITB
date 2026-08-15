@@ -1,4 +1,5 @@
 import { latestAttendance } from '../lib/attendance';
+import type { LocalMutation } from '../lib/db';
 import type { AttendanceStatus, LocalRecord, Role } from '../types';
 
 export type EditableAttendanceStatus = Exclude<AttendanceStatus, 'RC'>;
@@ -26,9 +27,7 @@ export interface CallAccess {
 
 export interface AttendanceCallStore {
   findAttendance(classId: string, studentId: string, date: string, includeDeleted?: boolean): Promise<LocalRecord | undefined>;
-  setAttendance(data: Omit<LocalRecord, 'id'> & { class_id: string; student_id: string; date: string }): Promise<LocalRecord>;
-  clearAttendance(classId: string, studentId: string, date: string): Promise<void>;
-  mutate(entity: 'class_notes' | 'replacements', data: LocalRecord, action?: 'upsert' | 'delete'): Promise<void>;
+  mutateBatch(mutations: LocalMutation[]): Promise<void>;
 }
 
 export interface SaveAttendanceCallInput {
@@ -119,9 +118,8 @@ export function toggleAttendanceStatus(row: AttendanceDraftRow, status: Editable
 }
 
 /**
- * Validates the entire draft before writing and then persists it as one logical
- * local batch. The sync is deliberately left to the caller and only starts
- * after every local operation succeeds.
+ * Validates and plans the entire draft before writing, then persists records
+ * and sync queue entries in one IndexedDB transaction.
  */
 export async function saveAttendanceCall(input: SaveAttendanceCallInput): Promise<void> {
   if (!input.classId || !/^\d{4}-\d{2}-\d{2}$/.test(input.date)) throw new Error('Turma e data são obrigatórias para salvar a chamada.');
@@ -135,20 +133,23 @@ export async function saveAttendanceCall(input: SaveAttendanceCallInput): Promis
   }
 
   const createId = input.createId ?? (() => crypto.randomUUID());
+  const mutations: LocalMutation[] = [];
   for (const row of input.rows) {
     const studentId = row.student.id;
     const current = row.existingAttendance ?? await input.store.findAttendance(input.classId, studentId, input.date, true);
     if (!row.status) {
-      if (current && !current.deleted_at) await input.store.clearAttendance(input.classId, studentId, input.date);
+      if (current && !current.deleted_at) mutations.push({ entity: 'attendance_records', data: current, action: 'delete' });
       if (row.existingReplacement && !row.existingReplacement.deleted_at) {
-        await input.store.mutate('replacements', row.existingReplacement, 'delete');
+        mutations.push({ entity: 'replacements', data: row.existingReplacement, action: 'delete' });
       }
       continue;
     }
 
     const status: AttendanceStatus = current?.status === 'RC' && row.status === 'R' && !row.statusChanged ? 'RC' : row.status;
-    const saved = await input.store.setAttendance({
+    const attendanceId = current?.id ?? createId();
+    mutations.push({ entity: 'attendance_records', data: {
       ...current,
+      id: attendanceId,
       class_id: input.classId,
       student_id: studentId,
       date: input.date,
@@ -156,14 +157,14 @@ export async function saveAttendanceCall(input: SaveAttendanceCallInput): Promis
       notes: row.notes.trim() || null,
       completed_at: status === 'RC' ? current?.completed_at ?? null : null,
       recorded_by_user_id: input.userId,
-    });
+    } });
 
     if (row.status === 'R') {
       const replacement = row.replacement!;
-      await input.store.mutate('replacements', {
+      mutations.push({ entity: 'replacements', data: {
         ...row.existingReplacement,
         id: row.existingReplacement?.id ?? createId(),
-        attendance_record_id: saved.id,
+        attendance_record_id: attendanceId,
         class_id: input.classId,
         student_id: studentId,
         attendance_date: input.date,
@@ -172,23 +173,24 @@ export async function saveAttendanceCall(input: SaveAttendanceCallInput): Promis
         notes: replacement.notes.trim() || null,
         completed_at: status === 'RC' ? row.existingReplacement?.completed_at ?? current?.completed_at ?? null : null,
         recorded_by_user_id: input.userId,
-      });
+      } });
     } else if (row.existingReplacement && !row.existingReplacement.deleted_at) {
-      await input.store.mutate('replacements', row.existingReplacement, 'delete');
+      mutations.push({ entity: 'replacements', data: row.existingReplacement, action: 'delete' });
     }
   }
 
   const notes = input.generalNotes.trim();
   if (notes) {
-    await input.store.mutate('class_notes', {
+    mutations.push({ entity: 'class_notes', data: {
       ...input.existingClassNote,
       id: input.existingClassNote?.id ?? createId(),
       class_id: input.classId,
       date: input.date,
       notes,
       recorded_by_user_id: input.userId,
-    });
+    } });
   } else if (input.existingClassNote && !input.existingClassNote.deleted_at) {
-    await input.store.mutate('class_notes', input.existingClassNote, 'delete');
+    mutations.push({ entity: 'class_notes', data: input.existingClassNote, action: 'delete' });
   }
+  await input.store.mutateBatch(mutations);
 }

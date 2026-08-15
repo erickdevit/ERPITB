@@ -10,6 +10,7 @@ interface CipherRow extends CipherText { id: string; accountId: string; entity: 
 interface QueueRow extends CipherText { operationId: string; accountId: string; updatedAt: string }
 interface MetaRow { id: string; accountId: string; cursor: number }
 interface VerifierRow extends CipherText { emailHash: string; accountId: string; salt: Uint8Array; verifier: ArrayBuffer; updatedAt: string }
+export interface LocalMutation { entity: Entity; data: LocalRecord; action?: Action }
 
 class FrequenciaDb extends Dexie {
   keys!: EntityTable<KeyRow, 'accountId'>;
@@ -163,24 +164,47 @@ export class LocalStore {
   }
 
   async mutate(entity: Entity, data: LocalRecord, action: Action = 'upsert'): Promise<void> {
-    const previous = await this.get(entity, data.id);
-    const now = new Date().toISOString();
-    const record: LocalRecord = action === 'delete'
-      ? { ...previous, ...data, id: data.id, deleted_at: now, updated_at: now, sync_status: 'PENDING' }
-      : { ...previous, ...data, id: data.id, deleted_at: null, updated_at: now, created_at: previous?.created_at ?? now, sync_status: 'PENDING' };
-    await this.writeRecord(entity, record);
-    const operation: SyncOperation = { operationId: crypto.randomUUID(), entity, action, id: record.id, baseVersion: Number(previous?.sync_version ?? 0), updatedAt: now, data: record };
-    const cipher = await encrypt(await this.cryptoKey(), operation);
+    await this.mutateBatch([{ entity, data, action }]);
+  }
+
+  /** Commits local records and their compacted sync operations atomically. */
+  async mutateBatch(mutations: LocalMutation[]): Promise<void> {
+    if (!mutations.length) return;
+    const targets = new Set<string>();
+    for (const mutation of mutations) {
+      const target = `${mutation.entity}:${mutation.data.id}`;
+      if (targets.has(target)) throw new Error(`O lote local contém mais de uma alteração para ${target}.`);
+      targets.add(target);
+    }
     await this.serial('queue', async () => {
+      const key = await this.cryptoKey();
+      const now = new Date().toISOString();
+      const prepared = await Promise.all(mutations.map(async (mutation) => {
+        const action = mutation.action ?? 'upsert';
+        const previous = await this.get(mutation.entity, mutation.data.id);
+        const record: LocalRecord = action === 'delete'
+          ? { ...previous, ...mutation.data, id: mutation.data.id, deleted_at: now, updated_at: now, sync_status: 'PENDING' }
+          : { ...previous, ...mutation.data, id: mutation.data.id, deleted_at: null, updated_at: now, created_at: previous?.created_at ?? now, sync_status: 'PENDING' };
+        const operation: SyncOperation = {
+          operationId: crypto.randomUUID(), entity: mutation.entity, action, id: record.id,
+          baseVersion: Number(previous?.sync_version ?? 0), updatedAt: now, data: record,
+        };
+        const [recordCipher, operationCipher] = await Promise.all([encrypt(key, record), encrypt(key, operation)]);
+        return {
+          record: { ...recordCipher, id: recordId(this.accountId, mutation.entity, record.id), accountId: this.accountId, entity: mutation.entity, entityId: record.id, updatedAt: now } as CipherRow,
+          queue: { ...operationCipher, operationId: operation.operationId, accountId: this.accountId, updatedAt: now } as QueueRow,
+        };
+      }));
       const existing = await database.queue.where('accountId').equals(this.accountId).toArray();
       const duplicates: string[] = [];
       for (const row of existing) {
-        const queued = await decrypt<SyncOperation>(await this.cryptoKey(), row);
-        if (queued.entity === entity && queued.id === record.id) duplicates.push(row.operationId);
+        const queued = await decrypt<SyncOperation>(key, row);
+        if (targets.has(`${queued.entity}:${queued.id}`)) duplicates.push(row.operationId);
       }
-      await database.transaction('rw', database.queue, async () => {
+      await database.transaction('rw', database.records, database.queue, async () => {
+        await database.records.bulkPut(prepared.map((item) => item.record));
         await database.queue.bulkDelete(duplicates);
-        await database.queue.put({ ...cipher, operationId: operation.operationId, accountId: this.accountId, updatedAt: now });
+        await database.queue.bulkPut(prepared.map((item) => item.queue));
       });
     });
   }

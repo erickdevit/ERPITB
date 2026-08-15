@@ -20,6 +20,30 @@ describe('LocalStore integration', () => {
     await expect(store.pending()).resolves.toEqual([expect.objectContaining({ entity: 'courses', id: 'course-1' })]);
   });
 
+  it('persists a multi-entity workflow with one queued operation per record', async () => {
+    const store = await LocalStore.open(session(`account-${crypto.randomUUID()}`)); opened.push(store);
+    await store.mutateBatch([
+      { entity: 'attendance_records', data: { id: 'attendance-1', class_id: 'class-1', student_id: 'student-1', date: '2026-08-15', status: 'R', recorded_by_user_id: store.accountId } },
+      { entity: 'replacements', data: { id: 'replacement-1', attendance_record_id: 'attendance-1', class_id: 'class-1', student_id: 'student-1', attendance_date: '2026-08-15', scheduled_date: '2026-08-20', scheduled_time: '09:30', recorded_by_user_id: store.accountId } },
+    ]);
+
+    expect(await store.get('attendance_records', 'attendance-1')).toMatchObject({ status: 'R', sync_status: 'PENDING' });
+    expect(await store.get('replacements', 'replacement-1')).toMatchObject({ attendance_record_id: 'attendance-1', sync_status: 'PENDING' });
+    expect((await store.pending()).map((operation) => `${operation.entity}:${operation.id}`).sort()).toEqual([
+      'attendance_records:attendance-1', 'replacements:replacement-1',
+    ]);
+  });
+
+  it('rejects duplicate targets before changing local state', async () => {
+    const store = await LocalStore.open(session(`account-${crypto.randomUUID()}`)); opened.push(store);
+    await expect(store.mutateBatch([
+      { entity: 'courses', data: { id: 'course-1', code: 'A', name: 'Primeiro', active: 1 } },
+      { entity: 'courses', data: { id: 'course-1', code: 'B', name: 'Segundo', active: 1 } },
+    ])).rejects.toThrow('mais de uma alteração');
+    await expect(store.get('courses', 'course-1')).resolves.toBeUndefined();
+    await expect(store.pending()).resolves.toEqual([]);
+  });
+
   it('purges revoked class data while retaining a student shared with another accessible class', async () => {
     const accountId = `teacher-${crypto.randomUUID()}`;
     const store = await LocalStore.open(session(accountId)); opened.push(store);
