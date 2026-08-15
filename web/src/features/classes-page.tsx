@@ -148,8 +148,8 @@ function MobileClassCard({ row, actions }: { row: ClassView; actions?: React.Rea
           <Stack direction="row" gap={1.5} alignItems="flex-start">
             <Avatar
               sx={{
-                bgcolor: row.isKids ? '#FFFBEB' : '#EFF6FF',
-                color: row.isKids ? '#D97706' : '#1976D2',
+                bgcolor: row.isKids ? '#FFFBEB' : '#F1F5F9',
+                color: row.isKids ? '#D97706' : '#0F172A',
                 width: 38,
                 height: 38,
                 borderRadius: 2,
@@ -218,7 +218,7 @@ function ClassTable({ rows, renderActions }: { rows: ClassView[]; renderActions:
                     <Button
                       component={Link}
                       to={`/turmas/${row.id}`}
-                      sx={{ px: 0, fontWeight: 700, color: '#1976D2', textAlign: 'left', minWidth: 0, '&:hover': { bgcolor: 'transparent', textDecoration: 'underline' } }}
+                      sx={{ px: 0, fontWeight: 700, color: '#0F172A', textAlign: 'left', minWidth: 0, '&:hover': { bgcolor: 'transparent', color: '#2563EB', textDecoration: 'underline' } }}
                     >
                       {row.name}
                     </Button>

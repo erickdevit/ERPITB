@@ -121,7 +121,7 @@ function MobileStudentCard({ row, actions }: { row: StudentView; actions?: React
       <CardActionArea component={Link} to={`/alunos/${row.id}`} aria-label={`Abrir detalhes de ${row.name}`}>
         <CardContent sx={{ p: 2 }}>
           <Stack direction="row" gap={1.5} alignItems="flex-start">
-            <Avatar sx={{ bgcolor: '#EFF6FF', color: '#1976D2', width: 38, height: 38, borderRadius: 2, fontWeight: 700, fontSize: 15 }}>
+            <Avatar sx={{ bgcolor: '#F1F5F9', color: '#0F172A', width: 38, height: 38, borderRadius: 2, fontWeight: 700, fontSize: 15 }}>
               {row.name.slice(0, 1).toUpperCase()}
             </Avatar>
             <Box flex={1} minWidth={0}>
@@ -200,7 +200,7 @@ function StudentTable({ rows, renderActions }: { rows: StudentView[]; renderActi
                   <Button
                     component={Link}
                     to={`/alunos/${row.id}`}
-                    sx={{ px: 0, fontWeight: 700, color: '#1976D2', textAlign: 'left', minWidth: 0, '&:hover': { bgcolor: 'transparent', textDecoration: 'underline' } }}
+                    sx={{ px: 0, fontWeight: 700, color: '#0F172A', textAlign: 'left', minWidth: 0, '&:hover': { bgcolor: 'transparent', color: '#2563EB', textDecoration: 'underline' } }}
                   >
                     {row.name}
                   </Button>

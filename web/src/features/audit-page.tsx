@@ -175,8 +175,8 @@ function AuditEventCard({ entry }: { entry: AuditEntry }) {
           <Stack direction="row" gap={1.25} alignItems="flex-start" sx={{ minWidth: 0, flex: 1 }}>
             <Avatar
               sx={{
-                bgcolor: '#EFF6FF',
-                color: '#1976D2',
+                bgcolor: '#F1F5F9',
+                color: '#0F172A',
                 width: 36,
                 height: 36,
                 borderRadius: 2,

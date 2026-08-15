@@ -93,7 +93,7 @@ function Overview({ analytics, calls }: { analytics: AnalyticsResult; calls: num
                       labelFormatter={(value) => formatDate(String(value))}
                       contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0' }}
                     />
-                    <Line type="monotone" dataKey="rate" name="Frequência" stroke="#1976D2" strokeWidth={2.5} dot={false} />
+                    <Line type="monotone" dataKey="rate" name="Frequência" stroke="#2563EB" strokeWidth={2.5} dot={false} />
                   </LineChart>
                 </ResponsiveContainer>
               </Box>
@@ -419,7 +419,7 @@ export function StudentDetailPage() {
                   const classRecord = classes.items.find((value) => value.id === item.class_id);
                   return (
                     <Box key={item.id} py={0.75}>
-                      <Button component={Link} to={`/turmas/${item.class_id}`} sx={{ px: 0, fontWeight: 700, color: '#1976D2', minWidth: 0 }}>
+                      <Button component={Link} to={`/turmas/${item.class_id}`} sx={{ px: 0, fontWeight: 700, color: '#0F172A', minWidth: 0, '&:hover': { color: '#2563EB', textDecoration: 'underline', bgcolor: 'transparent' } }}>
                         {text(classRecord, 'name') || 'Turma removida'}
                       </Button>
                       <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>

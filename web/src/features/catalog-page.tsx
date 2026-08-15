@@ -150,8 +150,8 @@ function CatalogPage({ entity }: { entity: Catalog }) {
                     <Stack direction="row" spacing={1.5} alignItems="center" minWidth={0}>
                       <Avatar
                         sx={{
-                          bgcolor: isCourse ? '#EFF6FF' : '#F1F5F9',
-                          color: isCourse ? '#1976D2' : '#0F172A',
+                          bgcolor: isCourse ? '#F1F5F9' : '#F1F5F9',
+                          color: '#0F172A',
                           width: 38,
                           height: 38,
                           borderRadius: 2,
@@ -173,10 +173,10 @@ function CatalogPage({ entity }: { entity: Catalog }) {
                               px: 0,
                               display: 'block',
                               fontWeight: 700,
-                              color: '#1976D2',
+                              color: '#0F172A',
                               textAlign: 'left',
                               minWidth: 0,
-                              '&:hover': { bgcolor: 'transparent', textDecoration: 'underline' },
+                              '&:hover': { bgcolor: 'transparent', color: '#2563EB', textDecoration: 'underline' },
                             }}
                           >
                             {text(item, 'name')}
@@ -242,10 +242,10 @@ function CatalogPage({ entity }: { entity: Catalog }) {
                             sx={{
                               px: 0,
                               fontWeight: 700,
-                              color: '#1976D2',
+                              color: '#0F172A',
                               textAlign: 'left',
                               minWidth: 0,
-                              '&:hover': { bgcolor: 'transparent', textDecoration: 'underline' },
+                              '&:hover': { bgcolor: 'transparent', color: '#2563EB', textDecoration: 'underline' },
                             }}
                           >
                             {text(item, 'name')}

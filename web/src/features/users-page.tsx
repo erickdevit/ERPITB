@@ -219,7 +219,7 @@ export function UsersPage() {
                 <CardContent sx={{ p: 2 }}>
                   <Stack direction="row" justifyContent="space-between" gap={1.5} alignItems="flex-start">
                     <Stack direction="row" spacing={1.5} alignItems="center" minWidth={0}>
-                      <Avatar sx={{ bgcolor: '#EFF6FF', color: '#1976D2', width: 38, height: 38, borderRadius: 2, fontWeight: 700, fontSize: 15 }}>
+                      <Avatar sx={{ bgcolor: '#F1F5F9', color: '#0F172A', width: 38, height: 38, borderRadius: 2, fontWeight: 700, fontSize: 15 }}>
                         {text(user, 'name').slice(0, 1).toUpperCase()}
                       </Avatar>
                       <Stack minWidth={0}>

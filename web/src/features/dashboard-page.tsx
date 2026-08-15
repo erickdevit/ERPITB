@@ -218,7 +218,7 @@ export function DashboardPage() {
         <CardContent sx={{ p: { xs: 2, md: 2.25 }, '&:last-child': { pb: { xs: 2, md: 2.25 } } }}>
           <Stack direction={{ xs: 'column', md: 'row' }} gap={2} alignItems={{ md: 'center' }} justifyContent="space-between">
             <Stack direction="row" alignItems="center" spacing={1.25}>
-              <Box sx={{ width: 36, height: 36, borderRadius: 2, bgcolor: '#EFF6FF', color: '#1976D2', display: 'grid', placeItems: 'center' }}>
+              <Box sx={{ width: 36, height: 36, borderRadius: 2, bgcolor: '#F1F5F9', color: '#0F172A', display: 'grid', placeItems: 'center' }}>
                 <CalendarMonthOutlinedIcon fontSize="small" />
               </Box>
               <Box>
@@ -230,25 +230,49 @@ export function DashboardPage() {
                 </Typography>
               </Box>
             </Stack>
-            <ButtonGroup variant="outlined" size="small" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+            <Box sx={{ display: 'inline-flex', p: '2px', bgcolor: '#F1F5F9', borderRadius: 2, gap: '2px' }}>
               {([7, 30, 90] as const).map((days) => (
                 <Button
                   key={days}
-                  variant={preset === days ? 'contained' : 'outlined'}
+                  size="small"
                   onClick={() => applyPreset(days)}
-                  sx={{ px: 2, fontWeight: 650, fontSize: 13 }}
+                  sx={{
+                    px: 1.75,
+                    py: 0.5,
+                    fontWeight: preset === days ? 700 : 550,
+                    fontSize: 12.5,
+                    borderRadius: 1.5,
+                    bgcolor: preset === days ? '#0F172A' : 'transparent',
+                    color: preset === days ? '#FFFFFF' : '#64748B',
+                    '&:hover': {
+                      bgcolor: preset === days ? '#0F172A' : '#E2E8F0',
+                      color: preset === days ? '#FFFFFF' : '#0F172A',
+                    },
+                  }}
                 >
                   {days} dias
                 </Button>
               ))}
               <Button
-                variant={preset === 'custom' ? 'contained' : 'outlined'}
+                size="small"
                 onClick={() => setPreset('custom')}
-                sx={{ px: 2, fontWeight: 650, fontSize: 13 }}
+                sx={{
+                  px: 1.75,
+                  py: 0.5,
+                  fontWeight: preset === 'custom' ? 700 : 550,
+                  fontSize: 12.5,
+                  borderRadius: 1.5,
+                  bgcolor: preset === 'custom' ? '#0F172A' : 'transparent',
+                  color: preset === 'custom' ? '#FFFFFF' : '#64748B',
+                  '&:hover': {
+                    bgcolor: preset === 'custom' ? '#0F172A' : '#E2E8F0',
+                    color: preset === 'custom' ? '#FFFFFF' : '#0F172A',
+                  },
+                }}
               >
                 Personalizado
               </Button>
-            </ButtonGroup>
+            </Box>
           </Stack>
           {preset === 'custom' && (
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2, mt: 2, maxWidth: 640 }}>
@@ -261,12 +285,12 @@ export function DashboardPage() {
         {loading && <LinearProgress aria-label="Carregando indicadores" sx={{ height: 2 }} />}
       </Card>
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(3, minmax(0, 1fr))' }, gap: 1.5 }}>
-        <KpiCard label="Taxa de Frequência" value={`${analytics.attendanceRate.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`} detail={`${numberFormatter.format(analytics.records)} marcações no período`} color="#1976D2" icon={<InsightsOutlinedIcon fontSize="small" />} />
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(3, minmax(0, 1fr))' }, gap: 1.25 }}>
+        <KpiCard label="Taxa de Frequência" value={`${analytics.attendanceRate.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`} detail={`${numberFormatter.format(analytics.records)} marcações no período`} color="#0284C7" icon={<InsightsOutlinedIcon fontSize="small" />} />
         <KpiCard label="Presenças" value={numberFormatter.format(analytics.present)} detail="Situação P" color={statusColors.P} icon={<CheckCircleOutlineIcon fontSize="small" />} />
         <KpiCard label="Faltas" value={numberFormatter.format(analytics.absent)} detail="Situação F" color={statusColors.F} icon={<EventBusyOutlinedIcon fontSize="small" />} />
         <KpiCard label="Atrasos" value={numberFormatter.format(analytics.delayed)} detail="Situação A" color={statusColors.A} icon={<AccessTimeOutlinedIcon fontSize="small" />} />
-        <KpiCard label="Alunos em Risco" value={numberFormatter.format(analytics.riskStudents)} detail={`de ${numberFormatter.format(analytics.activeStudents)} alunos ativos`} color="#D97706" icon={<WarningAmberOutlinedIcon fontSize="small" />} />
+        <KpiCard label="Alunos em Risco" value={numberFormatter.format(analytics.riskStudents)} detail={`de ${numberFormatter.format(analytics.activeStudents)} alunos ativos`} color="#F59E0B" icon={<WarningAmberOutlinedIcon fontSize="small" />} />
         <KpiCard label="Chamadas Realizadas" value={numberFormatter.format(analytics.distinctCalls)} detail="Total por turma e data" color="#64748B" icon={<EventAvailableOutlinedIcon fontSize="small" />} />
       </Box>
 
@@ -283,7 +307,7 @@ export function DashboardPage() {
                     labelFormatter={(value) => formatDate(String(value))}
                     contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0', boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}
                   />
-                  <Line type="monotone" dataKey="rate" name="Frequência (%)" stroke="#1976D2" strokeWidth={2.5} dot={{ r: 2.5, fill: '#1976D2' }} activeDot={{ r: 5, fill: '#1976D2' }} />
+                  <Line type="monotone" dataKey="rate" name="Frequência (%)" stroke="#2563EB" strokeWidth={2.5} dot={{ r: 2.5, fill: '#2563EB' }} activeDot={{ r: 5, fill: '#2563EB' }} />
                 </LineChart>
               </ResponsiveContainer>
             </Box>
@@ -369,7 +393,7 @@ export function DashboardPage() {
                       borderRadius: 3,
                       bgcolor: '#F1F5F9',
                       '& .MuiLinearProgress-bar': {
-                        bgcolor: '#1976D2',
+                        bgcolor: '#2563EB',
                         borderRadius: 3,
                       },
                     }}

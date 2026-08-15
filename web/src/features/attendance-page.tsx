@@ -21,13 +21,13 @@ import {
 
 const statusConfig: Record<
   EditableAttendanceStatus,
-  { label: string; activeBg: string; activeColor: string; hoverBg: string }
+  { label: string; activeBg: string; activeColor: string; hoverBg: string; borderColor: string }
 > = {
-  P: { label: 'Presente', activeBg: '#059669', activeColor: '#FFFFFF', hoverBg: '#E2E8F0' },
-  F: { label: 'Falta', activeBg: '#E11D48', activeColor: '#FFFFFF', hoverBg: '#E2E8F0' },
-  J: { label: 'Justificada', activeBg: '#0284C7', activeColor: '#FFFFFF', hoverBg: '#E2E8F0' },
-  A: { label: 'Atraso', activeBg: '#D97706', activeColor: '#FFFFFF', hoverBg: '#E2E8F0' },
-  R: { label: 'Reposição', activeBg: '#7C3AED', activeColor: '#FFFFFF', hoverBg: '#E2E8F0' },
+  P: { label: 'Presente', activeBg: '#10B981', activeColor: '#FFFFFF', hoverBg: '#E2E8F0', borderColor: '#10B981' },
+  F: { label: 'Falta', activeBg: '#F43F5E', activeColor: '#FFFFFF', hoverBg: '#E2E8F0', borderColor: '#F43F5E' },
+  J: { label: 'Justificada', activeBg: '#0284C7', activeColor: '#FFFFFF', hoverBg: '#E2E8F0', borderColor: '#0284C7' },
+  A: { label: 'Atraso', activeBg: '#F59E0B', activeColor: '#FFFFFF', hoverBg: '#E2E8F0', borderColor: '#F59E0B' },
+  R: { label: 'Reposição', activeBg: '#8B5CF6', activeColor: '#FFFFFF', hoverBg: '#E2E8F0', borderColor: '#8B5CF6' },
 };
 
 const text = (record: Record<string, unknown> | undefined, field: string) => String(record?.[field] ?? '');
@@ -188,20 +188,20 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
     <Stack gap={2}>
       <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.5} justifyContent="space-between" alignItems={{ sm: 'center' }}>
         <Box>
-          <Typography variant="h5" component="h1" fontWeight={800} color="#0F172A" letterSpacing="-0.02em">
+          <Typography variant="h5" component="h1" fontWeight={800} color="#0F172A" letterSpacing="-0.025em">
             Lançamento de Frequência
           </Typography>
-          <Typography variant="body2" color="text.secondary">
-            P = presente, F = falta, J = justificada, A = atraso e R = reposição.
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+            Registre presenças, faltas, justificativas, atrasos e reposições de aula.
           </Typography>
         </Box>
         <Button
           variant="contained"
           size="medium"
-          startIcon={<SaveOutlinedIcon />}
+          startIcon={<SaveOutlinedIcon sx={{ fontSize: 18 }} />}
           disabled={!access.editable || !rows.length || saving}
           onClick={() => void save()}
-          sx={{ px: 2.5, py: 0.9, borderRadius: 2, fontWeight: 650 }}
+          sx={{ px: 2.5, py: 0.8, borderRadius: 2, fontWeight: 650 }}
         >
           {saving ? 'Salvando…' : 'Salvar chamada'}
         </Button>
@@ -209,11 +209,11 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
 
       <Card sx={{ border: '1px solid #E2E8F0', borderRadius: 3 }}>
         <CardContent sx={{ p: { xs: 2, md: 2.25 }, '&:last-child': { pb: { xs: 2, md: 2.25 } } }}>
-          <Stack direction={{ xs: 'column', md: 'row' }} gap={2}>
+          <Stack direction={{ xs: 'column', md: 'row' }} gap={1.5}>
             <Box sx={{ flex: 1, minWidth: 240 }}>
               <SelectField label="Turma" value={classId} onChange={setClassId} options={classOptions} />
             </Box>
-            <Box sx={{ width: { xs: '100%', md: 240 } }}>
+            <Box sx={{ width: { xs: '100%', md: 220 } }}>
               <DateField label="Data da chamada" value={date} onChange={setDate} required />
             </Box>
           </Stack>
@@ -231,29 +231,29 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
           {rows.length > 0 && (
             <Card sx={{ border: '1px solid #E2E8F0', borderRadius: 2.5, bgcolor: '#FFFFFF' }}>
               <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                <Stack direction="row" gap={2} flexWrap="wrap" alignItems="center" justifyContent="space-between">
+                <Stack direction="row" gap={1.5} flexWrap="wrap" alignItems="center" justifyContent="space-between">
                   <Stack direction="row" gap={2} flexWrap="wrap" alignItems="center">
-                    <Typography variant="body2" color="text.secondary">
-                      Total: <strong>{stats.total}</strong> alunos
+                    <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                      Total: <strong style={{ color: '#0F172A' }}>{stats.total}</strong>
                     </Typography>
-                    <Typography variant="body2" color="success.dark">
+                    <Typography variant="caption" color="#059669" fontWeight={600}>
                       Presentes: <strong>{stats.present}</strong> ({stats.rate}%)
                     </Typography>
-                    <Typography variant="body2" color="error.dark">
+                    <Typography variant="caption" color="#E11D48" fontWeight={600}>
                       Faltas: <strong>{stats.absent}</strong>
                     </Typography>
                     {stats.justified > 0 && (
-                      <Typography variant="body2" color="info.dark">
+                      <Typography variant="caption" color="#0284C7" fontWeight={600}>
                         Justificadas: <strong>{stats.justified}</strong>
                       </Typography>
                     )}
                     {stats.late > 0 && (
-                      <Typography variant="body2" color="warning.dark">
+                      <Typography variant="caption" color="#D97706" fontWeight={600}>
                         Atrasos: <strong>{stats.late}</strong>
                       </Typography>
                     )}
                     {stats.replacement > 0 && (
-                      <Typography variant="body2" color="secondary.dark">
+                      <Typography variant="caption" color="#7C3AED" fontWeight={600}>
                         Reposições: <strong>{stats.replacement}</strong>
                       </Typography>
                     )}
@@ -261,9 +261,9 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                   {stats.unset > 0 && (
                     <Chip
                       size="small"
-                      label={`${stats.unset} sem marcação`}
+                      label={`${stats.unset} pendente(s)`}
                       variant="outlined"
-                      sx={{ height: 22, fontSize: 11, fontWeight: 600, color: '#64748B' }}
+                      sx={{ height: 20, fontSize: 10.5, fontWeight: 600, color: '#64748B', borderColor: '#E2E8F0' }}
                     />
                   )}
                 </Stack>
@@ -271,20 +271,23 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
             </Card>
           )}
 
-          <TextField
-            fullWidth
-            size="small"
-            label="Buscar aluno na chamada"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchOutlinedIcon color="action" fontSize="small" />
-                </InputAdornment>
-              ),
-            }}
-          />
+          <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.5}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Buscar aluno na chamada"
+              placeholder="Buscar por nome ou matrícula"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchOutlinedIcon color="action" sx={{ fontSize: 18 }} />
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </Stack>
 
           <TextField
             fullWidth
@@ -314,34 +317,36 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
             {visibleRows.map((row) => {
               const rowIndex = rows.findIndex((candidate) => candidate.student.id === row.student.id);
               const noteOpen = expandedNotes.has(row.student.id);
+              const activeBorderColor = row.status ? statusConfig[row.status]?.borderColor : 'transparent';
               return (
                 <Card
                   key={row.student.id}
                   sx={{
                     border: '1px solid #E2E8F0',
+                    borderLeft: row.status ? `4px solid ${activeBorderColor}` : '1px solid #E2E8F0',
                     borderRadius: 2.5,
                     transition: 'border-color 0.15s ease',
                     '&:hover': { borderColor: '#CBD5E1' },
                   }}
                 >
-                  <CardContent sx={{ p: 1.75, '&:last-child': { pb: 1.75 } }}>
-                    <Stack direction={{ xs: 'column', md: 'row' }} gap={1.5} alignItems={{ md: 'center' }} justifyContent="space-between">
+                  <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.25} alignItems={{ sm: 'center' }} justifyContent="space-between">
                       <Stack direction="row" gap={1.25} alignItems="center" sx={{ minWidth: 200, flex: 1 }}>
                         <Avatar
                           sx={{
                             bgcolor: '#F1F5F9',
                             color: '#0F172A',
                             fontWeight: 700,
-                            fontSize: 14,
-                            width: 34,
-                            height: 34,
-                            borderRadius: 2,
+                            fontSize: 13,
+                            width: 32,
+                            height: 32,
+                            borderRadius: 1.5,
                           }}
                         >
                           {text(row.student, 'name').slice(0, 1).toUpperCase()}
                         </Avatar>
                         <Box minWidth={0}>
-                          <Typography fontWeight={700} color="#0F172A" fontSize={14} noWrap>
+                          <Typography fontWeight={700} color="#0F172A" fontSize={13.5} noWrap>
                             {text(row.student, 'name')}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
@@ -371,12 +376,12 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                                 aria-pressed={selected}
                                 onClick={() => selectStatus(rowIndex, statusKey)}
                                 sx={{
-                                  minWidth: 32,
-                                  width: 32,
-                                  height: 32,
+                                  minWidth: 30,
+                                  width: 30,
+                                  height: 30,
                                   p: 0,
                                   fontWeight: selected ? 800 : 600,
-                                  fontSize: 13,
+                                  fontSize: 12.5,
                                   borderRadius: 1.5,
                                   border: 'none',
                                   bgcolor: selected ? cfg.activeBg : 'transparent',
@@ -397,7 +402,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                         {row.status === 'R' && (
                           <Chip
                             size="small"
-                            icon={<CalendarMonthOutlinedIcon style={{ fontSize: 14 }} />}
+                            icon={<CalendarMonthOutlinedIcon style={{ fontSize: 13 }} />}
                             color="secondary"
                             variant="outlined"
                             label={
@@ -406,7 +411,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                                 : 'Definir data/hora'
                             }
                             onClick={access.editable ? () => openReplacement(rowIndex) : undefined}
-                            sx={{ fontWeight: 600, height: 28, borderRadius: 1.5 }}
+                            sx={{ fontWeight: 600, height: 26, borderRadius: 1.5 }}
                           />
                         )}
 
@@ -424,12 +429,12 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                               })
                             }
                             sx={{
-                              width: 32,
-                              height: 32,
+                              width: 30,
+                              height: 30,
                               bgcolor: row.notes.trim() ? 'primary.light' : 'transparent',
                             }}
                           >
-                            <EditNoteOutlinedIcon fontSize="small" />
+                            <EditNoteOutlinedIcon sx={{ fontSize: 18 }} />
                           </IconButton>
                         </Tooltip>
                       </Stack>
@@ -441,7 +446,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                         size="small"
                         multiline
                         minRows={2}
-                        sx={{ mt: 1.5 }}
+                        sx={{ mt: 1.25 }}
                         label="Anotação do aluno"
                         value={row.notes}
                         disabled={!access.editable || !row.status}

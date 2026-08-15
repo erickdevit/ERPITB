@@ -25,6 +25,8 @@ import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
 import AssignmentTurnedInOutlinedIcon from '@mui/icons-material/AssignmentTurnedInOutlined';
 import BadgeOutlinedIcon from '@mui/icons-material/BadgeOutlined';
 import DataObjectOutlinedIcon from '@mui/icons-material/DataObjectOutlined';
+import WifiOutlinedIcon from '@mui/icons-material/WifiOutlined';
+import WifiOffOutlinedIcon from '@mui/icons-material/WifiOffOutlined';
 import {
   AppBar, Alert, Avatar, Box, Button, Chip, CircularProgress, Collapse, CssBaseline, Drawer,
   IconButton, LinearProgress, List, ListItemButton, ListItemIcon, ListItemText, Snackbar, Stack, Toolbar, Tooltip, Typography,
@@ -37,38 +39,51 @@ import { canManage, roleLabel, type Role } from './types';
 
 const theme = createTheme({
   palette: {
-    primary: { main: '#1976D2', dark: '#0F172A', light: '#EFF6FF' },
-    secondary: { main: '#0284C7', light: '#F0F9FF' },
-    success: { main: '#059669', light: '#ECFDF5', dark: '#047857' },
-    error: { main: '#E11D48', light: '#FFF1F2', dark: '#BE123C' },
-    warning: { main: '#D97706', light: '#FFFBEB', dark: '#B45309' },
+    mode: 'light',
+    primary: { main: '#0F172A', dark: '#020617', light: '#334155' },
+    secondary: { main: '#2563EB', light: '#EFF6FF' },
+    success: { main: '#10B981', light: '#ECFDF5', dark: '#047857' },
+    error: { main: '#F43F5E', light: '#FFF1F2', dark: '#BE123C' },
+    warning: { main: '#F59E0B', light: '#FFFBEB', dark: '#B45309' },
     info: { main: '#0284C7', light: '#F0F9FF', dark: '#0369A1' },
     background: { default: '#F8FAFC', paper: '#FFFFFF' },
     text: { primary: '#0F172A', secondary: '#64748B' },
-    divider: '#F1F5F9',
+    divider: '#E2E8F0',
   },
   typography: {
     fontFamily: '"Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    h4: { fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' },
+    h4: { fontWeight: 800, color: '#0F172A', letterSpacing: '-0.025em' },
     h5: { fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' },
-    h6: { fontWeight: 700, color: '#0F172A', letterSpacing: '-0.01em' },
-    subtitle1: { fontWeight: 650, color: '#0F172A' },
-    subtitle2: { fontWeight: 600, color: '#0F172A' },
-    body1: { color: '#1E293B', fontSize: '0.9375rem' },
-    body2: { color: '#64748B', fontSize: '0.875rem' },
-    button: { textTransform: 'none', fontWeight: 600 },
+    h6: { fontWeight: 750, color: '#0F172A', letterSpacing: '-0.015em' },
+    subtitle1: { fontWeight: 650, color: '#0F172A', letterSpacing: '-0.01em' },
+    subtitle2: { fontWeight: 600, color: '#0F172A', letterSpacing: '-0.01em' },
+    body1: { color: '#334155', fontSize: '0.9375rem', lineHeight: 1.5 },
+    body2: { color: '#64748B', fontSize: '0.875rem', lineHeight: 1.45 },
+    caption: { color: '#64748B', fontSize: '0.75rem', letterSpacing: '-0.005em' },
+    button: { textTransform: 'none', fontWeight: 600, letterSpacing: '-0.01em' },
   },
-  shape: { borderRadius: 10 },
+  shape: { borderRadius: 8 },
   components: {
+    MuiCssBaseline: {
+      styleOverrides: {
+        body: {
+          backgroundColor: '#F8FAFC',
+          color: '#0F172A',
+          WebkitFontSmoothing: 'antialiased',
+          MozOsxFontSmoothing: 'grayscale',
+        },
+      },
+    },
     MuiCard: {
       defaultProps: { elevation: 0 },
       styleOverrides: {
         root: {
           backgroundImage: 'none',
-          boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.03)',
+          backgroundColor: '#FFFFFF',
+          boxShadow: 'none',
           border: '1px solid #E2E8F0',
-          borderRadius: 12,
-          transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+          borderRadius: 10,
+          transition: 'border-color 0.15s ease',
         },
       },
     },
@@ -78,16 +93,28 @@ const theme = createTheme({
         root: {
           textTransform: 'none',
           fontWeight: 600,
-          borderRadius: 8,
+          borderRadius: 7,
+          fontSize: '0.875rem',
           boxShadow: 'none',
-          transition: 'all 0.15s ease-in-out',
+          transition: 'all 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
+        },
+        contained: {
+          backgroundColor: '#0F172A',
+          color: '#FFFFFF',
           '&:hover': {
-            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.08)',
+            backgroundColor: '#1E293B',
+            boxShadow: 'none',
           },
         },
-        containedPrimary: {
-          backgroundColor: '#1976D2',
-          '&:hover': { backgroundColor: '#1565C0' },
+        outlined: {
+          borderColor: '#E2E8F0',
+          color: '#334155',
+          backgroundColor: '#FFFFFF',
+          '&:hover': {
+            borderColor: '#CBD5E1',
+            backgroundColor: '#F8FAFC',
+            color: '#0F172A',
+          },
         },
       },
     },
@@ -97,6 +124,7 @@ const theme = createTheme({
           borderRadius: 6,
           fontWeight: 600,
           fontSize: '0.75rem',
+          height: 24,
         },
       },
     },
@@ -105,7 +133,7 @@ const theme = createTheme({
       styleOverrides: {
         paper: {
           borderRadius: 14,
-          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04)',
+          boxShadow: '0 20px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04)',
           border: '1px solid #E2E8F0',
         },
       },
@@ -113,18 +141,18 @@ const theme = createTheme({
     MuiOutlinedInput: {
       styleOverrides: {
         root: {
-          borderRadius: 8,
+          borderRadius: 7,
           backgroundColor: '#FFFFFF',
           fontSize: '0.875rem',
           '& .MuiOutlinedInput-notchedOutline': {
             borderColor: '#E2E8F0',
-            transition: 'border-color 0.15s ease',
+            transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
           },
           '&:hover .MuiOutlinedInput-notchedOutline': {
             borderColor: '#CBD5E1',
           },
           '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-            borderColor: '#1976D2',
+            borderColor: '#0F172A',
             borderWidth: 1.5,
           },
         },
@@ -140,13 +168,13 @@ const theme = createTheme({
           fontSize: 11,
           textTransform: 'uppercase',
           letterSpacing: '0.05em',
-          padding: '10px 16px',
+          padding: '10px 14px',
         },
         body: {
-          color: '#1E293B',
+          color: '#334155',
           borderBottom: '1px solid #F1F5F9',
           fontSize: 13,
-          padding: '12px 16px',
+          padding: '11px 14px',
         },
       },
     },
@@ -155,6 +183,27 @@ const theme = createTheme({
         root: {
           borderRadius: 8,
           fontSize: '0.875rem',
+          border: '1px solid transparent',
+        },
+        standardSuccess: {
+          backgroundColor: '#ECFDF5',
+          color: '#065F46',
+          borderColor: '#A7F3D0',
+        },
+        standardWarning: {
+          backgroundColor: '#FFFBEB',
+          color: '#92400E',
+          borderColor: '#FDE68A',
+        },
+        standardError: {
+          backgroundColor: '#FFF1F2',
+          color: '#9F1239',
+          borderColor: '#FECDD3',
+        },
+        standardInfo: {
+          backgroundColor: '#F0F9FF',
+          color: '#075985',
+          borderColor: '#BAE6FD',
         },
       },
     },
@@ -162,18 +211,18 @@ const theme = createTheme({
 });
 
 type Parent = 'replacements' | 'bi';
-type Destination = { path: string; label: string; shortLabel?: string; icon: React.ReactNode; manager?: boolean; admin?: boolean; parent?: Parent };
+type Destination = { path: string; label: string; shortLabel?: string; icon: React.ReactNode; section?: string; manager?: boolean; admin?: boolean; parent?: Parent };
 
 const allDestinations: Destination[] = [
-  { path: '/', label: 'Visão geral', icon: <DashboardOutlinedIcon /> },
-  { path: '/turmas', label: 'Turmas', icon: <GroupsOutlinedIcon /> },
-  { path: '/alunos', label: 'Alunos', icon: <SchoolOutlinedIcon /> },
-  { path: '/frequencia', label: 'Frequência', icon: <FactCheckOutlinedIcon /> },
-  { path: '/relatorios', label: 'Relatórios', icon: <DescriptionOutlinedIcon /> },
+  { path: '/', label: 'Visão geral', section: 'PRINCIPAL', icon: <DashboardOutlinedIcon /> },
+  { path: '/frequencia', label: 'Chamada', shortLabel: 'Frequência', section: 'PRINCIPAL', icon: <FactCheckOutlinedIcon /> },
+  { path: '/turmas', label: 'Turmas', section: 'ACADÊMICO', icon: <GroupsOutlinedIcon /> },
+  { path: '/alunos', label: 'Alunos', section: 'ACADÊMICO', icon: <SchoolOutlinedIcon /> },
+  { path: '/relatorios', label: 'Relatórios', section: 'ACADÊMICO', icon: <DescriptionOutlinedIcon /> },
   { path: '/reposicoes/abertas', label: 'Em aberto', shortLabel: 'Abertas', icon: <PendingActionsOutlinedIcon />, parent: 'replacements' },
   { path: '/reposicoes/historico', label: 'Histórico', icon: <HistoryOutlinedIcon />, parent: 'replacements' },
-  { path: '/cursos', label: 'Cursos', icon: <MenuBookOutlinedIcon />, manager: true },
-  { path: '/laboratorios', label: 'Laboratórios', icon: <ScienceOutlinedIcon />, manager: true },
+  { path: '/cursos', label: 'Cursos', section: 'CADASTROS', icon: <MenuBookOutlinedIcon />, manager: true },
+  { path: '/laboratorios', label: 'Laboratórios', section: 'CADASTROS', icon: <ScienceOutlinedIcon />, manager: true },
   { path: '/bi/institucional', label: 'Institucional', icon: <ApartmentOutlinedIcon />, parent: 'bi' },
   { path: '/bi/frequencia', label: 'Frequência', icon: <TrendingUpOutlinedIcon />, parent: 'bi' },
   { path: '/bi/risco', label: 'Risco', icon: <WarningAmberOutlinedIcon />, parent: 'bi' },
@@ -182,9 +231,9 @@ const allDestinations: Destination[] = [
   { path: '/bi/professores', label: 'Professores', icon: <BadgeOutlinedIcon />, parent: 'bi' },
   { path: '/bi/laboratorios', label: 'Laboratórios', icon: <ScienceOutlinedIcon />, parent: 'bi' },
   { path: '/bi/qualidade', label: 'Qualidade dos dados', icon: <DataObjectOutlinedIcon />, parent: 'bi', manager: true },
-  { path: '/usuarios', label: 'Usuários', icon: <ManageAccountsOutlinedIcon />, admin: true },
-  { path: '/conflitos', label: 'Conflitos', icon: <CompareArrowsOutlinedIcon />, manager: true },
-  { path: '/auditoria', label: 'Auditoria', icon: <ManageHistoryOutlinedIcon />, manager: true },
+  { path: '/usuarios', label: 'Usuários', section: 'SISTEMA', icon: <ManageAccountsOutlinedIcon />, admin: true },
+  { path: '/conflitos', label: 'Conflitos', section: 'SISTEMA', icon: <CompareArrowsOutlinedIcon />, manager: true },
+  { path: '/auditoria', label: 'Auditoria', section: 'SISTEMA', icon: <ManageHistoryOutlinedIcon />, manager: true },
 ];
 
 function allowed(item: Destination, role: Role) {
@@ -213,7 +262,7 @@ const LaboratoriesPage = lazy(() => import('./features/catalog-page').then((modu
 const UsersPage = lazy(() => import('./features/users-page').then((module) => ({ default: module.UsersPage })));
 const AttendancePage = lazy(() => import('./features/attendance-page').then((module) => ({ default: module.AttendancePage })));
 const ReplacementsPage = lazy(() => import('./features/replacements-page').then((module) => ({ default: module.ReplacementsPage })));
-const deferred = (page: React.ReactNode) => <Suspense fallback={<LinearProgress aria-label="Carregando módulo" />}>{page}</Suspense>;
+const deferred = (page: React.ReactNode) => <Suspense fallback={<LinearProgress aria-label="Carregando módulo" sx={{ height: 2 }} />}>{page}</Suspense>;
 
 function AppRoutes() {
   const { session } = useApp();
@@ -273,26 +322,26 @@ function Shell() {
         sx={{
           my: 0.25,
           ml: nested && !collapsed ? 1.5 : 0,
-          minHeight: 38,
-          py: 0.75,
-          px: 1.5,
+          minHeight: 36,
+          py: 0.65,
+          px: 1.25,
           justifyContent: collapsed ? 'center' : 'initial',
           borderRadius: 2,
           color: selected ? '#FFFFFF' : '#94A3B8',
-          bgcolor: selected ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
-          transition: 'all 0.15s ease',
+          bgcolor: selected ? '#1E293B' : 'transparent',
+          transition: 'all 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
           '&:hover': {
-            bgcolor: selected ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+            bgcolor: selected ? '#1E293B' : 'rgba(255, 255, 255, 0.05)',
             color: '#FFFFFF',
           },
           '&.Mui-selected': {
-            bgcolor: 'rgba(255, 255, 255, 0.08)',
+            bgcolor: '#1E293B',
             color: '#FFFFFF',
-            '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.12)' },
+            '&:hover': { bgcolor: '#27354A' },
           },
         }}
       >
-        <ListItemIcon sx={{ minWidth: collapsed ? 0 : 32, justifyContent: 'center', color: selected ? '#38BDF8' : 'inherit', '& svg': { fontSize: 19 } }}>
+        <ListItemIcon sx={{ minWidth: collapsed ? 0 : 30, justifyContent: 'center', color: selected ? '#38BDF8' : '#94A3B8', '& svg': { fontSize: 18 } }}>
           {item.icon}
         </ListItemIcon>
         {!collapsed && (
@@ -300,7 +349,7 @@ function Shell() {
             primary={item.shortLabel ?? item.label}
             primaryTypographyProps={{
               fontWeight: selected ? 650 : 500,
-              fontSize: 13.5,
+              fontSize: 13,
               letterSpacing: '-0.01em',
             }}
           />
@@ -321,28 +370,28 @@ function Shell() {
             aria-expanded={!collapsed ? open : undefined}
             sx={{
               my: 0.25,
-              minHeight: 38,
-              py: 0.75,
-              px: 1.5,
+              minHeight: 36,
+              py: 0.65,
+              px: 1.25,
               justifyContent: collapsed ? 'center' : 'initial',
               borderRadius: 2,
               color: selected ? '#FFFFFF' : '#94A3B8',
-              bgcolor: selected ? 'rgba(255, 255, 255, 0.06)' : 'transparent',
-              transition: 'all 0.15s ease',
-              '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.04)', color: '#FFFFFF' },
+              bgcolor: selected ? 'rgba(30, 41, 59, 0.7)' : 'transparent',
+              transition: 'all 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
+              '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.05)', color: '#FFFFFF' },
               '&.Mui-selected': {
-                bgcolor: 'rgba(255, 255, 255, 0.06)',
+                bgcolor: 'rgba(30, 41, 59, 0.7)',
                 color: '#FFFFFF',
               },
             }}
           >
-            <ListItemIcon sx={{ minWidth: collapsed ? 0 : 32, justifyContent: 'center', color: selected ? '#38BDF8' : 'inherit', '& svg': { fontSize: 19 } }}>
+            <ListItemIcon sx={{ minWidth: collapsed ? 0 : 30, justifyContent: 'center', color: selected ? '#38BDF8' : '#94A3B8', '& svg': { fontSize: 18 } }}>
               {icon}
             </ListItemIcon>
             {!collapsed && (
               <>
-                <ListItemText primary={label} primaryTypographyProps={{ fontWeight: selected ? 650 : 500, fontSize: 13.5, letterSpacing: '-0.01em' }} />
-                {open ? <ExpandLessIcon sx={{ fontSize: 18, color: '#64748B' }} /> : <ExpandMoreIcon sx={{ fontSize: 18, color: '#64748B' }} />}
+                <ListItemText primary={label} primaryTypographyProps={{ fontWeight: selected ? 650 : 500, fontSize: 13, letterSpacing: '-0.01em' }} />
+                {open ? <ExpandLessIcon sx={{ fontSize: 17, color: '#64748B' }} /> : <ExpandMoreIcon sx={{ fontSize: 17, color: '#64748B' }} />}
               </>
             )}
           </ListItemButton>
@@ -363,18 +412,18 @@ function Shell() {
           </Box>
         ) : item.path === '/usuarios' ? (
           <Box key="bi-and-users">
-            {tree('bi', 'B.I.', <InsightsOutlinedIcon />, biOpen, setBiOpen)}
+            {tree('bi', 'Analytics B.I', <InsightsOutlinedIcon />, biOpen, setBiOpen)}
             {navItem(item)}
           </Box>
         ) : (
           navItem(item)
         ),
       )}
-      {!topLevel.some((item) => item.path === '/usuarios') && tree('bi', 'B.I.', <InsightsOutlinedIcon />, biOpen, setBiOpen)}
+      {!topLevel.some((item) => item.path === '/usuarios') && tree('bi', 'Analytics B.I', <InsightsOutlinedIcon />, biOpen, setBiOpen)}
     </List>
   );
 
-  const desktopWidth = collapsed ? 72 : 240;
+  const desktopWidth = collapsed ? 68 : 230;
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -384,35 +433,60 @@ function Shell() {
         sx={{
           width: desktopWidth,
           flexShrink: 0,
-          display: { xs: 'none', md: 'block' },
-          bgcolor: '#0F172A',
+          display: { xs: 'none', md: 'flex' },
+          flexDirection: 'column',
+          bgcolor: '#0B0F17',
           color: '#E2E8F0',
           transition: 'width 180ms cubic-bezier(0.4, 0, 0.2, 1)',
           borderRight: '1px solid rgba(255, 255, 255, 0.06)',
+          zIndex: 10,
         }}
       >
         <Stack
           direction="row"
           alignItems="center"
           justifyContent={collapsed ? 'center' : 'space-between'}
-          sx={{ px: collapsed ? 1 : 2, py: 1.5, minHeight: 56, borderBottom: '1px solid rgba(255, 255, 255, 0.06)' }}
+          sx={{ px: collapsed ? 1 : 2, py: 1.5, minHeight: 52, borderBottom: '1px solid rgba(255, 255, 255, 0.06)' }}
         >
           <Box sx={{ display: collapsed ? 'none' : 'block', minWidth: 0 }}>
-            <Typography color="#FFFFFF" fontWeight={800} fontSize={16} letterSpacing="-0.02em" noWrap>
+            <Typography color="#FFFFFF" fontWeight={800} fontSize={15} letterSpacing="-0.025em" noWrap>
               Frequência ITB
-            </Typography>
-            <Typography fontSize={11} color="#64748B" fontWeight={500} noWrap sx={{ mt: -0.25 }}>
-              {roleLabel[session.role] ?? session.role}
             </Typography>
           </Box>
           <Tooltip title={collapsed ? 'Expandir menu' : 'Recolher menu'}>
             <IconButton onClick={toggleCollapsed} size="small" sx={{ color: '#64748B', '&:hover': { color: '#FFFFFF', bgcolor: 'rgba(255,255,255,0.06)' } }}>
-              {collapsed ? <MenuIcon fontSize="small" /> : <MenuOpenIcon fontSize="small" />}
+              {collapsed ? <MenuIcon sx={{ fontSize: 18 }} /> : <MenuOpenIcon sx={{ fontSize: 18 }} />}
             </IconButton>
           </Tooltip>
         </Stack>
-        <Box sx={{ px: 0.5, py: 1, maxHeight: 'calc(100vh - 56px)', overflowY: 'auto' }}>
+
+        <Box sx={{ px: 0.5, py: 1, flex: 1, overflowY: 'auto' }}>
           {nav}
+        </Box>
+
+        <Box sx={{ p: 1.25, borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
+          <Stack direction="row" alignItems="center" spacing={1} justifyContent={collapsed ? 'center' : 'flex-start'}>
+            <Avatar sx={{ width: 28, height: 28, bgcolor: '#1E293B', color: '#38BDF8', fontSize: 12, fontWeight: 750 }}>
+              {session.name.slice(0, 1).toUpperCase()}
+            </Avatar>
+            {!collapsed && (
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography fontSize={12} fontWeight={650} color="#FFFFFF" noWrap sx={{ lineHeight: 1.2 }}>
+                  {session.name}
+                </Typography>
+                <Typography fontSize={10.5} color="#64748B" noWrap>
+                  {roleLabel[session.role]}
+                </Typography>
+              </Box>
+            )}
+            {!collapsed && (
+              <Tooltip title="Sair do sistema">
+                <IconButton size="small" onClick={() => void logout()} sx={{ color: '#64748B', '&:hover': { color: '#F43F5E' } }}>
+                  <LogoutIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Stack>
         </Box>
       </Box>
 
@@ -422,17 +496,17 @@ function Shell() {
         sx={{ display: { md: 'none' } }}
         PaperProps={{
           sx: {
-            width: 270,
-            bgcolor: '#0F172A',
+            width: 260,
+            bgcolor: '#0B0F17',
             color: '#E2E8F0',
           },
         }}
       >
         <Box sx={{ p: 2, borderBottom: '1px solid rgba(255, 255, 255, 0.06)' }}>
-          <Typography color="#FFFFFF" fontWeight={800} fontSize={16}>
+          <Typography color="#FFFFFF" fontWeight={800} fontSize={15} letterSpacing="-0.02em">
             Frequência ITB
           </Typography>
-          <Typography fontSize={12} color="#64748B" sx={{ mt: 0.25 }}>
+          <Typography fontSize={11.5} color="#64748B" sx={{ mt: 0.25 }}>
             {session.name} • {roleLabel[session.role]}
           </Typography>
         </Box>
@@ -447,9 +521,10 @@ function Shell() {
             bgcolor: '#FFFFFF',
             borderBottom: '1px solid #E2E8F0',
             color: '#0F172A',
+            zIndex: 5,
           }}
         >
-          <Toolbar sx={{ minHeight: '56px !important', px: { xs: 2, sm: 3 } }}>
+          <Toolbar sx={{ minHeight: '52px !important', px: { xs: 2, sm: 3 } }}>
             <IconButton
               aria-label="Abrir menu"
               size="small"
@@ -458,71 +533,70 @@ function Shell() {
             >
               <MenuIcon fontSize="small" />
             </IconButton>
-            <Typography sx={{ flex: 1, color: '#0F172A', fontWeight: 700, fontSize: { xs: 15, sm: 16 }, letterSpacing: '-0.01em' }} noWrap>
+            <Typography sx={{ flex: 1, color: '#0F172A', fontWeight: 750, fontSize: { xs: 14.5, sm: 15.5 }, letterSpacing: '-0.015em' }} noWrap>
               {currentLabel}
             </Typography>
             <Stack direction="row" alignItems="center" spacing={1}>
+              <Chip
+                size="small"
+                icon={syncState === 'offline' ? <WifiOffOutlinedIcon sx={{ fontSize: '13px !important' }} /> : <WifiOutlinedIcon sx={{ fontSize: '13px !important' }} />}
+                label={syncState === 'offline' ? 'Offline' : syncState === 'syncing' ? 'Sincronizando' : 'Online'}
+                sx={{
+                  height: 22,
+                  fontSize: 10.5,
+                  fontWeight: 650,
+                  bgcolor: syncState === 'offline' ? '#FFFBEB' : '#ECFDF5',
+                  color: syncState === 'offline' ? '#B45309' : '#047857',
+                  border: `1px solid ${syncState === 'offline' ? '#FDE68A' : '#A7F3D0'}`,
+                  '& .MuiChip-icon': { color: 'inherit' },
+                }}
+              />
               <Tooltip title={syncState === 'syncing' ? 'Sincronizando dados...' : 'Sincronizar agora'}>
                 <span>
                   <IconButton
                     size="small"
-                    color={syncState === 'offline' || syncState === 'warning' ? 'warning' : syncState === 'error' ? 'error' : 'primary'}
                     disabled={syncState === 'syncing'}
                     onClick={() => void sync()}
                     sx={{
-                      bgcolor: syncState === 'syncing' ? 'action.hover' : 'transparent',
+                      color: '#64748B',
+                      bgcolor: '#F8FAFC',
+                      border: '1px solid #E2E8F0',
+                      width: 32,
+                      height: 32,
+                      '&:hover': { color: '#0F172A', bgcolor: '#F1F5F9' },
                     }}
                   >
-                    {syncState === 'syncing' ? <CircularProgress size={18} /> : <SyncIcon fontSize="small" />}
+                    {syncState === 'syncing' ? <CircularProgress size={14} color="inherit" /> : <SyncIcon sx={{ fontSize: 16 }} />}
                   </IconButton>
                 </span>
               </Tooltip>
 
-              <Stack direction="row" alignItems="center" spacing={1.25} sx={{ pl: 1, borderLeft: '1px solid #E2E8F0' }}>
-                <Avatar sx={{ width: 30, height: 30, bgcolor: '#1976D2', fontSize: 13, fontWeight: 700 }}>
-                  {session.name.slice(0, 1).toUpperCase()}
-                </Avatar>
-                <Box sx={{ display: { xs: 'none', lg: 'block' }, textAlign: 'left' }}>
-                  <Typography fontSize={13} fontWeight={650} color="#0F172A" noWrap sx={{ lineHeight: 1.2 }}>
-                    {session.name}
-                  </Typography>
-                  <Typography fontSize={11} color="#64748B" noWrap>
-                    {roleLabel[session.role]}
-                  </Typography>
-                </Box>
-                <Tooltip title="Sair do sistema">
-                  <Button
-                    size="small"
-                    color="inherit"
-                    startIcon={<LogoutIcon fontSize="small" />}
-                    onClick={() => void logout()}
-                    sx={{
-                      color: '#64748B',
-                      fontWeight: 600,
-                      fontSize: 13,
-                      '&:hover': { color: '#E11D48', bgcolor: '#FFF1F2' },
-                      display: { xs: 'none', sm: 'inline-flex' },
-                    }}
-                  >
-                    Sair
-                  </Button>
-                </Tooltip>
-                <Tooltip title="Sair">
-                  <IconButton
-                    size="small"
-                    onClick={() => void logout()}
-                    sx={{ display: { xs: 'inline-flex', sm: 'none' }, color: '#64748B' }}
-                  >
-                    <LogoutIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </Stack>
+              <Tooltip title="Sair do sistema">
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => void logout()}
+                  sx={{
+                    ml: 0.5,
+                    px: 1.5,
+                    py: 0.4,
+                    minHeight: 30,
+                    fontSize: 12,
+                    color: '#64748B',
+                    borderColor: '#E2E8F0',
+                    display: { xs: 'none', sm: 'inline-flex' },
+                    '&:hover': { color: '#F43F5E', borderColor: '#FECDD3', bgcolor: '#FFF1F2' },
+                  }}
+                >
+                  Sair
+                </Button>
+              </Tooltip>
             </Stack>
           </Toolbar>
           {syncState === 'syncing' && <LinearProgress sx={{ height: 2 }} />}
         </AppBar>
 
-        <Box component="main" sx={{ p: { xs: 2, sm: 3, md: 3 }, maxWidth: 1440, width: '100%', mx: 'auto', flex: 1 }}>
+        <Box component="main" sx={{ p: { xs: 2, sm: 2.5, md: 3 }, maxWidth: 1400, width: '100%', mx: 'auto', flex: 1 }}>
           <AppRoutes />
         </Box>
       </Box>
@@ -531,12 +605,12 @@ function Shell() {
         open={Boolean(message)}
         autoHideDuration={6000}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-        sx={{ maxWidth: { xs: 'calc(100vw - 24px)', sm: 480 } }}
+        sx={{ maxWidth: { xs: 'calc(100vw - 24px)', sm: 440 } }}
       >
         <Alert
           variant="filled"
           severity={syncState === 'error' ? 'error' : syncState === 'offline' || syncState === 'warning' ? 'warning' : 'info'}
-          sx={{ borderRadius: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+          sx={{ borderRadius: 2, boxShadow: '0 4px 12px rgba(15, 23, 42, 0.1)' }}
         >
           {message}
         </Alert>
@@ -551,8 +625,8 @@ export function App() {
   const state = override ?? boot;
   if (state.loading) {
     return (
-      <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center', bgcolor: '#F6F8FB' }}>
-        <CircularProgress size={48} thickness={4} />
+      <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center', bgcolor: '#F8FAFC' }}>
+        <CircularProgress size={36} thickness={4} sx={{ color: '#0F172A' }} />
       </Box>
     );
   }

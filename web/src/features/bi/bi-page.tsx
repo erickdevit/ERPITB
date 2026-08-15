@@ -155,7 +155,7 @@ function AnalyticsChart({ chart }: { chart: BiChart }) {
         <XAxis dataKey={chart.categoryKey} tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
         <YAxis unit={chart.valueSuffix} width={48} tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
         <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0', boxShadow: 'none' }} />
-        <Line type="monotone" dataKey={chart.valueKey} stroke="#1976D2" strokeWidth={2.5} dot={chart.data.length < 20} />
+        <Line type="monotone" dataKey={chart.valueKey} stroke="#2563EB" strokeWidth={2.5} dot={chart.data.length < 20} />
       </LineChart>
     ) : (
       <BarChart data={chart.data} layout="vertical" margin={{ top: 8, right: 20, left: 28, bottom: 8 }}>
