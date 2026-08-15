@@ -25,6 +25,7 @@ describe('sync contract', () => {
     expect(schema).toContain('CREATE TABLE IF NOT EXISTS replacements');
     expect(schema).toContain('attendance_record_id TEXT NOT NULL UNIQUE');
     expect(schema).toContain('UNIQUE(class_id, student_id, date)');
+    expect(schema).toContain('uq_enrollments_student_active');
   });
 
   it('repairs the conflict table foreign key after rebuilding attendance records', () => {
@@ -32,5 +33,12 @@ describe('sync contract', () => {
     expect(migration).toContain('attendance_record_id TEXT REFERENCES attendance_records(id)');
     expect(migration).toContain('INSERT INTO sync_conflicts_v2');
     expect(migration).not.toContain('attendance_records_old');
+  });
+
+  it('enforces a single active enrollment while preserving enrollment history', () => {
+    const migration = readFileSync(new URL('../migrations/0008_one_active_enrollment_per_student.sql', import.meta.url), 'utf8');
+    expect(migration).toContain('CREATE UNIQUE INDEX IF NOT EXISTS uq_enrollments_student_active');
+    expect(migration).toContain("WHERE status = 'ativa' AND deleted_at IS NULL");
+    expect(migration).not.toContain('DELETE FROM enrollments');
   });
 });

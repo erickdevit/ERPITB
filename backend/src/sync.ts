@@ -109,6 +109,13 @@ async function authorizeOperation(env: Env, user: AuthUser, operation: SyncOpera
     if (operation.entity === 'students' && operation.action === 'delete' && !hasPermission(user.role, 'students:delete')) {
       throw new AppError(403, 'Apenas administradores excluem alunos.', 'FORBIDDEN');
     }
+    if (operation.entity === 'enrollments' && operation.action === 'upsert' && operation.data.status === 'ativa') {
+      const studentId = String(operation.data.student_id ?? existing?.student_id ?? '');
+      const other = await env.DB.prepare(
+        `SELECT id FROM enrollments WHERE student_id = ? AND status = 'ativa' AND deleted_at IS NULL AND id <> ? LIMIT 1`,
+      ).bind(studentId, operation.id).first();
+      if (other) throw new AppError(409, 'O aluno já possui outra matrícula ativa. Conclua a transferência da turma anterior.', 'ACTIVE_ENROLLMENT_EXISTS');
+    }
     return;
   }
   if (operation.entity === 'laboratories') {
@@ -191,6 +198,9 @@ function ensureRequired(entity: SyncEntity, payload: Row): void {
   }
   if (entity === 'attendance_records' && !['P', 'F', 'J', 'A', 'R', 'RC'].includes(String(payload.status))) {
     throw new AppError(400, 'Status de frequência inválido.', 'VALIDATION_ERROR');
+  }
+  if (entity === 'enrollments' && !['ativa', 'trancada', 'concluida'].includes(String(payload.status))) {
+    throw new AppError(400, 'Status de matrícula inválido.', 'VALIDATION_ERROR');
   }
   if (entity === 'replacements') {
     const attendanceDate = String(payload.attendance_date);

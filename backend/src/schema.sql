@@ -189,6 +189,7 @@ CREATE INDEX IF NOT EXISTS idx_classes_course ON classes(course_id);
 CREATE INDEX IF NOT EXISTS idx_class_teachers_user ON class_teachers(user_id, class_id);
 CREATE INDEX IF NOT EXISTS idx_enrollments_class ON enrollments(class_id, status);
 CREATE INDEX IF NOT EXISTS idx_enrollments_student ON enrollments(student_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_enrollments_student_active ON enrollments(student_id) WHERE status = 'ativa' AND deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_attendance_class_date ON attendance_records(class_id, date);
 CREATE INDEX IF NOT EXISTS idx_attendance_student_date ON attendance_records(student_id, date);
 CREATE INDEX IF NOT EXISTS idx_class_notes_class_date ON class_notes(class_id, date);

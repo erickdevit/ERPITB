@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { Synchronizer } from './sync';
+import { buildSyncBatches, Synchronizer } from './sync';
 import type { LocalRecord, SyncOperation } from '../types';
 
 describe('Synchronizer', () => {
@@ -54,5 +54,26 @@ describe('Synchronizer', () => {
 
     await new Synchronizer(store as never, api as never).run();
     expect(batchSizes).toEqual([200, 1]);
+  });
+
+  it('keeps a new student and enrollment together at a batch boundary', () => {
+    const unrelated = Array.from({ length: 199 }, (_, index): SyncOperation => ({
+      operationId: `operation-${index}`, entity: 'courses', action: 'upsert', id: `course-${index}`,
+      baseVersion: 0, updatedAt: '2026-08-15T12:00:00.000Z', data: { id: `course-${index}`, code: `${index}`, name: `${index}`, active: 1 },
+    }));
+    const student: SyncOperation = { operationId: 'student-operation', entity: 'students', action: 'upsert', id: 'student-1', baseVersion: 0, updatedAt: '2026-08-15T12:01:00.000Z', data: { id: 'student-1', name: 'Ana', registration_number: '1', active: 1 } };
+    const enrollment: SyncOperation = { operationId: 'enrollment-operation', entity: 'enrollments', action: 'upsert', id: 'enrollment-1', baseVersion: 0, updatedAt: '2026-08-15T12:01:01.000Z', data: { id: 'enrollment-1', student_id: 'student-1', class_id: 'class-1', status: 'ativa' } };
+
+    const batches = buildSyncBatches([...unrelated, student, enrollment]);
+
+    expect(batches.map((batch) => batch.length)).toEqual([199, 2]);
+    expect(batches[1]?.map((operation) => operation.operationId)).toEqual(['student-operation', 'enrollment-operation']);
+  });
+
+  it('orders enrollment removals before the target enrollment upsert', () => {
+    const upsert: SyncOperation = { operationId: 'target', entity: 'enrollments', action: 'upsert', id: 'target', baseVersion: 1, updatedAt: '2026-08-15T12:00:00.000Z', data: { id: 'target', student_id: 'student-1', class_id: 'class-b', status: 'ativa' } };
+    const remove: SyncOperation = { operationId: 'previous', entity: 'enrollments', action: 'delete', id: 'previous', baseVersion: 1, updatedAt: '2026-08-15T12:00:01.000Z', data: { id: 'previous', student_id: 'student-1', class_id: 'class-a', status: 'ativa' } };
+
+    expect(buildSyncBatches([upsert, remove])[0]?.map((operation) => operation.operationId)).toEqual(['previous', 'target']);
   });
 });
