@@ -1,7 +1,7 @@
 export type Role = 'admin' | 'pedagogico' | 'professor';
 export type Entity = 'laboratories' | 'courses' | 'classes' | 'class_teachers' | 'students' | 'enrollments' | 'attendance_records' | 'class_notes' | 'replacements';
 export type Action = 'upsert' | 'delete';
-export type AttendanceStatus = 'P' | 'F' | 'J' | 'A' | 'R';
+export type AttendanceStatus = 'P' | 'F' | 'J' | 'A' | 'R' | 'RC';
 
 export interface UserSession {
   id: string;

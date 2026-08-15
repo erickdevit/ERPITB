@@ -1,0 +1,10 @@
+export { BiInstitutionalPage } from './institutional-page';
+export { BiAttendancePage } from './attendance-page';
+export { BiRiskPage } from './risk-page';
+export { BiReplacementsPage } from './replacements-page';
+export { BiCoursesClassesPage } from './courses-classes-page';
+export { BiTeachersPage } from './teachers-page';
+export { BiLaboratoriesPage } from './laboratories-page';
+export { BiDataQualityPage } from './data-quality-page';
+export { buildBiDataset, type BiDataset, type BiFilters, type BiInput } from './model';
+export { buildBiView, type BiView, type BiViewKey } from './views';

@@ -1,5 +1,6 @@
 import Dexie, { type EntityTable } from 'dexie';
 import { createAccountKey, decrypt, encrypt, type CipherText } from './crypto';
+import { planEnrollmentMove } from './enrollment';
 import type { Action, Entity, LocalRecord, SyncOperation, UserSession } from '../types';
 
 interface KeyRow { accountId: string; key: CryptoKey }
@@ -178,6 +179,21 @@ export class LocalStore {
       for (const duplicate of active.slice(1)) { await this.mutate('attendance_records', duplicate, 'delete'); removed += 1; }
     }
     return removed;
+  }
+
+  async moveStudent(studentId: string, classId: string): Promise<void> {
+    await this.serial(`enrollment:${studentId}`, async () => {
+      const plan = planEnrollmentMove(await this.list('enrollments', true), studentId, classId);
+      if (plan.unchanged) return;
+      for (const enrollment of plan.remove) await this.mutate('enrollments', enrollment, 'delete');
+      await this.mutate('enrollments', {
+        ...plan.target,
+        id: plan.target?.id ?? crypto.randomUUID(),
+        student_id: studentId,
+        class_id: classId,
+        status: 'ativa',
+      });
+    });
   }
   async complete(operationId: string, version: number): Promise<void> {
     const row = await database.queue.get(operationId); if (!row) return;

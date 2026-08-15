@@ -1,6 +1,8 @@
 import type { UserSession } from '../types';
 
-export class ApiError extends Error { constructor(readonly status: number, message: string, readonly code?: string) { super(message); } }
+export class ApiError extends Error {
+  constructor(readonly status: number, message: string, readonly code?: string, readonly requestId?: string) { super(message); }
+}
 export class OfflineError extends Error { constructor() { super('Sem conexão com o servidor.'); } }
 
 export class ApiClient {
@@ -9,9 +11,14 @@ export class ApiClient {
     try {
       const session = this.getSession();
       const response = await fetch(`/api${path}`, { method, headers: { 'content-type': 'application/json', ...(session ? { authorization: `Bearer ${session.accessToken}` } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
-      const payload = await response.json().catch(() => ({})) as { error?: { message?: string; code?: string } } & T;
+      const payload = await response.json().catch(() => ({})) as { error?: { message?: string; code?: string }; requestId?: string } & T;
       if (response.status === 401 && session && refresh && await this.refresh()) return this.request<T>(path, method, body, false);
-      if (!response.ok) throw new ApiError(response.status, payload.error?.message ?? 'Falha na comunicação com o servidor.', payload.error?.code);
+      if (!response.ok) {
+        const requestId = payload.requestId ?? response.headers.get('x-request-id') ?? undefined;
+        const baseMessage = payload.error?.message ?? 'Falha na comunicação com o servidor.';
+        const message = response.status >= 500 && requestId ? `${baseMessage} Referência: ${requestId}.` : baseMessage;
+        throw new ApiError(response.status, message, payload.error?.code, requestId);
+      }
       return payload;
     } catch (error) {
       if (error instanceof ApiError) throw error;
