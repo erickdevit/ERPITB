@@ -123,6 +123,23 @@ CREATE TABLE IF NOT EXISTS class_notes (
   UNIQUE(class_id, date)
 );
 
+CREATE TABLE IF NOT EXISTS replacements (
+  id TEXT PRIMARY KEY,
+  attendance_record_id TEXT NOT NULL UNIQUE,
+  class_id TEXT NOT NULL REFERENCES classes(id),
+  student_id TEXT NOT NULL REFERENCES students(id),
+  attendance_date TEXT NOT NULL,
+  scheduled_date TEXT NOT NULL,
+  scheduled_time TEXT NOT NULL,
+  notes TEXT,
+  completed_at TEXT,
+  recorded_by_user_id TEXT NOT NULL REFERENCES users(id),
+  sync_version INTEGER NOT NULL DEFAULT 1,
+  deleted_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS sync_conflicts (
   id TEXT PRIMARY KEY,
   attendance_record_id TEXT REFERENCES attendance_records(id),
@@ -174,6 +191,7 @@ CREATE INDEX IF NOT EXISTS idx_enrollments_student ON enrollments(student_id);
 CREATE INDEX IF NOT EXISTS idx_attendance_class_date ON attendance_records(class_id, date);
 CREATE INDEX IF NOT EXISTS idx_attendance_student_date ON attendance_records(student_id, date);
 CREATE INDEX IF NOT EXISTS idx_class_notes_class_date ON class_notes(class_id, date);
+CREATE INDEX IF NOT EXISTS idx_replacements_status ON replacements(completed_at, scheduled_date);
 CREATE INDEX IF NOT EXISTS idx_conflicts_status ON sync_conflicts(status, created_at);
 CREATE INDEX IF NOT EXISTS idx_changes_seq ON sync_changes(seq);
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at DESC);

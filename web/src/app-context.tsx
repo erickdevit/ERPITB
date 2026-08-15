@@ -25,7 +25,7 @@ export function ApplicationProvider({ initialSession, initialStore, children }: 
   const api = useMemo(() => new ApiClient(() => session, async (next) => { setSession(next); await store.saveSession(next); }), [session, store]);
   const sync = useCallback(async () => {
     if (syncing.current) return; syncing.current = true; setSyncState('syncing');
-    try { const result = await new Synchronizer(store, api).run(); setSyncState(result.offline ? 'offline' : 'idle'); setMessage(result.offline ? 'Sem conexão — alterações protegidas neste dispositivo.' : undefined); setRefresh((value) => value + 1); }
+    try { await store.deduplicateAttendance(); const result = await new Synchronizer(store, api).run(); setSyncState(result.offline ? 'offline' : 'idle'); setMessage(result.offline ? 'Sem conexão — alterações protegidas neste dispositivo.' : undefined); setRefresh((value) => value + 1); }
     catch (error) { setSyncState('error'); setMessage(error instanceof Error ? error.message : 'Não foi possível sincronizar.'); }
     finally { syncing.current = false; }
   }, [api, store]);

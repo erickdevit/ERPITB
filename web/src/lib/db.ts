@@ -29,6 +29,7 @@ const metaId = (accountId: string) => `meta:${accountId}`;
 
 export class LocalStore {
   private key?: CryptoKey;
+  private readonly locks = new Map<string, Promise<unknown>>();
   constructor(readonly accountId: string) {}
 
   static async restore(): Promise<{ store: LocalStore; session: UserSession } | null> {
@@ -109,7 +110,7 @@ export class LocalStore {
     const now = new Date().toISOString();
     const record: LocalRecord = action === 'delete'
       ? { ...previous, ...data, id: data.id, deleted_at: now, updated_at: now, sync_status: 'PENDING' }
-      : { ...previous, ...data, id: data.id, updated_at: now, created_at: previous?.created_at ?? now, sync_status: 'PENDING' };
+      : { ...previous, ...data, id: data.id, deleted_at: null, updated_at: now, created_at: previous?.created_at ?? now, sync_status: 'PENDING' };
     await this.writeRecord(entity, record);
     const operation: SyncOperation = { operationId: crypto.randomUUID(), entity, action, id: record.id, baseVersion: Number(previous?.sync_version ?? 0), updatedAt: now, data: record };
     const cipher = await encrypt(await this.cryptoKey(), operation);
@@ -130,7 +131,49 @@ export class LocalStore {
 
   async pending(): Promise<SyncOperation[]> {
     const key = await this.cryptoKey();
-    return Promise.all((await database.queue.where('accountId').equals(this.accountId).toArray()).map((row) => decrypt<SyncOperation>(key, row)));
+    const operations = await Promise.all((await database.queue.where('accountId').equals(this.accountId).toArray()).map((row) => decrypt<SyncOperation>(key, row)));
+    return operations.sort((left, right) => left.updatedAt.localeCompare(right.updatedAt));
+  }
+
+  private async serial<T>(key: string, work: () => Promise<T>): Promise<T> {
+    const previous = this.locks.get(key) ?? Promise.resolve();
+    const current = previous.catch(() => undefined).then(work);
+    this.locks.set(key, current);
+    try { return await current; } finally { if (this.locks.get(key) === current) this.locks.delete(key); }
+  }
+
+  async findAttendance(classId: string, studentId: string, date: string, includeDeleted = false): Promise<LocalRecord | undefined> {
+    const matches = (await this.list('attendance_records', true)).filter((record) => record.class_id === classId && record.student_id === studentId && record.date === date && (includeDeleted || !record.deleted_at));
+    return matches.sort((left, right) => asTimestamp(right) - asTimestamp(left))[0];
+  }
+
+  async setAttendance(data: Omit<LocalRecord, 'id'> & { class_id: string; student_id: string; date: string }): Promise<LocalRecord> {
+    const key = `attendance:${data.class_id}:${data.student_id}:${data.date}`;
+    return this.serial(key, async () => {
+      const previous = await this.findAttendance(data.class_id, data.student_id, data.date, true);
+      const record: LocalRecord = { ...previous, ...data, id: previous?.id ?? crypto.randomUUID() };
+      await this.mutate('attendance_records', record);
+      return record;
+    });
+  }
+
+  async clearAttendance(classId: string, studentId: string, date: string): Promise<void> {
+    const key = `attendance:${classId}:${studentId}:${date}`;
+    await this.serial(key, async () => {
+      const previous = await this.findAttendance(classId, studentId, date, true);
+      if (previous && !previous.deleted_at) await this.mutate('attendance_records', previous, 'delete');
+    });
+  }
+
+  async deduplicateAttendance(): Promise<number> {
+    const records = await this.list('attendance_records', true); const groups = new Map<string, LocalRecord[]>();
+    for (const record of records) { const key = `${record.class_id}:${record.student_id}:${record.date}`; groups.set(key, [...(groups.get(key) ?? []), record]); }
+    let removed = 0;
+    for (const group of groups.values()) {
+      const active = group.filter((record) => !record.deleted_at).sort((left, right) => asTimestamp(right) - asTimestamp(left));
+      for (const duplicate of active.slice(1)) { await this.mutate('attendance_records', duplicate, 'delete'); removed += 1; }
+    }
+    return removed;
   }
   async complete(operationId: string, version: number): Promise<void> {
     const row = await database.queue.get(operationId); if (!row) return;
@@ -149,3 +192,5 @@ export class LocalStore {
   async cursor(): Promise<number> { return (await database.meta.get(metaId(this.accountId)))?.cursor ?? 0; }
   async setCursor(cursor: number): Promise<void> { await database.meta.put({ id: metaId(this.accountId), accountId: this.accountId, cursor }); }
 }
+
+const asTimestamp = (record: LocalRecord) => Date.parse(String(record.updated_at ?? record.created_at ?? '')) || 0;

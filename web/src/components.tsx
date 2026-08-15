@@ -3,7 +3,8 @@ import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, 
 import { parseBrazilDate, formatDate } from './lib/date';
 
 export function Section({ title, action, children }: PropsWithChildren<{ title: string; action?: React.ReactNode }>) {
-  return <Stack gap={2}><Stack direction="row" justifyContent="space-between" alignItems="center" gap={2}><Box component="h1" sx={{ m: 0, color: 'primary.dark', fontSize: { xs: 24, md: 28 }, fontWeight: 800 }}>{title}</Box>{action}</Stack>{children}</Stack>;
+  void title;
+  return <Stack gap={2}>{action && <Stack direction="row" justifyContent="flex-end">{action}</Stack>}{children}</Stack>;
 }
 
 export function PageDialog({ open, title, onClose, children, onSave, saveText = 'Salvar' }: PropsWithChildren<{ open: boolean; title: string; onClose: () => void; onSave: () => void; saveText?: string }>) {

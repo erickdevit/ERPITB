@@ -57,7 +57,7 @@ async function requireClassAccess(env: Env, user: AuthUser, classId: string): Pr
 }
 
 async function getEntityRow(env: Env, table: string, id: string): Promise<JsonRecord> {
-  const allowed = new Set(['laboratories', 'courses', 'classes', 'class_teachers', 'students', 'enrollments', 'attendance_records', 'class_notes']);
+  const allowed = new Set(['laboratories', 'courses', 'classes', 'class_teachers', 'students', 'enrollments', 'attendance_records', 'class_notes', 'replacements']);
   if (!allowed.has(table)) throw new AppError(500, 'Entidade de sync inválida.');
   const row = await env.DB.prepare(`SELECT * FROM ${table} WHERE id = ?`).bind(id).first<JsonRecord>();
   if (!row) throw new AppError(404, 'Registro não encontrado.', 'NOT_FOUND');

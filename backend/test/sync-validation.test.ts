@@ -21,5 +21,8 @@ describe('sync contract', () => {
     expect(schema).toContain('birth_date TEXT');
     expect(schema).toContain("status IN ('P', 'F', 'J', 'A', 'R')");
     expect(schema).toContain('CREATE TABLE IF NOT EXISTS class_notes');
+    expect(schema).toContain('CREATE TABLE IF NOT EXISTS replacements');
+    expect(schema).toContain('attendance_record_id TEXT NOT NULL UNIQUE');
+    expect(schema).toContain('UNIQUE(class_id, student_id, date)');
   });
 });

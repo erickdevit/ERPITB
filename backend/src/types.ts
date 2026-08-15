@@ -52,7 +52,8 @@ export type SyncEntity =
   | 'students'
   | 'enrollments'
   | 'attendance_records'
-  | 'class_notes';
+  | 'class_notes'
+  | 'replacements';
 
 export interface SyncPushBody {
   deviceId: string;

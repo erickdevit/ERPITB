@@ -1,5 +1,5 @@
 export type Role = 'admin' | 'pedagogico' | 'professor';
-export type Entity = 'laboratories' | 'courses' | 'classes' | 'class_teachers' | 'students' | 'enrollments' | 'attendance_records' | 'class_notes';
+export type Entity = 'laboratories' | 'courses' | 'classes' | 'class_teachers' | 'students' | 'enrollments' | 'attendance_records' | 'class_notes' | 'replacements';
 export type Action = 'upsert' | 'delete';
 export type AttendanceStatus = 'P' | 'F' | 'J' | 'A' | 'R';
 
@@ -32,7 +32,7 @@ export interface SyncOperation {
 
 export const entityLabels: Record<Entity, string> = {
   laboratories: 'Laboratórios', courses: 'Cursos', classes: 'Turmas', class_teachers: 'Professores',
-  students: 'Alunos', enrollments: 'Matrículas', attendance_records: 'Frequências', class_notes: 'Observações',
+  students: 'Alunos', enrollments: 'Matrículas', attendance_records: 'Frequências', class_notes: 'Observações', replacements: 'Reposições',
 };
 
 export const roleLabel: Record<Role, string> = {

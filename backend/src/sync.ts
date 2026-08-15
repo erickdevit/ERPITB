@@ -14,6 +14,7 @@ const columns: Record<SyncEntity, readonly string[]> = {
   enrollments: ['class_id', 'student_id', 'status'],
   attendance_records: ['class_id', 'student_id', 'date', 'status', 'notes', 'recorded_by_user_id', 'sync_status'],
   class_notes: ['class_id', 'date', 'notes', 'recorded_by_user_id'],
+  replacements: ['attendance_record_id', 'class_id', 'student_id', 'attendance_date', 'scheduled_date', 'scheduled_time', 'notes', 'completed_at', 'recorded_by_user_id'],
 };
 
 function isSyncEntity(value: unknown): value is SyncEntity {
@@ -62,11 +63,23 @@ async function authorizeOperation(env: Env, user: AuthUser, operation: SyncOpera
     }
     return;
   }
-  if (operation.entity === 'class_notes') {
+  if (operation.entity === 'class_notes' || operation.entity === 'replacements') {
     if (!hasPermission(user.role, 'attendance:write')) throw new AppError(403, 'Ação não permitida.', 'FORBIDDEN');
     const classId = String(operation.data.class_id ?? existing?.class_id ?? '');
     if (user.role === 'professor' && !await teacherOwnsClass(env, user.id, classId)) {
       throw new AppError(403, 'Turma não atribuída ao professor.', 'FORBIDDEN');
+    }
+    if (operation.entity === 'replacements' && operation.action === 'upsert') {
+      const attendanceId = String(operation.data.attendance_record_id ?? existing?.attendance_record_id ?? '');
+      const attendance = await env.DB.prepare(
+        `SELECT class_id, student_id, date, status FROM attendance_records WHERE id = ? AND deleted_at IS NULL`,
+      ).bind(attendanceId).first<{ class_id: string; student_id: string; date: string; status: string }>();
+      if (!attendance || attendance.status !== 'R'
+        || attendance.class_id !== classId
+        || attendance.student_id !== String(operation.data.student_id ?? existing?.student_id ?? '')
+        || attendance.date !== String(operation.data.attendance_date ?? existing?.attendance_date ?? '')) {
+        throw new AppError(400, 'A reposição deve estar vinculada a uma frequência marcada como reposição.', 'VALIDATION_ERROR');
+      }
     }
     return;
   }
@@ -149,6 +162,7 @@ async function normalizePayload(env: Env, user: AuthUser, operation: SyncOperati
   if (operation.entity === 'class_notes') {
     data.recorded_by_user_id = user.id;
   }
+  if (operation.entity === 'replacements') data.recorded_by_user_id = user.id;
   const selected: Row = {};
   for (const column of columns[operation.entity]) {
     const value = data[column] ?? existing?.[column];
@@ -167,6 +181,7 @@ function ensureRequired(entity: SyncEntity, payload: Row): void {
     enrollments: ['class_id', 'student_id', 'status'],
     attendance_records: ['class_id', 'student_id', 'date', 'status', 'recorded_by_user_id'],
     class_notes: ['class_id', 'date', 'recorded_by_user_id'],
+    replacements: ['attendance_record_id', 'class_id', 'student_id', 'attendance_date', 'scheduled_date', 'scheduled_time', 'recorded_by_user_id'],
   };
   for (const field of required[entity]) {
     if (payload[field] === undefined || payload[field] === null || payload[field] === '') {
@@ -175,6 +190,16 @@ function ensureRequired(entity: SyncEntity, payload: Row): void {
   }
   if (entity === 'attendance_records' && !['P', 'F', 'J', 'A', 'R'].includes(String(payload.status))) {
     throw new AppError(400, 'Status de frequência inválido.', 'VALIDATION_ERROR');
+  }
+  if (entity === 'replacements') {
+    const attendanceDate = String(payload.attendance_date);
+    const scheduledDate = String(payload.scheduled_date);
+    const scheduledTime = String(payload.scheduled_time);
+    if (![attendanceDate, scheduledDate].every((value) => /^\d{4}-\d{2}-\d{2}$/.test(value))
+      || [attendanceDate, scheduledDate].some((value) => Number.isNaN(Date.parse(`${value}T00:00:00Z`)))
+      || !/^([01]\d|2[0-3]):[0-5]\d$/.test(scheduledTime)) {
+      throw new AppError(400, 'Data ou horário de reposição inválido.', 'VALIDATION_ERROR');
+    }
   }
   if (entity === 'students' && payload.birth_date != null) {
     const birthDate = String(payload.birth_date);
@@ -186,7 +211,15 @@ function ensureRequired(entity: SyncEntity, payload: Row): void {
 
 async function findExisting(env: Env, operation: SyncOperation): Promise<Row | null> {
   const byId = await env.DB.prepare(`SELECT * FROM ${operation.entity} WHERE id = ?`).bind(operation.id).first<Row>();
-  if (byId || operation.entity !== 'attendance_records') return byId;
+  if (byId) return byId;
+  if (operation.entity === 'replacements') {
+    const attendanceRecordId = operation.data.attendance_record_id;
+    if (typeof attendanceRecordId !== 'string') return null;
+    return env.DB.prepare(
+      `SELECT * FROM replacements WHERE attendance_record_id = ? LIMIT 1`,
+    ).bind(attendanceRecordId).first<Row>();
+  }
+  if (operation.entity !== 'attendance_records') return null;
   const classId = operation.data.class_id;
   const studentId = operation.data.student_id;
   const date = operation.data.date;
@@ -228,32 +261,33 @@ async function applyOperation(env: Env, user: AuthUser, deviceId: string, operat
   const version = remoteVersion + 1;
   let payload: Row;
   let statement: D1PreparedStatement;
+  const targetId = String(existing?.id ?? operation.id);
   if (operation.action === 'delete') {
     if (!existing) {
       const result = { operationId: operation.operationId, status: 'applied', version: 0 };
       await env.DB.prepare(`INSERT INTO sync_operations (operation_id, device_id, user_id, result_json, created_at) VALUES (?, ?, ?, ?, ?)`).bind(operation.operationId, deviceId, user.id, JSON.stringify(result), timestamp).run();
       return result;
     }
-    payload = { ...existing, id: operation.id, deleted_at: timestamp, updated_at: timestamp, sync_version: version };
-    statement = env.DB.prepare(`UPDATE ${operation.entity} SET deleted_at = ?, updated_at = ?, sync_version = ? WHERE id = ?`).bind(timestamp, timestamp, version, operation.id);
+    payload = { ...existing, id: targetId, deleted_at: timestamp, updated_at: timestamp, sync_version: version };
+    statement = env.DB.prepare(`UPDATE ${operation.entity} SET deleted_at = ?, updated_at = ?, sync_version = ? WHERE id = ?`).bind(timestamp, timestamp, version, targetId);
   } else {
     const normalized = await normalizePayload(env, user, operation, existing);
     ensureRequired(operation.entity, normalized);
     const fields = Object.keys(normalized);
     const insertFields = ['id', ...fields, 'sync_version', 'created_at', 'updated_at'];
-    const insertValues = [operation.id, ...fields.map((field) => normalized[field] ?? null), version, existing?.created_at ?? timestamp, timestamp];
+    const insertValues = [targetId, ...fields.map((field) => normalized[field] ?? null), version, existing?.created_at ?? timestamp, timestamp];
     const updateSql = [...fields.map((field) => `${field} = excluded.${field}`), 'sync_version = excluded.sync_version', 'deleted_at = NULL', 'updated_at = excluded.updated_at'].join(', ');
     statement = env.DB.prepare(
       `INSERT INTO ${operation.entity} (${insertFields.join(', ')}) VALUES (${insertFields.map(() => '?').join(', ')}) ON CONFLICT(id) DO UPDATE SET ${updateSql}`,
     ).bind(...insertValues);
-    payload = { id: operation.id, ...normalized, sync_version: version, created_at: existing?.created_at ?? timestamp, updated_at: timestamp, deleted_at: null };
+    payload = { id: targetId, ...normalized, sync_version: version, created_at: existing?.created_at ?? timestamp, updated_at: timestamp, deleted_at: null };
   }
   const result = { operationId: operation.operationId, status: 'applied', version };
   await env.DB.batch([
     statement,
-    env.DB.prepare(`INSERT INTO sync_changes (entity_name, entity_id, operation, payload_json, changed_by_user_id, changed_at) VALUES (?, ?, ?, ?, ?, ?)`).bind(operation.entity, operation.id, operation.action, JSON.stringify(payload), user.id, timestamp),
+    env.DB.prepare(`INSERT INTO sync_changes (entity_name, entity_id, operation, payload_json, changed_by_user_id, changed_at) VALUES (?, ?, ?, ?, ?, ?)`).bind(operation.entity, targetId, operation.action, JSON.stringify(payload), user.id, timestamp),
     env.DB.prepare(`INSERT INTO sync_operations (operation_id, device_id, user_id, result_json, created_at) VALUES (?, ?, ?, ?, ?)`).bind(operation.operationId, deviceId, user.id, JSON.stringify(result), timestamp),
-    env.DB.prepare(`INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at) VALUES (?, ?, 'SYNC_APPLY', ?, ?, ?, ?)`).bind(uuid(), user.id, operation.entity, operation.id, JSON.stringify({ operationId: operation.operationId, deviceId }), timestamp),
+    env.DB.prepare(`INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at) VALUES (?, ?, 'SYNC_APPLY', ?, ?, ?, ?)`).bind(uuid(), user.id, operation.entity, targetId, JSON.stringify({ operationId: operation.operationId, deviceId }), timestamp),
   ]);
   return result;
 }
