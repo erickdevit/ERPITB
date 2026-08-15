@@ -158,18 +158,23 @@ export async function bootstrap(request: Request, env: Env): Promise<unknown> {
 export async function authenticate(request: Request, env: Env): Promise<AuthUser> {
   const header = request.headers.get('authorization');
   if (!header?.startsWith('Bearer ')) throw new AppError(401, 'Autenticação necessária.', 'UNAUTHENTICATED');
+  let claims: TokenClaims;
   try {
     const verified = await jwtVerify(header.slice(7), jwtSecret(env), { algorithms: ['HS256'] });
-    const claims = verified.payload as unknown as TokenClaims;
+    claims = verified.payload as unknown as TokenClaims;
     if (!claims.sub || claims.type !== 'access' || !['admin', 'pedagogico', 'professor'].includes(claims.role)) {
       throw new Error('invalid claims');
     }
-    const active = await env.DB.prepare(`SELECT active FROM users WHERE id = ?`).bind(claims.sub).first<{ active: number }>();
-    if (active?.active !== 1) throw new Error('inactive');
-    return { id: claims.sub, name: claims.name, email: claims.email, role: claims.role };
   } catch {
     throw new AppError(401, 'Token inválido ou expirado.', 'INVALID_TOKEN');
   }
+  const current = await env.DB.prepare(
+    `SELECT id, name, email, role, active FROM users WHERE id = ? LIMIT 1`,
+  ).bind(claims.sub).first<AuthUser & { active: number }>();
+  if (!current || current.active !== 1 || !['admin', 'pedagogico', 'professor'].includes(current.role)) {
+    throw new AppError(401, 'Usuário inativo ou sessão inválida.', 'INVALID_TOKEN');
+  }
+  return { id: current.id, name: current.name, email: current.email, role: current.role };
 }
 
 export async function logout(request: Request, env: Env, user: AuthUser): Promise<unknown> {
@@ -185,4 +190,3 @@ export function assertRole(value: unknown): Role {
   if (value === 'admin' || value === 'pedagogico' || value === 'professor') return value;
   throw new AppError(400, 'Perfil inválido.', 'VALIDATION_ERROR');
 }
-
