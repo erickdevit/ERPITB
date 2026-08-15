@@ -64,6 +64,16 @@ async function getEntityRow(env: Env, table: string, id: string): Promise<JsonRe
   return row;
 }
 
+async function clientEntityRow(env: Env, entity: string, row: JsonRecord): Promise<JsonRecord> {
+  if (entity !== 'students' || !row.encrypted_name) return row;
+  const result = { ...row };
+  result.name = await decryptText(env, String(row.encrypted_name));
+  result.cpf = row.encrypted_cpf ? await decryptText(env, String(row.encrypted_cpf)) : null;
+  result.contact = row.encrypted_contact ? await decryptText(env, String(row.encrypted_contact)) : null;
+  delete result.encrypted_name; delete result.encrypted_cpf; delete result.encrypted_contact;
+  return result;
+}
+
 async function listLaboratories(env: Env, user: AuthUser): Promise<unknown> {
   const rows = await env.DB.prepare(
     `SELECT id, name, active, sync_version, created_at, updated_at FROM laboratories WHERE deleted_at IS NULL ORDER BY name`,
@@ -654,33 +664,54 @@ async function listConflicts(env: Env, user: AuthUser): Promise<unknown> {
   const rows = await env.DB.prepare(
     `SELECT sc.*, u.name AS resolved_by_name FROM sync_conflicts sc LEFT JOIN users u ON u.id = sc.resolved_by_user_id ORDER BY CASE sc.status WHEN 'PENDING' THEN 0 ELSE 1 END, sc.created_at DESC LIMIT 500`,
   ).all<JsonRecord>();
-  return { items: rows.results.map((row) => ({ ...row, local_data: JSON.parse(String(row.local_data_json)), remote_data: JSON.parse(String(row.remote_data_json)) })) };
+  return { items: await Promise.all(rows.results.map(async (row) => ({
+    ...row,
+    local_data: await clientEntityRow(env, String(row.entity_name), JSON.parse(String(row.local_data_json)) as JsonRecord),
+    remote_data: await clientEntityRow(env, String(row.entity_name), JSON.parse(String(row.remote_data_json)) as JsonRecord),
+  }))) };
 }
 
-async function resolveConflict(request: Request, env: Env, user: AuthUser, id: string): Promise<unknown> {
+export async function resolveConflict(request: Request, env: Env, user: AuthUser, id: string): Promise<unknown> {
   requirePermission(user, 'conflicts:resolve');
   const body = await readJson<JsonRecord>(request);
   const decision = oneOf(body.decision, 'decisão', ['local', 'remote'] as const);
   const justification = requireString(body.justification, 'justificativa', { min: 10, max: 500 });
   const conflict = await env.DB.prepare(`SELECT * FROM sync_conflicts WHERE id = ? AND status = 'PENDING'`).bind(id).first<JsonRecord>();
   if (!conflict) throw new AppError(404, 'Conflito pendente não encontrado.', 'NOT_FOUND');
+  const entity = requireString(conflict.entity_name, 'entidade');
+  const recordId = requireString(conflict.entity_id, 'entityId');
+  const current = await getEntityRow(env, entity, recordId);
   const statements: D1PreparedStatement[] = [];
+  let accepted = current;
   if (decision === 'local') {
-    if (conflict.entity_name !== 'attendance_records') throw new AppError(409, 'Tipo de conflito ainda não resolvível.', 'UNSUPPORTED_CONFLICT');
+    if (entity !== 'attendance_records') throw new AppError(409, 'Tipo de conflito ainda não resolvível.', 'UNSUPPORTED_CONFLICT');
     const local = JSON.parse(String(conflict.local_data_json)) as JsonRecord;
-    const recordId = requireString(conflict.entity_id, 'entityId');
+    const status = oneOf(local.status, 'status', ['P', 'F', 'J', 'A', 'R', 'RC'] as const);
+    const timestamp = nowIso();
+    const version = Number(current.sync_version ?? 0) + 1;
+    const completedAt = status === 'RC' ? local.completed_at ?? current.completed_at ?? timestamp : null;
+    accepted = {
+      ...current,
+      status,
+      notes: local.notes ?? null,
+      completed_at: completedAt,
+      recorded_by_user_id: user.id,
+      sync_status: 'SYNCED',
+      sync_version: version,
+      updated_at: timestamp,
+    };
     statements.push(env.DB.prepare(
-      `UPDATE attendance_records SET status = ?, notes = ?, recorded_by_user_id = ?, sync_status = 'SYNCED', sync_version = sync_version + 1, updated_at = ? WHERE id = ?`,
-    ).bind(oneOf(local.status, 'status', ['P', 'F', 'J', 'A', 'R', 'RC'] as const), local.notes ?? null, user.id, nowIso(), recordId));
-    const merged = { ...local, id: recordId, recorded_by_user_id: user.id, sync_status: 'SYNCED', updated_at: nowIso() };
-    statements.push(change(env, user, 'attendance_records', recordId, 'upsert', merged));
+      `UPDATE attendance_records SET status = ?, notes = ?, completed_at = ?, recorded_by_user_id = ?, sync_status = 'SYNCED', sync_version = ?, updated_at = ? WHERE id = ?`,
+    ).bind(status, accepted.notes, completedAt, user.id, version, timestamp, recordId));
+    statements.push(change(env, user, 'attendance_records', recordId, 'upsert', accepted));
   }
   statements.push(env.DB.prepare(
     `UPDATE sync_conflicts SET status = ?, resolved_by_user_id = ?, resolution_justification = ?, resolved_at = ? WHERE id = ? AND status = 'PENDING'`,
   ).bind(decision === 'local' ? 'LOCAL_ACCEPTED' : 'REMOTE_ACCEPTED', user.id, justification, nowIso(), id));
   statements.push(audit(env, user, 'RESOLVE_CONFLICT', 'sync_conflicts', id, { decision, justification }));
   await env.DB.batch(statements);
-  return { ok: true };
+  const record = await clientEntityRow(env, entity, accepted);
+  return { ok: true, decision, entity, record, version: Number(record.sync_version ?? 0) };
 }
 
 async function listAudit(url: URL, env: Env, user: AuthUser): Promise<unknown> {
