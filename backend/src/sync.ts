@@ -12,7 +12,7 @@ const columns: Record<SyncEntity, readonly string[]> = {
   class_teachers: ['class_id', 'user_id'],
   students: ['encrypted_name', 'encrypted_cpf', 'encrypted_contact', 'registration_number', 'birth_date', 'active'],
   enrollments: ['class_id', 'student_id', 'status'],
-  attendance_records: ['class_id', 'student_id', 'date', 'status', 'notes', 'recorded_by_user_id', 'sync_status'],
+  attendance_records: ['class_id', 'student_id', 'date', 'status', 'notes', 'completed_at', 'recorded_by_user_id', 'sync_status'],
   class_notes: ['class_id', 'date', 'notes', 'recorded_by_user_id'],
   replacements: ['attendance_record_id', 'class_id', 'student_id', 'attendance_date', 'scheduled_date', 'scheduled_time', 'notes', 'completed_at', 'recorded_by_user_id'],
 };
@@ -74,7 +74,8 @@ async function authorizeOperation(env: Env, user: AuthUser, operation: SyncOpera
       const attendance = await env.DB.prepare(
         `SELECT class_id, student_id, date, status FROM attendance_records WHERE id = ? AND deleted_at IS NULL`,
       ).bind(attendanceId).first<{ class_id: string; student_id: string; date: string; status: string }>();
-      if (!attendance || attendance.status !== 'R'
+      const completingExisting = Boolean(operation.data.completed_at ?? existing?.completed_at);
+      if (!attendance || (attendance.status !== 'R' && !(attendance.status === 'RC' && completingExisting))
         || attendance.class_id !== classId
         || attendance.student_id !== String(operation.data.student_id ?? existing?.student_id ?? '')
         || attendance.date !== String(operation.data.attendance_date ?? existing?.attendance_date ?? '')) {
@@ -188,7 +189,7 @@ function ensureRequired(entity: SyncEntity, payload: Row): void {
       throw new AppError(400, `Campo ${field} ausente na operação de ${entity}.`, 'VALIDATION_ERROR');
     }
   }
-  if (entity === 'attendance_records' && !['P', 'F', 'J', 'A', 'R'].includes(String(payload.status))) {
+  if (entity === 'attendance_records' && !['P', 'F', 'J', 'A', 'R', 'RC'].includes(String(payload.status))) {
     throw new AppError(400, 'Status de frequência inválido.', 'VALIDATION_ERROR');
   }
   if (entity === 'replacements') {

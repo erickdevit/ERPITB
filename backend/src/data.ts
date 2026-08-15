@@ -557,7 +557,7 @@ async function saveAttendance(request: Request, env: Env, user: AuthUser): Promi
     if (!raw || typeof raw !== 'object') throw new AppError(400, 'Lançamento inválido.', 'VALIDATION_ERROR');
     const record = raw as JsonRecord;
     const studentId = requireString(record.studentId, 'studentId', { max: 36 });
-    const status = oneOf<AttendanceStatus>(record.status, 'status', ['P', 'F', 'J', 'A', 'R']);
+    const status = oneOf<AttendanceStatus>(record.status, 'status', ['P', 'F', 'J', 'A', 'R', 'RC']);
     const notes = record.notes == null ? null : requireString(record.notes, 'observações', { max: 1000 });
     const enrolled = await env.DB.prepare(
       `SELECT 1 AS enrolled FROM enrollments WHERE class_id = ? AND student_id = ? AND status = 'ativa' AND deleted_at IS NULL`,
@@ -671,7 +671,7 @@ async function resolveConflict(request: Request, env: Env, user: AuthUser, id: s
     const recordId = requireString(conflict.entity_id, 'entityId');
     statements.push(env.DB.prepare(
       `UPDATE attendance_records SET status = ?, notes = ?, recorded_by_user_id = ?, sync_status = 'SYNCED', sync_version = sync_version + 1, updated_at = ? WHERE id = ?`,
-    ).bind(oneOf(local.status, 'status', ['P', 'F', 'J', 'A', 'R'] as const), local.notes ?? null, user.id, nowIso(), recordId));
+    ).bind(oneOf(local.status, 'status', ['P', 'F', 'J', 'A', 'R', 'RC'] as const), local.notes ?? null, user.id, nowIso(), recordId));
     const merged = { ...local, id: recordId, recorded_by_user_id: user.id, sync_status: 'SYNCED', updated_at: nowIso() };
     statements.push(change(env, user, 'attendance_records', recordId, 'upsert', merged));
   }
