@@ -33,13 +33,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { ApplicationProvider, useApp, useBoot } from './app-context';
 import { Login } from './login';
-import {
-  AuditPage, AttendancePage, CoursesPage, LaboratoriesPage,
-  ReplacementsPage, StudentsPage, UsersPage,
-} from './pages';
-import { ClassesPage } from './features/classes-page';
-import { ClassDetailPage, CourseDetailPage, StudentDetailPage } from './features/entity-detail-pages';
-import { DashboardPage } from './features/dashboard-page';
+import { ReplacementsPage } from './pages';
 import { canManage, type Role } from './types';
 
 const theme = createTheme({
@@ -91,26 +85,37 @@ const BiCoursesClassesPage = lazy(() => import('./features/bi/courses-classes-pa
 const BiTeachersPage = lazy(() => import('./features/bi/teachers-page').then((module) => ({ default: module.BiTeachersPage })));
 const BiLaboratoriesPage = lazy(() => import('./features/bi/laboratories-page').then((module) => ({ default: module.BiLaboratoriesPage })));
 const BiDataQualityPage = lazy(() => import('./features/bi/data-quality-page').then((module) => ({ default: module.BiDataQualityPage })));
+const DashboardPage = lazy(() => import('./features/dashboard-page').then((module) => ({ default: module.DashboardPage })));
+const ClassesPage = lazy(() => import('./features/classes-page').then((module) => ({ default: module.ClassesPage })));
+const CourseDetailPage = lazy(() => import('./features/entity-detail-pages').then((module) => ({ default: module.CourseDetailPage })));
+const ClassDetailPage = lazy(() => import('./features/entity-detail-pages').then((module) => ({ default: module.ClassDetailPage })));
+const StudentDetailPage = lazy(() => import('./features/entity-detail-pages').then((module) => ({ default: module.StudentDetailPage })));
 const ReportsCenterPage = lazy(() => import('./features/reports').then((module) => ({ default: module.ReportsCenterPage })));
 const ConflictsPage = lazy(() => import('./features/conflicts-page').then((module) => ({ default: module.ConflictsPage })));
+const AuditPage = lazy(() => import('./features/audit-page').then((module) => ({ default: module.AuditPage })));
+const StudentsPage = lazy(() => import('./features/students-page').then((module) => ({ default: module.StudentsPage })));
+const CoursesPage = lazy(() => import('./features/catalog-page').then((module) => ({ default: module.CoursesPage })));
+const LaboratoriesPage = lazy(() => import('./features/catalog-page').then((module) => ({ default: module.LaboratoriesPage })));
+const UsersPage = lazy(() => import('./features/users-page').then((module) => ({ default: module.UsersPage })));
+const AttendancePage = lazy(() => import('./features/attendance-page').then((module) => ({ default: module.AttendancePage })));
 const deferred = (page: React.ReactNode) => <Suspense fallback={<LinearProgress aria-label="Carregando módulo" />}>{page}</Suspense>;
 
 function AppRoutes() {
   const { session } = useApp();
   const manager = canManage(session.role);
   return <Routes>
-    <Route path="/" element={<DashboardPage />} />
-    <Route path="/turmas" element={<ClassesPage />} />
-    <Route path="/turmas/:classId" element={<ClassDetailPage />} />
-    <Route path="/alunos" element={<StudentsPage />} />
-    <Route path="/alunos/:studentId" element={<StudentDetailPage />} />
-    <Route path="/frequencia" element={<AttendancePage />} />
+    <Route path="/" element={deferred(<DashboardPage />)} />
+    <Route path="/turmas" element={deferred(<ClassesPage />)} />
+    <Route path="/turmas/:classId" element={deferred(<ClassDetailPage />)} />
+    <Route path="/alunos" element={deferred(<StudentsPage />)} />
+    <Route path="/alunos/:studentId" element={deferred(<StudentDetailPage />)} />
+    <Route path="/frequencia" element={deferred(<AttendancePage />)} />
     <Route path="/relatorios" element={deferred(<ReportsCenterPage />)} />
     <Route path="/reposicoes/abertas" element={<ReplacementsPage />} />
     <Route path="/reposicoes/historico" element={<ReplacementsPage history />} />
-    <Route path="/cursos" element={manager ? <CoursesPage /> : <Navigate to="/" replace />} />
-    <Route path="/cursos/:courseId" element={manager ? <CourseDetailPage /> : <Navigate to="/" replace />} />
-    <Route path="/laboratorios" element={manager ? <LaboratoriesPage /> : <Navigate to="/" replace />} />
+    <Route path="/cursos" element={manager ? deferred(<CoursesPage />) : <Navigate to="/" replace />} />
+    <Route path="/cursos/:courseId" element={manager ? deferred(<CourseDetailPage />) : <Navigate to="/" replace />} />
+    <Route path="/laboratorios" element={manager ? deferred(<LaboratoriesPage />) : <Navigate to="/" replace />} />
     <Route path="/bi/institucional" element={deferred(<BiInstitutionalPage />)} />
     <Route path="/bi/frequencia" element={deferred(<BiAttendancePage />)} />
     <Route path="/bi/risco" element={deferred(<BiRiskPage />)} />
@@ -119,9 +124,9 @@ function AppRoutes() {
     <Route path="/bi/professores" element={deferred(<BiTeachersPage />)} />
     <Route path="/bi/laboratorios" element={deferred(<BiLaboratoriesPage />)} />
     <Route path="/bi/qualidade" element={manager ? deferred(<BiDataQualityPage />) : <Navigate to="/" replace />} />
-    <Route path="/usuarios" element={session.role === 'admin' ? <UsersPage /> : <Navigate to="/" replace />} />
+    <Route path="/usuarios" element={session.role === 'admin' ? deferred(<UsersPage />) : <Navigate to="/" replace />} />
     <Route path="/conflitos" element={manager ? deferred(<ConflictsPage />) : <Navigate to="/" replace />} />
-    <Route path="/auditoria" element={manager ? <AuditPage /> : <Navigate to="/" replace />} />
+    <Route path="/auditoria" element={manager ? deferred(<AuditPage />) : <Navigate to="/" replace />} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>;
 }
