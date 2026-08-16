@@ -81,14 +81,32 @@ export function ReportFiltersBar({
   };
 
   return (
-    <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs text-left">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 items-end">
-        <div className="lg:col-span-2">
+    <div className="bg-white border border-slate-200/90 rounded-2xl p-2.5 sm:p-3 shadow-2xs text-left">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-2 sm:gap-2.5 items-end">
+        <div className="sm:col-span-2">
           <SelectField
             label="Tipo de relatório"
             value={filters.type}
             onChange={changeType}
             options={reportTypeOptions}
+          />
+        </div>
+
+        <div>
+          <DateField
+            label="Data inicial"
+            value={formatDate(filters.from)}
+            onChange={(val) => changeDate('from', val)}
+            allowFuture
+          />
+        </div>
+
+        <div>
+          <DateField
+            label="Data final"
+            value={formatDate(filters.to)}
+            onChange={(val) => changeDate('to', val)}
+            allowFuture
           />
         </div>
 
@@ -131,10 +149,10 @@ export function ReportFiltersBar({
                 })
               }
               options={[
-                { value: '', label: 'Selecione um curso' },
+                { value: '', label: 'Todos os cursos' },
                 ...availableCourses.map((c) => ({
                   value: c.id,
-                  label: `${text(c, 'name')} (${text(c, 'code') || '—'})`,
+                  label: text(c, 'name'),
                 })),
               ]}
             />
@@ -154,7 +172,7 @@ export function ReportFiltersBar({
                 })
               }
               options={[
-                { value: '', label: 'Selecione uma turma' },
+                { value: '', label: 'Todas as turmas' },
                 ...availableClasses.map((c) => ({ value: c.id, label: text(c, 'name') })),
               ]}
             />
@@ -171,30 +189,12 @@ export function ReportFiltersBar({
                 { value: '', label: 'Selecione um aluno' },
                 ...availableStudents.map((s) => ({
                   value: s.id,
-                  label: `${text(s, 'name')} (${text(s, 'registration_number') || '—'})`,
+                  label: text(s, 'name'),
                 })),
               ]}
             />
           </div>
         )}
-
-        <div>
-          <DateField
-            label="Data inicial"
-            value={formatDate(filters.from)}
-            onChange={(val) => changeDate('from', val)}
-            allowFuture
-          />
-        </div>
-
-        <div>
-          <DateField
-            label="Data final"
-            value={formatDate(filters.to)}
-            onChange={(val) => changeDate('to', val)}
-            allowFuture
-          />
-        </div>
 
         <div>
           <button
@@ -203,7 +203,7 @@ export function ReportFiltersBar({
             className="w-full h-[38px] px-3 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-medium text-slate-600 hover:text-slate-900 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
-            <span>Redefinir filtros</span>
+            <span>Restaurar</span>
           </button>
         </div>
       </div>
