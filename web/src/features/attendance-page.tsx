@@ -155,11 +155,10 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
     );
   }, [rows, search]);
 
-  const classOptions = (classes.items ?? []).map((item) => {
-    const course = (courses.items ?? []).find((candidate) => candidate.id === item.course_id);
-    const courseName = text(course, 'name');
-    return { value: item.id, label: `${text(item, 'name')}${courseName ? ` • ${courseName}` : ''}` };
-  });
+  const classOptions = (classes.items ?? []).map((item) => ({
+    value: item.id,
+    label: text(item, 'name'),
+  }));
 
   const updateRow = (index: number, update: (row: AttendanceDraftRow) => AttendanceDraftRow) => {
     setRows((current) => current.map((row, currentIndex) => (currentIndex === index ? update(row) : row)));

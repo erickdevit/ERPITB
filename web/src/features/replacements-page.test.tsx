@@ -42,4 +42,11 @@ describe('ReplacementsPage', () => {
     expect(mocks.app.sync).toHaveBeenCalled();
     confirm.mockRestore();
   });
+
+  it('filters replacements by class selector', async () => {
+    render(<ReplacementsPage today="2026-08-15" />);
+
+    expect(screen.getByRole('combobox', { name: 'Turma' })).toBeInTheDocument();
+    expect(screen.getAllByText('Turma A')).toHaveLength(2);
+  });
 });

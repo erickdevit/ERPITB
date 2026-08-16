@@ -29,6 +29,7 @@ export function ReplacementsPage({
   const classes = useEntity('classes');
 
   const [search, setSearch] = useState('');
+  const [filterClassId, setFilterClassId] = useState('');
   const [completeItem, setCompleteItem] = useState<LocalRecord>();
   const [scheduleDate, setScheduleDate] = useState(formatDate(today));
   const [scheduleTime, setScheduleTime] = useState('14:00');
@@ -36,12 +37,23 @@ export function ReplacementsPage({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formError, setFormError] = useState<string>();
 
+  const classOptions = useMemo(
+    () => [
+      { value: '', label: 'Todas as turmas' },
+      ...(classes.items ?? [])
+        .filter((c) => !c.deleted_at && c.active !== 0 && c.active !== false)
+        .map((c) => ({ value: c.id, label: text(c, 'name') })),
+    ],
+    [classes.items],
+  );
+
   const rows = useMemo(() => {
     return (replacements.items ?? [])
       .filter((item) => {
         if (item.deleted_at) return false;
         const isCompleted = Boolean(item.completed_at || item.status === 'completed');
         if (history ? !isCompleted : isCompleted) return false;
+        if (filterClassId && item.class_id !== filterClassId) return false;
 
         const student = (students.items ?? []).find((s) => s.id === item.student_id);
         const cls = (classes.items ?? []).find((c) => c.id === item.class_id);
@@ -62,7 +74,7 @@ export function ReplacementsPage({
           className: text(cls, 'name'),
         };
       });
-  }, [replacements.items, students.items, classes.items, history, search]);
+  }, [replacements.items, students.items, classes.items, history, search, filterClassId]);
 
   const openSchedule = (item: LocalRecord) => {
     setCompleteItem(item);
@@ -126,21 +138,34 @@ export function ReplacementsPage({
     <div className="flex flex-col gap-3.5 text-left">
       {/* Filter Bar */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs">
-        <div className="flex flex-col gap-1.5 max-w-md">
-          <label htmlFor="search-replacements" className="text-xs font-medium text-slate-700">
-            Buscar reposição
-          </label>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-              <Search className="w-4 h-4" />
+        <div className="flex flex-col sm:flex-row sm:items-end gap-2.5 sm:gap-3">
+          <div className="flex-1 min-w-[200px]">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="search-replacements" className="text-xs font-medium text-slate-700">
+                Buscar aluno
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                  <Search className="w-4 h-4" />
+                </div>
+                <input
+                  id="search-replacements"
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Nome ou matrícula do aluno..."
+                  className="w-full pl-9 pr-3 py-2 text-sm text-slate-900 bg-white border border-slate-200/90 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all placeholder:text-slate-400"
+                />
+              </div>
             </div>
-            <input
-              id="search-replacements"
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por aluno ou turma..."
-              className="w-full pl-9 pr-3 py-2 text-sm text-slate-900 bg-white border border-slate-200/90 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all placeholder:text-slate-400"
+          </div>
+
+          <div className="w-full sm:w-56">
+            <SelectField
+              label="Turma"
+              value={filterClassId}
+              onChange={setFilterClassId}
+              options={classOptions}
             />
           </div>
         </div>
