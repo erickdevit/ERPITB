@@ -58,7 +58,7 @@ function AnalyticsCard({
   filter?: { classId?: string; studentId?: string };
 }) {
   const filteredAttendance = useMemo(() => {
-    return attendance.filter((item) => {
+    return (attendance ?? []).filter((item) => {
       if (item.deleted_at) return false;
       if (filter?.classId && item.class_id !== filter.classId) return false;
       if (filter?.studentId && item.student_id !== filter.studentId) return false;
@@ -140,8 +140,8 @@ export function CourseDetailPage() {
   const enrollments = useEntity('enrollments');
   const classTeachers = useEntity('class_teachers');
 
-  const course = courses.items.find((c) => c.id === courseId);
-  const ownClasses = useMemo(() => classes.items.filter((c) => !c.deleted_at && c.course_id === courseId), [classes.items, courseId]);
+  const course = (courses.items ?? []).find((c) => c.id === courseId);
+  const ownClasses = useMemo(() => (classes.items ?? []).filter((c) => !c.deleted_at && c.course_id === courseId), [classes.items, courseId]);
 
   if (!course && !courses.loading) {
     return (
@@ -191,11 +191,11 @@ export function CourseDetailPage() {
       </div>
 
       <AnalyticsCard
-        attendance={attendance.items}
-        classes={classes.items}
-        students={students.items}
-        enrollments={enrollments.items}
-        classTeachers={classTeachers.items}
+        attendance={attendance.items ?? []}
+        classes={classes.items ?? []}
+        students={students.items ?? []}
+        enrollments={enrollments.items ?? []}
+        classTeachers={classTeachers.items ?? []}
       />
     </div>
   );
@@ -212,18 +212,18 @@ export function ClassDetailPage() {
   const attendance = useEntity('attendance_records');
   const classTeachers = useEntity('class_teachers');
 
-  const classRecord = classes.items.find((c) => c.id === classId);
-  const course = courses.items.find((c) => c.id === classRecord?.course_id);
-  const lab = laboratories.items.find((l) => l.id === classRecord?.laboratory_id);
+  const classRecord = (classes.items ?? []).find((c) => c.id === classId);
+  const course = (courses.items ?? []).find((c) => c.id === classRecord?.course_id);
+  const lab = (laboratories.items ?? []).find((l) => l.id === classRecord?.laboratory_id);
 
   const ownEnrollments = useMemo(
-    () => enrollments.items.filter((e) => !e.deleted_at && e.class_id === classId && e.status === 'active'),
+    () => (enrollments.items ?? []).filter((e) => !e.deleted_at && e.class_id === classId && e.status === 'active'),
     [enrollments.items, classId],
   );
 
   const enrolledStudents = useMemo(() => {
-    return ownEnrollments.map((enr) => {
-      const student = students.items.find((s) => s.id === enr.student_id);
+    return (ownEnrollments ?? []).map((enr) => {
+      const student = (students.items ?? []).find((s) => s.id === enr.student_id);
       return { ...student, enrollmentId: enr.id };
     });
   }, [ownEnrollments, students.items]);
@@ -306,9 +306,9 @@ export function StudentDetailPage() {
   const attendance = useEntity('attendance_records');
   const classTeachers = useEntity('class_teachers');
 
-  const student = students.items.find((s) => s.id === studentId);
+  const student = (students.items ?? []).find((s) => s.id === studentId);
   const ownEnrollments = useMemo(
-    () => enrollments.items.filter((e) => !e.deleted_at && e.student_id === studentId),
+    () => (enrollments.items ?? []).filter((e) => !e.deleted_at && e.student_id === studentId),
     [enrollments.items, studentId],
   );
 
@@ -344,8 +344,8 @@ export function StudentDetailPage() {
       <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs">
         <h2 className="text-sm font-bold text-slate-900 mb-3">Histórico de Matrículas</h2>
         <div className="divide-y divide-slate-100">
-          {ownEnrollments.map((enr) => {
-            const cls = classes.items.find((c) => c.id === enr.class_id);
+          {(ownEnrollments ?? []).map((enr) => {
+            const cls = (classes.items ?? []).find((c) => c.id === enr.class_id);
             return (
               <div key={enr.id} className="py-2.5 flex items-center justify-between">
                 <div>
@@ -371,18 +371,18 @@ export function StudentDetailPage() {
               </div>
             );
           })}
-          {!ownEnrollments.length && (
+          {!ownEnrollments?.length && (
             <p className="text-xs text-slate-400 py-3">Nenhuma matrícula registrada.</p>
           )}
         </div>
       </div>
 
       <AnalyticsCard
-        attendance={attendance.items}
-        classes={classes.items}
-        students={students.items}
-        enrollments={enrollments.items}
-        classTeachers={classTeachers.items}
+        attendance={attendance.items ?? []}
+        classes={classes.items ?? []}
+        students={students.items ?? []}
+        enrollments={enrollments.items ?? []}
+        classTeachers={classTeachers.items ?? []}
         filter={{ studentId }}
       />
     </div>

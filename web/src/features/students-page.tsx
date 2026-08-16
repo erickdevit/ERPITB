@@ -83,17 +83,17 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
   const permissions = permissionsForStudents(session.role);
 
   const visibleClasses = useMemo(
-    () => classesVisibleToSession(classes.items, classTeachers.items, session),
+    () => classesVisibleToSession(classes.items ?? [], classTeachers.items ?? [], session),
     [classes.items, classTeachers.items, session],
   );
 
   const rows = useMemo(() => {
     const raw = buildStudentViews({
-      students: students.items,
-      enrollments: enrollments.items,
-      classes: classes.items,
-      assignments: classTeachers.items,
-      attendance: attendance.items,
+      students: students.items ?? [],
+      enrollments: enrollments.items ?? [],
+      classes: classes.items ?? [],
+      assignments: classTeachers.items ?? [],
+      attendance: attendance.items ?? [],
       session,
     });
     return filterStudentViews(raw, {
@@ -108,7 +108,7 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
   const classOptions = useMemo(
     () => [
       { value: '', label: 'Selecione uma turma' },
-      ...visibleClasses.map((c) => ({ value: c.id, label: text(c, 'name') })),
+      ...(visibleClasses ?? []).map((c) => ({ value: c.id, label: text(c, 'name') })),
     ],
     [visibleClasses],
   );

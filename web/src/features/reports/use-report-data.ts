@@ -23,7 +23,7 @@ export function useReportData(filters: ReportFilters) {
     let active = true;
     setDirectoryError('');
     void api.get<{ items: LocalRecord[] }>('/users?role=professor&active=true')
-      .then((result) => { if (active) setDirectory(result.items); })
+      .then((result) => { if (active && Array.isArray(result?.items)) setDirectory(result.items); })
       .catch((error: unknown) => { if (active) setDirectoryError(error instanceof Error ? error.message : 'Não foi possível carregar a lista de professores.'); });
     return () => { active = false; };
   }, [api, session.role]);
@@ -34,14 +34,14 @@ export function useReportData(filters: ReportFilters) {
   }), [filters, session.id, session.role]);
 
   const input = useMemo(() => ({
-    attendance: attendance.items,
-    classes: classes.items,
-    classNotes: classNotes.items,
-    classTeachers: classTeachers.items,
-    courses: courses.items,
-    directory,
-    enrollments: enrollments.items,
-    students: students.items,
+    attendance: attendance.items ?? [],
+    classes: classes.items ?? [],
+    classNotes: classNotes.items ?? [],
+    classTeachers: classTeachers.items ?? [],
+    courses: courses.items ?? [],
+    directory: directory ?? [],
+    enrollments: enrollments.items ?? [],
+    students: students.items ?? [],
   }), [attendance.items, classes.items, classNotes.items, classTeachers.items, courses.items, directory, enrollments.items, students.items]);
 
   const view = useMemo(() => buildReportView(input, effectiveFilters), [effectiveFilters, input]);
@@ -52,6 +52,12 @@ export function useReportData(filters: ReportFilters) {
     loading,
     directory,
     directoryError,
-    options: { classes: classes.items, classTeachers: classTeachers.items, courses: courses.items, enrollments: enrollments.items, students: students.items },
+    options: {
+      classes: classes.items ?? [],
+      classTeachers: classTeachers.items ?? [],
+      courses: courses.items ?? [],
+      enrollments: enrollments.items ?? [],
+      students: students.items ?? [],
+    },
   };
 }

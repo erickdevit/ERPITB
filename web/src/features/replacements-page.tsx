@@ -37,14 +37,14 @@ export function ReplacementsPage({
   const [formError, setFormError] = useState<string>();
 
   const rows = useMemo(() => {
-    return replacements.items
+    return (replacements.items ?? [])
       .filter((item) => {
         if (item.deleted_at) return false;
         const isCompleted = Boolean(item.completed_at || item.status === 'completed');
         if (history ? !isCompleted : isCompleted) return false;
 
-        const student = students.items.find((s) => s.id === item.student_id);
-        const cls = classes.items.find((c) => c.id === item.class_id);
+        const student = (students.items ?? []).find((s) => s.id === item.student_id);
+        const cls = (classes.items ?? []).find((c) => c.id === item.class_id);
         const term = search.trim().toLocaleLowerCase('pt-BR');
         if (!term) return true;
 
@@ -53,8 +53,8 @@ export function ReplacementsPage({
         return studentName.includes(term) || className.includes(term);
       })
       .map((item) => {
-        const student = students.items.find((s) => s.id === item.student_id);
-        const cls = classes.items.find((c) => c.id === item.class_id);
+        const student = (students.items ?? []).find((s) => s.id === item.student_id);
+        const cls = (classes.items ?? []).find((c) => c.id === item.class_id);
         return {
           ...item,
           studentName: text(student, 'name'),

@@ -63,30 +63,42 @@ export function permissionsForStudents(role: Role): StudentPermissions {
   };
 }
 
-export function classesVisibleToSession(classes: LocalRecord[], assignments: LocalRecord[], session: Pick<UserSession, 'id' | 'role'>): LocalRecord[] {
-  const visibleClassIds = session.role === 'professor'
-    ? new Set(assignments.filter(current).filter((item) => item.user_id === session.id).map((item) => text(item, 'class_id')))
+export function classesVisibleToSession(
+  classes?: LocalRecord[],
+  assignments?: LocalRecord[],
+  session?: Pick<UserSession, 'id' | 'role'>,
+): LocalRecord[] {
+  const safeClasses = classes ?? [];
+  const safeAssignments = assignments ?? [];
+  const visibleClassIds = session?.role === 'professor'
+    ? new Set(safeAssignments.filter(current).filter((item) => item.user_id === session.id).map((item) => text(item, 'class_id')))
     : null;
-  return classes.filter(current)
+  return safeClasses.filter(current)
     .filter((item) => item.active !== 0 && item.active !== false)
     .filter((item) => !visibleClassIds || visibleClassIds.has(item.id))
     .sort((left, right) => text(left, 'name').localeCompare(text(right, 'name'), 'pt-BR'));
 }
 
 export function buildStudentViews(input: {
-  students: LocalRecord[];
-  enrollments: LocalRecord[];
-  classes: LocalRecord[];
-  assignments: LocalRecord[];
-  attendance: LocalRecord[];
+  students?: LocalRecord[];
+  enrollments?: LocalRecord[];
+  classes?: LocalRecord[];
+  assignments?: LocalRecord[];
+  attendance?: LocalRecord[];
   session: Pick<UserSession, 'id' | 'role'>;
 }): StudentView[] {
-  const classes = new Map(classesVisibleToSession(input.classes, input.assignments, input.session).map((item) => [item.id, item]));
-  const assignments = input.assignments.filter(current);
-  const students = new Map(input.students.filter(activeStudent).map((item) => [item.id, item]));
-  const attendance = latestAttendance(input.attendance).filter(current);
+  const safeStudents = input.students ?? [];
+  const safeEnrollments = input.enrollments ?? [];
+  const safeClasses = input.classes ?? [];
+  const safeAssignments = input.assignments ?? [];
+  const safeAttendance = input.attendance ?? [];
 
-  return input.enrollments.filter(current)
+  const classes = new Map(classesVisibleToSession(safeClasses, safeAssignments, input.session).map((item) => [item.id, item]));
+  const assignments = safeAssignments.filter(current);
+  const students = new Map(safeStudents.filter(activeStudent).map((item) => [item.id, item]));
+  const attendance = latestAttendance(safeAttendance).filter(current);
+
+  return safeEnrollments.filter(current)
     .filter((enrollment) => classes.has(text(enrollment, 'class_id')) && students.has(text(enrollment, 'student_id')))
     .map((enrollment) => {
       const student = students.get(text(enrollment, 'student_id'))!;

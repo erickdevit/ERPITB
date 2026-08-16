@@ -143,7 +143,7 @@ export function DashboardPage() {
       .get<{ items: LocalRecord[] }>('/users?role=professor')
       .then((result) => {
         if (!active) return;
-        setTeacherNames(Object.fromEntries(result.items.map((teacher) => [teacher.id, String(teacher.name ?? '')])));
+        setTeacherNames(Object.fromEntries((result?.items ?? []).map((teacher) => [teacher.id, String(teacher.name ?? '')])));
         setTeacherDirectoryOffline(false);
       })
       .catch(() => {
@@ -162,11 +162,11 @@ export function DashboardPage() {
     () =>
       buildAnalytics(
         {
-          attendance: attendance.items,
-          classes: classes.items,
-          students: students.items,
-          enrollments: enrollments.items,
-          classTeachers: classTeachers.items,
+          attendance: attendance.items ?? [],
+          classes: classes.items ?? [],
+          students: students.items ?? [],
+          enrollments: enrollments.items ?? [],
+          classTeachers: classTeachers.items ?? [],
         },
         validRange ? { from: from!, to: to! } : { from: '9999-12-31', to: '0000-01-01' },
       ),
@@ -184,7 +184,7 @@ export function DashboardPage() {
     { key: 'R', name: 'R · Reposições', value: analytics.replacements },
   ];
 
-  const maxTeacherClasses = Math.max(1, ...analytics.teacherWorkload.map((item) => item.classes));
+  const maxTeacherClasses = Math.max(1, ...(analytics.teacherWorkload ?? []).map((item) => item.classes));
 
   const applyPreset = (next: Exclude<PeriodPreset, 'custom'>) => {
     setPreset(next);

@@ -24,32 +24,39 @@ export function ReportFiltersBar({
 }: {
   filters: ReportFilters;
   onChange: (filters: ReportFilters) => void;
-  courses: LocalRecord[];
-  classes: LocalRecord[];
-  students: LocalRecord[];
-  enrollments: LocalRecord[];
-  classTeachers: LocalRecord[];
-  teachers: LocalRecord[];
+  courses?: LocalRecord[];
+  classes?: LocalRecord[];
+  students?: LocalRecord[];
+  enrollments?: LocalRecord[];
+  classTeachers?: LocalRecord[];
+  teachers?: LocalRecord[];
   role: Role;
   onReset: () => void;
 }) {
+  const safeClassTeachers = classTeachers ?? [];
+  const safeClasses = classes ?? [];
+  const safeCourses = courses ?? [];
+  const safeEnrollments = enrollments ?? [];
+  const safeStudents = students ?? [];
+  const safeTeachers = teachers ?? [];
+
   const teacherClassIds = filters.teacherId
     ? new Set(
-        classTeachers
+        safeClassTeachers
           .filter((item) => !item.deleted_at && item.user_id === filters.teacherId)
           .map((item) => item.class_id),
       )
     : undefined;
-  const teacherClasses = classes.filter((item) => active(item) && (!teacherClassIds || teacherClassIds.has(item.id)));
+  const teacherClasses = safeClasses.filter((item) => active(item) && (!teacherClassIds || teacherClassIds.has(item.id)));
   const teacherCourseIds = new Set(teacherClasses.map((item) => item.course_id));
-  const availableCourses = courses.filter((item) => active(item) && (!teacherClassIds || teacherCourseIds.has(item.id)));
+  const availableCourses = safeCourses.filter((item) => active(item) && (!teacherClassIds || teacherCourseIds.has(item.id)));
   const availableClasses = teacherClasses.filter((item) => !filters.courseId || item.course_id === filters.courseId);
   const studentIds = new Set(
-    enrollments
+    safeEnrollments
       .filter((item) => !item.deleted_at && item.status === 'ativa' && item.class_id === filters.classId)
       .map((item) => item.student_id),
   );
-  const availableStudents = students
+  const availableStudents = safeStudents
     .filter((item) => active(item) && studentIds.has(item.id))
     .sort((left, right) => text(left, 'name').localeCompare(text(right, 'name')));
 
@@ -101,7 +108,7 @@ export function ReportFiltersBar({
               }
               options={[
                 { value: '', label: 'Todos os professores' },
-                ...teachers.map((item) => ({
+                ...safeTeachers.map((item) => ({
                   value: item.id,
                   label: text(item, 'name') || `Professor ${item.id.slice(0, 8)}`,
                 })),

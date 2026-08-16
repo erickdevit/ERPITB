@@ -52,7 +52,14 @@ function addStatus(target: StatusCounts, status: string) {
 
 const rate = (counts: StatusCounts) => counts.records ? Math.round((counts.present / counts.records) * 1000) / 10 : 0;
 
-export function buildAnalytics(input: AnalyticsInput, filters: AnalyticsFilters): AnalyticsResult {
+export function buildAnalytics(rawInput: AnalyticsInput, filters: AnalyticsFilters): AnalyticsResult {
+  const input: AnalyticsInput = {
+    attendance: rawInput?.attendance ?? [],
+    classes: rawInput?.classes ?? [],
+    students: rawInput?.students ?? [],
+    enrollments: rawInput?.enrollments ?? [],
+    classTeachers: rawInput?.classTeachers ?? [],
+  };
   const visibleClasses = input.classes.filter((item) => current(item)
     && (!filters.courseId || item.course_id === filters.courseId)
     && (!filters.classId || item.id === filters.classId));

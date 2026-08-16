@@ -85,7 +85,7 @@ export function ClassesPage() {
       .get<{ items: LocalRecord[] }>('/users?role=professor')
       .then((res) => {
         if (!alive) return;
-        setTeachers(res.items.filter(active));
+        setTeachers(Array.isArray(res?.items) ? res.items.filter(active) : []);
         setTeachersLoaded(true);
       })
       .catch(() => {
@@ -100,11 +100,11 @@ export function ClassesPage() {
 
   const rows = useMemo(() => {
     const raw = buildClassViews({
-      classes: classes.items,
-      courses: courses.items,
-      laboratories: laboratories.items,
-      assignments: classTeachers.items,
-      teachers,
+      classes: classes.items ?? [],
+      courses: courses.items ?? [],
+      laboratories: laboratories.items ?? [],
+      assignments: classTeachers.items ?? [],
+      teachers: teachers ?? [],
       session,
     });
     return filterClassViews(raw, search, filterTeacherId);
@@ -113,7 +113,7 @@ export function ClassesPage() {
   const courseOptions = useMemo(
     () => [
       { value: '', label: 'Selecione um curso' },
-      ...courses.items.filter(active).map((c) => ({ value: c.id, label: `${text(c, 'name')} (${text(c, 'code')})` })),
+      ...(courses.items ?? []).filter(active).map((c) => ({ value: c.id, label: `${text(c, 'name')} (${text(c, 'code')})` })),
     ],
     [courses.items],
   );
@@ -121,7 +121,7 @@ export function ClassesPage() {
   const labOptions = useMemo(
     () => [
       { value: '', label: 'Nenhum laboratório' },
-      ...laboratories.items.filter(active).map((l) => ({ value: l.id, label: text(l, 'name') })),
+      ...(laboratories.items ?? []).filter(active).map((l) => ({ value: l.id, label: text(l, 'name') })),
     ],
     [laboratories.items],
   );
@@ -129,7 +129,7 @@ export function ClassesPage() {
   const teacherOptions = useMemo(
     () => [
       { value: '', label: 'Nenhum professor selecionado' },
-      ...teachers.map((t) => ({ value: t.id, label: text(t, 'name') })),
+      ...(teachers ?? []).map((t) => ({ value: t.id, label: text(t, 'name') })),
     ],
     [teachers],
   );

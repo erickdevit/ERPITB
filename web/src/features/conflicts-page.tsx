@@ -66,7 +66,7 @@ export function ConflictsPage() {
     }
     try {
       const result = await api.get<{ items: RemoteConflict[] }>('/conflicts');
-      setRemote(result.items);
+      setRemote(Array.isArray(result?.items) ? result.items : []);
       setOffline(false);
     } catch (cause) {
       if (cause instanceof OfflineError) {

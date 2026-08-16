@@ -42,7 +42,7 @@ function CatalogPage({ type }: CatalogProps) {
   const canEdit = session.role === 'admin' || session.role === 'pedagogico';
 
   const items = useMemo(() => {
-    return entity.items.filter((item) => {
+    return (entity.items ?? []).filter((item) => {
       if (item.deleted_at) return false;
       if (filterStatus === 'active' && !enabled(item)) return false;
       if (filterStatus === 'inactive' && enabled(item)) return false;

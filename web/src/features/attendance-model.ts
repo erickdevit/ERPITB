@@ -65,22 +65,27 @@ export function attendanceCallAccess(role: Role, date: string, today: string, ex
 export function buildAttendanceDraftRows(input: {
   classId: string;
   date: string;
-  students: LocalRecord[];
-  enrollments: LocalRecord[];
-  attendance: LocalRecord[];
-  replacements: LocalRecord[];
+  students?: LocalRecord[];
+  enrollments?: LocalRecord[];
+  attendance?: LocalRecord[];
+  replacements?: LocalRecord[];
 }): AttendanceDraftRow[] {
-  const activeStudentIds = new Set(input.enrollments
+  const safeEnrollments = input.enrollments ?? [];
+  const safeAttendance = input.attendance ?? [];
+  const safeReplacements = input.replacements ?? [];
+  const safeStudents = input.students ?? [];
+
+  const activeStudentIds = new Set(safeEnrollments
     .filter((item) => !item.deleted_at && item.class_id === input.classId && item.status === 'ativa')
     .map((item) => String(item.student_id)));
-  const records = latestAttendance(input.attendance).filter((item) => !item.deleted_at
+  const records = latestAttendance(safeAttendance).filter((item) => !item.deleted_at
     && item.class_id === input.classId && item.date === input.date);
   const recordByStudent = new Map(records.map((item) => [String(item.student_id), item]));
-  const replacementByAttendance = new Map(input.replacements
+  const replacementByAttendance = new Map(safeReplacements
     .filter((item) => !item.deleted_at)
     .map((item) => [String(item.attendance_record_id), item]));
 
-  return input.students
+  return safeStudents
     .filter((student) => isActive(student) && activeStudentIds.has(student.id))
     .sort((left, right) => text(left, 'name').localeCompare(text(right, 'name'), 'pt-BR'))
     .map((student) => {

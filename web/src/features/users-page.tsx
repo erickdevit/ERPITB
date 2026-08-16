@@ -43,9 +43,10 @@ export function UsersPage() {
     setLoading(true);
     try {
       const result = await api.get<{ items: LocalRecord[] }>('/users');
-      setUsers(result.items);
+      setUsers(Array.isArray(result?.items) ? result.items : []);
     } catch (e) {
       console.error(e);
+      setUsers([]);
     } finally {
       setLoading(false);
     }
@@ -56,7 +57,8 @@ export function UsersPage() {
   }, []);
 
   const filteredUsers = useMemo(() => {
-    return users.filter((u) => {
+    return (users ?? []).filter((u) => {
+      if (!u) return false;
       if (filterRole !== 'all' && u.role !== filterRole) return false;
       if (filterStatus === 'active' && !active(u)) return false;
       if (filterStatus === 'inactive' && active(u)) return false;
@@ -182,70 +184,69 @@ export function UsersPage() {
 
       {/* Users Table */}
       <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="border-b border-slate-200 bg-slate-50/75 text-slate-500 uppercase tracking-wider font-semibold text-[11px]">
-                <th className="py-3 px-4">Usuário</th>
-                <th className="py-3 px-4">E-mail</th>
-                <th className="py-3 px-4">Perfil</th>
-                <th className="py-3 px-4">Situação</th>
-                <th className="py-3 px-4 text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-              {filteredUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-slate-50/75 transition-colors">
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 text-slate-800 font-bold text-xs flex items-center justify-center">
-                        {text(user, 'name').slice(0, 1).toUpperCase()}
+        {!filteredUsers?.length ? (
+          <div className="p-8 text-center text-slate-400 text-xs font-medium">
+            {loading ? 'Carregando usuários...' : 'Nenhum usuário encontrado.'}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50/75 text-slate-500 uppercase tracking-wider font-semibold text-[11px]">
+                  <th className="py-3 px-4">Usuário</th>
+                  <th className="py-3 px-4">E-mail</th>
+                  <th className="py-3 px-4">Perfil</th>
+                  <th className="py-3 px-4">Situação</th>
+                  <th className="py-3 px-4 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                {(filteredUsers ?? []).map((user) => (
+                  <tr key={user.id} className="hover:bg-slate-50/75 transition-colors">
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 text-slate-800 font-bold text-xs flex items-center justify-center">
+                          {text(user, 'name').slice(0, 1).toUpperCase()}
+                        </div>
+                        <span className="font-bold text-slate-900">{text(user, 'name')}</span>
                       </div>
-                      <span className="font-bold text-slate-900">{text(user, 'name')}</span>
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-slate-600">{text(user, 'email')}</td>
-                  <td className="py-3 px-4">
-                    <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-slate-100 text-slate-700 border border-slate-200">
-                      {roleLabel[text(user, 'role') as Role] ?? text(user, 'role')}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4">
-                    <span
-                      className={`px-2 py-0.5 text-[10px] font-bold rounded-md border ${
-                        active(user)
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          : 'bg-slate-100 text-slate-600 border-slate-200'
-                      }`}
-                    >
-                      {active(user) ? 'Ativo' : 'Inativo'}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    {user.id !== session.id && (
-                      <button
-                        type="button"
-                        aria-label={`Inativar ${text(user, 'name')}`}
-                        onClick={() => void toggleUserStatus(user)}
-                        title={active(user) ? 'Inativar usuário' : 'Reativar usuário'}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                    </td>
+                    <td className="py-3 px-4 text-slate-600">{text(user, 'email')}</td>
+                    <td className="py-3 px-4">
+                      <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                        {roleLabel[text(user, 'role') as Role] ?? text(user, 'role')}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <span
+                        className={`px-2 py-0.5 text-[10px] font-bold rounded-md border ${
+                          active(user)
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-slate-100 text-slate-600 border-slate-200'
+                        }`}
                       >
-                        {active(user) ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {!filteredUsers.length && !loading && (
-                <tr>
-                  <td colSpan={5} className="py-8 text-center text-slate-400 font-medium">
-                    Nenhum usuário encontrado.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                        {active(user) ? 'Ativo' : 'Inativo'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      {user.id !== session.id && (
+                        <button
+                          type="button"
+                          aria-label={`Inativar ${text(user, 'name')}`}
+                          onClick={() => void toggleUserStatus(user)}
+                          title={active(user) ? 'Inativar usuário' : 'Reativar usuário'}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                        >
+                          {active(user) ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Create Modal */}

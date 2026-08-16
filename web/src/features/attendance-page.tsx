@@ -155,8 +155,8 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
     );
   }, [rows, search]);
 
-  const classOptions = classes.items.map((item) => {
-    const course = courses.items.find((candidate) => candidate.id === item.course_id);
+  const classOptions = (classes.items ?? []).map((item) => {
+    const course = (courses.items ?? []).find((candidate) => candidate.id === item.course_id);
     const courseName = text(course, 'name');
     return { value: item.id, label: `${text(item, 'name')}${courseName ? ` • ${courseName}` : ''}` };
   });

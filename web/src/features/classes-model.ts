@@ -66,22 +66,28 @@ export function permissionsForClasses(role: Role): ClassPermissions {
 }
 
 export function buildClassViews(input: {
-  classes: LocalRecord[];
-  courses: LocalRecord[];
-  laboratories: LocalRecord[];
-  assignments: LocalRecord[];
-  teachers: LocalRecord[];
+  classes?: LocalRecord[];
+  courses?: LocalRecord[];
+  laboratories?: LocalRecord[];
+  assignments?: LocalRecord[];
+  teachers?: LocalRecord[];
   session: Pick<UserSession, 'id' | 'name' | 'email' | 'role'>;
 }): ClassView[] {
-  const courses = new Map(input.courses.filter(current).map((item) => [item.id, item]));
-  const laboratories = new Map(input.laboratories.filter(current).map((item) => [item.id, item]));
-  const teachers = new Map(input.teachers.map((item) => [item.id, item]));
-  const assignments = input.assignments.filter(current);
+  const safeCourses = input.courses ?? [];
+  const safeLaboratories = input.laboratories ?? [];
+  const safeTeachers = input.teachers ?? [];
+  const safeAssignments = input.assignments ?? [];
+  const safeClasses = input.classes ?? [];
+
+  const courses = new Map(safeCourses.filter(current).map((item) => [item.id, item]));
+  const laboratories = new Map(safeLaboratories.filter(current).map((item) => [item.id, item]));
+  const teachers = new Map(safeTeachers.map((item) => [item.id, item]));
+  const assignments = safeAssignments.filter(current);
   const visibleClassIds = input.session.role === 'professor'
     ? new Set(assignments.filter((item) => item.user_id === input.session.id).map((item) => text(item, 'class_id')))
     : null;
 
-  return input.classes
+  return safeClasses
     .filter(current)
     .filter((item) => !visibleClassIds || visibleClassIds.has(item.id))
     .map((record) => {

@@ -268,7 +268,17 @@ function missing(filters: ReportFilters, title: string, message: string): Report
   return { type: filters.type, title, description: '', tableTitle: '', metrics: [], headers: [], rows: [], context: [], notices: [], ready: false, requiredMessage: message, matrix: false };
 }
 
-export function buildReportView(input: ReportInput, filters: ReportFilters): ReportView {
+export function buildReportView(rawInput: ReportInput, filters: ReportFilters): ReportView {
+  const input: ReportInput = {
+    attendance: rawInput?.attendance ?? [],
+    classes: rawInput?.classes ?? [],
+    classNotes: rawInput?.classNotes ?? [],
+    classTeachers: rawInput?.classTeachers ?? [],
+    courses: rawInput?.courses ?? [],
+    directory: rawInput?.directory ?? [],
+    enrollments: rawInput?.enrollments ?? [],
+    students: rawInput?.students ?? [],
+  };
   if (filters.from > filters.to) return missing(filters, reportTypeOptions.find((item) => item.value === filters.type)?.label ?? 'Relatório', 'A data inicial precisa ser anterior ou igual à data final.');
   switch (filters.type) {
     case 'institutional': return institutional(input, filters);
