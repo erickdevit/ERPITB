@@ -326,15 +326,15 @@ function Shell() {
         onClick={() => go(item.path)}
         aria-current={selected ? 'page' : undefined}
         title={collapsed ? item.label : undefined}
-        className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-          nested && !collapsed ? 'ml-3 w-[calc(100%-0.75rem)]' : ''
+        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs transition-colors cursor-pointer ${
+          nested && !collapsed ? 'ml-2.5 w-[calc(100%-0.625rem)]' : ''
         } ${
           selected
-            ? 'bg-white/10 text-white shadow-xs font-bold'
-            : 'text-slate-400 hover:text-white hover:bg-white/5'
+            ? 'bg-white/[0.08] text-white font-semibold'
+            : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04] font-medium'
         } ${collapsed ? 'justify-center px-2' : ''}`}
       >
-        <Icon className={`w-4 h-4 shrink-0 ${selected ? 'text-sky-400' : 'text-slate-400'}`} />
+        <Icon className={`w-4 h-4 shrink-0 transition-colors ${selected ? 'text-sky-400' : 'text-slate-400'}`} />
         {!collapsed && <span className="truncate">{item.shortLabel ?? item.label}</span>}
       </button>
     );
@@ -351,7 +351,7 @@ function Shell() {
     const selected = location.pathname.startsWith(`/${parent === 'bi' ? 'bi' : 'reposicoes'}`);
 
     return (
-      <div key={parent} className="flex flex-col gap-1">
+      <div key={parent} className="flex flex-col gap-0.5">
         <button
           type="button"
           onClick={() => {
@@ -360,22 +360,22 @@ function Shell() {
           }}
           aria-expanded={!collapsed ? open : undefined}
           title={collapsed ? label : undefined}
-          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-colors cursor-pointer ${
             selected
-              ? 'bg-white/5 text-white'
-              : 'text-slate-400 hover:text-white hover:bg-white/5'
+              ? 'text-white font-semibold'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04] font-medium'
           } ${collapsed ? 'justify-center px-2' : ''}`}
         >
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-2.5 min-w-0">
             <Icon className={`w-4 h-4 shrink-0 ${selected ? 'text-sky-400' : 'text-slate-400'}`} />
             {!collapsed && <span className="truncate">{label}</span>}
           </div>
           {!collapsed && (
-            open ? <ChevronDown className="w-3.5 h-3.5 text-slate-500" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
+            open ? <ChevronDown className="w-3.5 h-3.5 text-slate-400" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
           )}
         </button>
         {!collapsed && open && (
-          <div className="flex flex-col gap-1 pl-1">
+          <div className="flex flex-col gap-0.5 pl-1.5 border-l border-white/5 ml-3 my-0.5">
             {items.map((item) => renderNavItem(item, true))}
           </div>
         )}
@@ -385,7 +385,7 @@ function Shell() {
 
   const topLevel = destinations.filter((item) => !item.parent);
   const navContent = (
-    <nav className="flex flex-col gap-1.5" aria-label="Navegação principal">
+    <nav className="flex flex-col gap-1" aria-label="Navegação principal">
       {topLevel.map((item) =>
         item.path === '/relatorios' ? (
           <React.Fragment key="reports-and-replacements">
@@ -418,10 +418,10 @@ function Shell() {
         <div className="flex items-center justify-between h-14 px-3.5 border-b border-white/5">
           {!collapsed && (
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-7 h-7 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20 flex items-center justify-center font-extrabold text-xs">
+              <div className="w-7 h-7 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20 flex items-center justify-center font-bold text-xs">
                 ITB
               </div>
-              <span className="font-extrabold text-sm tracking-tight text-white truncate">
+              <span className="font-bold text-sm tracking-tight text-white truncate">
                 Frequência ITB
               </span>
             </div>

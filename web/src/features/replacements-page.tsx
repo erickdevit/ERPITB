@@ -134,9 +134,9 @@ export function ReplacementsPage({
       />
 
       {/* Filter Bar */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs">
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs">
         <div className="flex flex-col gap-1.5 max-w-md">
-          <label htmlFor="search-replacements" className="text-xs font-semibold text-slate-700">
+          <label htmlFor="search-replacements" className="text-xs font-medium text-slate-700">
             Buscar reposição
           </label>
           <div className="relative">
@@ -149,7 +149,7 @@ export function ReplacementsPage({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar por aluno ou turma..."
-              className="w-full pl-9 pr-3 py-2 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all placeholder:text-slate-400"
+              className="w-full pl-9 pr-3 py-2 text-sm text-slate-900 bg-white border border-slate-200/90 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all placeholder:text-slate-400"
             />
           </div>
         </div>
@@ -160,7 +160,7 @@ export function ReplacementsPage({
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50/75 text-slate-500 uppercase tracking-wider font-bold text-[11px]">
+              <tr className="border-b border-slate-200 bg-slate-50/75 text-slate-500 uppercase tracking-wider font-semibold text-[11px]">
                 <th className="py-3 px-4">Aluno</th>
                 <th className="py-3 px-4">Turma</th>
                 <th className="py-3 px-4">Data e Horário</th>

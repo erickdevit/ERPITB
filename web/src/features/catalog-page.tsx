@@ -137,11 +137,11 @@ function CatalogPage({ type }: CatalogProps) {
       />
 
       {/* Filter Bar */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
           <div className="sm:col-span-2">
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="search-catalog" className="text-xs font-semibold text-slate-700">
+              <label htmlFor="search-catalog" className="text-xs font-medium text-slate-700">
                 Buscar {singular}
               </label>
               <div className="relative">
@@ -154,7 +154,7 @@ function CatalogPage({ type }: CatalogProps) {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder={`Nome ou código do ${singular}...`}
-                  className="w-full pl-9 pr-3 py-2 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all placeholder:text-slate-400"
+                  className="w-full pl-9 pr-3 py-2 text-sm text-slate-900 bg-white border border-slate-200/90 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all placeholder:text-slate-400"
                 />
               </div>
             </div>
@@ -180,7 +180,7 @@ function CatalogPage({ type }: CatalogProps) {
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50/75 text-slate-500 uppercase tracking-wider font-bold text-[11px]">
+              <tr className="border-b border-slate-200 bg-slate-50/75 text-slate-500 uppercase tracking-wider font-semibold text-[11px]">
                 {isCourse && <th className="py-3 px-4">Código</th>}
                 <th className="py-3 px-4">Nome</th>
                 <th className="py-3 px-4">Situação</th>

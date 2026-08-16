@@ -80,16 +80,16 @@ function KpiCard({
   colorClass: string;
 }) {
   return (
-    <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs hover:border-slate-300 transition-colors flex items-center gap-4 text-left">
-      <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${colorClass}`}>
+    <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-2xs hover:border-slate-300 transition-colors flex items-center gap-3.5 text-left">
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${colorClass}`}>
         <Icon className="w-5 h-5" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-semibold text-slate-500 truncate">{label}</p>
-        <p className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight my-0.5 leading-none">
+        <p className="text-xs font-medium text-slate-500 truncate">{label}</p>
+        <p className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight my-0.5 leading-none">
           {value}
         </p>
-        <p className="text-xs text-slate-400 truncate">{detail}</p>
+        <p className="text-[11px] text-slate-400 font-medium truncate">{detail}</p>
       </div>
     </div>
   );
@@ -203,27 +203,27 @@ export function DashboardPage() {
       </div>
 
       {/* Period Selector Card */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs text-left">
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs text-left">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center">
               <Calendar className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-xs font-bold text-slate-900">Período Analisado</p>
-              <p className="text-xs text-slate-400 font-medium">
+              <p className="text-xs font-semibold text-slate-900">Período Analisado</p>
+              <p className="text-[11px] text-slate-400 font-medium">
                 {range.from || '—'} a {range.to || '—'}
               </p>
             </div>
           </div>
 
-          <div className="inline-flex p-1 bg-slate-100 rounded-xl gap-1 border border-slate-200 self-start md:self-auto">
+          <div className="inline-flex p-0.5 bg-slate-100 rounded-lg gap-0.5 border border-slate-200 self-start md:self-auto">
             {([7, 30, 90] as const).map((days) => (
               <button
                 key={days}
                 type="button"
                 onClick={() => applyPreset(days)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
                   preset === days
                     ? 'bg-slate-950 text-white shadow-xs'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
@@ -235,7 +235,7 @@ export function DashboardPage() {
             <button
               type="button"
               onClick={() => setPreset('custom')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
                 preset === 'custom'
                   ? 'bg-slate-950 text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'

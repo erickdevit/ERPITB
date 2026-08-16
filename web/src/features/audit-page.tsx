@@ -127,9 +127,9 @@ export function AuditPage() {
       )}
 
       {/* Filter Bar */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs">
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs">
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="search-audit" className="text-xs font-semibold text-slate-700">
+          <label htmlFor="search-audit" className="text-xs font-medium text-slate-700">
             Buscar evento, entidade ou usuário
           </label>
           <div className="relative">
@@ -142,7 +142,7 @@ export function AuditPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Digite para filtrar..."
-              className="w-full pl-9 pr-3 py-2 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all placeholder:text-slate-400"
+              className="w-full pl-9 pr-3 py-2 text-sm text-slate-900 bg-white border border-slate-200/90 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all placeholder:text-slate-400"
             />
           </div>
         </div>
