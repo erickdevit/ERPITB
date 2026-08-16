@@ -361,19 +361,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
               return (
                 <div
                   key={row.student.id}
-                  className={`bg-white border rounded-xl p-2.5 sm:p-3 shadow-2xs transition-all ${
-                    row.status === 'P'
-                      ? 'border-l-4 border-l-emerald-500 border-slate-200'
-                      : row.status === 'F'
-                      ? 'border-l-4 border-l-rose-500 border-slate-200'
-                      : row.status === 'J'
-                      ? 'border-l-4 border-l-sky-500 border-slate-200'
-                      : row.status === 'A'
-                      ? 'border-l-4 border-l-amber-500 border-slate-200'
-                      : row.status === 'R'
-                      ? 'border-l-4 border-l-purple-500 border-slate-200'
-                      : 'border-slate-200 hover:border-slate-300'
-                  }`}
+                  className="bg-white border border-slate-200/90 hover:border-slate-300 rounded-xl p-2.5 sm:p-3 shadow-2xs transition-colors"
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3">
                     {/* Student Info */}
