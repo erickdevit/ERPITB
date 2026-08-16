@@ -1,16 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Calendar,
-  Clock,
   Edit3,
   Lock,
+  MessageSquare,
   Save,
   Search,
-  CheckCircle2,
-  XCircle,
-  HelpCircle,
-  AlertCircle,
-  RotateCcw,
 } from 'lucide-react';
 import { useApp } from '../app-context';
 import { DateField, PageDialog, SelectField } from '../components';
@@ -28,41 +23,36 @@ import {
 
 const statusConfig: Record<
   EditableAttendanceStatus,
-  { label: string; activeBg: string; activeText: string; activeBorder: string; hoverBg: string }
+  { label: string; activeBg: string; activeText: string; hoverBg: string }
 > = {
   P: {
     label: 'Presente',
     activeBg: 'bg-emerald-600',
     activeText: 'text-white',
-    activeBorder: 'border-emerald-600',
     hoverBg: 'hover:bg-emerald-50 hover:text-emerald-700',
   },
   F: {
     label: 'Falta',
     activeBg: 'bg-rose-600',
     activeText: 'text-white',
-    activeBorder: 'border-rose-600',
     hoverBg: 'hover:bg-rose-50 hover:text-rose-700',
   },
   J: {
     label: 'Justificada',
     activeBg: 'bg-sky-600',
     activeText: 'text-white',
-    activeBorder: 'border-sky-600',
     hoverBg: 'hover:bg-sky-50 hover:text-sky-700',
   },
   A: {
     label: 'Atraso',
     activeBg: 'bg-amber-500',
     activeText: 'text-white',
-    activeBorder: 'border-amber-500',
     hoverBg: 'hover:bg-amber-50 hover:text-amber-700',
   },
   R: {
     label: 'Reposição',
     activeBg: 'bg-purple-600',
     activeText: 'text-white',
-    activeBorder: 'border-purple-600',
     hoverBg: 'hover:bg-purple-50 hover:text-purple-700',
   },
 };
@@ -98,6 +88,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   const [search, setSearch] = useState('');
   const [rows, setRows] = useState<AttendanceDraftRow[]>([]);
   const [generalNotes, setGeneralNotes] = useState('');
+  const [showGeneralNotes, setShowGeneralNotes] = useState(false);
   const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
   const [replacementDialog, setReplacementDialog] = useState<ReplacementDialogState>();
   const [saving, setSaving] = useState(false);
@@ -148,7 +139,9 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
         replacements: replacements.items,
       }),
     );
-    setGeneralNotes(text(existingClassNote, 'notes'));
+    const existingText = text(existingClassNote, 'notes');
+    setGeneralNotes(existingText);
+    if (existingText.trim()) setShowGeneralNotes(true);
     setExpandedNotes(new Set());
   }, [attendance.items, canonicalDate, classId, enrollments.items, existingClassNote, loading, replacements.items, students.items]);
 
@@ -161,18 +154,6 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
         .includes(term),
     );
   }, [rows, search]);
-
-  const stats = useMemo(() => {
-    const total = rows.length;
-    const present = rows.filter((r) => r.status === 'P').length;
-    const absent = rows.filter((r) => r.status === 'F').length;
-    const justified = rows.filter((r) => r.status === 'J').length;
-    const late = rows.filter((r) => r.status === 'A').length;
-    const replacement = rows.filter((r) => r.status === 'R').length;
-    const unset = rows.filter((r) => !r.status).length;
-    const rate = total ? Math.round((present / total) * 100) : 0;
-    return { total, present, absent, justified, late, replacement, unset, rate };
-  }, [rows]);
 
   const classOptions = classes.items.map((item) => {
     const course = courses.items.find((candidate) => candidate.id === item.course_id);
@@ -260,87 +241,22 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   };
 
   return (
-    <div className="flex flex-col gap-5">
-      {/* Top Header Controls (without duplicate title) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
-        <p className="text-xs sm:text-sm text-slate-500 text-left font-medium">
-          Legenda: <strong className="text-slate-800">P</strong> = presente, <strong className="text-slate-800">F</strong> = falta, <strong className="text-slate-800">J</strong> = justificada, <strong className="text-slate-800">A</strong> = atraso e <strong className="text-slate-800">R</strong> = reposição.
-        </p>
-        <button
-          type="button"
-          disabled={!access.editable || !rows.length || saving}
-          onClick={() => void save()}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-slate-950 hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-semibold rounded-lg shadow-xs transition-colors cursor-pointer shrink-0"
-        >
-          <Save className="w-4 h-4" />
-          <span>{saving ? 'Salvando…' : 'Salvar chamada'}</span>
-        </button>
-      </div>
-
-      {/* Class & Date Filter */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="md:col-span-2">
+    <div className="flex flex-col gap-3">
+      {/* Unified Single-Row Toolbar */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs">
+        <div className="flex flex-col md:flex-row md:items-end gap-2.5">
+          {/* Turma */}
+          <div className="flex-1 min-w-[180px]">
             <SelectField label="Turma" value={classId} onChange={setClassId} options={classOptions} />
           </div>
-          <div>
+
+          {/* Data */}
+          <div className="w-full md:w-40">
             <DateField label="Data da chamada" value={date} onChange={setDate} required />
           </div>
-        </div>
-      </div>
 
-      {/* Read-only Alert */}
-      {!access.editable && classId && canonicalDate && (
-        <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs sm:text-sm text-amber-800" role="alert">
-          <Lock className="w-5 h-5 shrink-0 text-amber-600 mt-0.5" />
-          <div>
-            <strong>Somente leitura.</strong> {access.message}
-          </div>
-        </div>
-      )}
-
-      {classId && canonicalDate && (
-        <>
-          {/* Real-time Summary Ribbon */}
-          {rows.length > 0 && (
-            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-4 text-xs font-semibold">
-                <span className="text-slate-600">
-                  Total: <strong className="text-slate-900">{stats.total}</strong> alunos
-                </span>
-                <span className="text-emerald-700">
-                  Presentes: <strong>{stats.present}</strong> ({stats.rate}%)
-                </span>
-                <span className="text-rose-700">
-                  Faltas: <strong>{stats.absent}</strong>
-                </span>
-                {stats.justified > 0 && (
-                  <span className="text-sky-700">
-                    Justificadas: <strong>{stats.justified}</strong>
-                  </span>
-                )}
-                {stats.late > 0 && (
-                  <span className="text-amber-700">
-                    Atrasos: <strong>{stats.late}</strong>
-                  </span>
-                )}
-                {stats.replacement > 0 && (
-                  <span className="text-purple-700">
-                    Reposições: <strong>{stats.replacement}</strong>
-                  </span>
-                )}
-              </div>
-
-              {stats.unset > 0 && (
-                <span className="px-2.5 py-1 text-[11px] font-bold text-slate-500 bg-slate-100 border border-slate-200 rounded-full">
-                  {stats.unset} pendente(s)
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Search Bar */}
-          <div className="flex flex-col gap-1.5 text-left">
+          {/* Busca aluno */}
+          <div className="flex-1 min-w-[180px] flex flex-col gap-1.5 text-left">
             <label htmlFor="search-student" className="text-xs font-semibold text-slate-700">
               Buscar aluno na chamada
             </label>
@@ -359,39 +275,85 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
             </div>
           </div>
 
-          {/* General Class Note */}
-          <div className="flex flex-col gap-1.5 text-left">
+          {/* Action buttons (Obs. da turma toggle + Salvar chamada) */}
+          <div className="flex items-center gap-2 pt-1 md:pt-0 self-stretch md:self-auto justify-end">
+            <button
+              type="button"
+              aria-label="Observação da turma"
+              aria-expanded={showGeneralNotes}
+              onClick={() => setShowGeneralNotes((prev) => !prev)}
+              title="Anotação geral da turma nesta chamada"
+              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all cursor-pointer h-[38px] ${
+                generalNotes.trim() || showGeneralNotes
+                  ? 'bg-sky-50 border-sky-200 text-sky-700'
+                  : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+              }`}
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Obs. da turma</span>
+              {generalNotes.trim() && <span className="w-1.5 h-1.5 rounded-full bg-sky-600" />}
+            </button>
+
+            <button
+              type="button"
+              disabled={!access.editable || !rows.length || saving}
+              onClick={() => void save()}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-slate-950 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer shrink-0 h-[38px]"
+            >
+              <Save className="w-3.5 h-3.5" />
+              <span>{saving ? 'Salvando…' : 'Salvar chamada'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Expandable General Class Notes Drawer */}
+        <div className={`mt-3 pt-3 border-t border-slate-100 flex flex-col gap-1.5 text-left ${showGeneralNotes ? 'block' : 'hidden'}`}>
+          <div className="flex items-center justify-between">
             <label htmlFor="general-notes" className="text-xs font-semibold text-slate-700">
               Observação geral da turma nesta chamada
             </label>
-            <textarea
-              id="general-notes"
-              rows={2}
-              maxLength={2000}
-              disabled={!access.editable}
-              value={generalNotes}
-              onChange={(e) => setGeneralNotes(e.target.value)}
-              placeholder="Anotações sobre a aula ou ocorrências gerais..."
-              className="w-full p-3 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all disabled:bg-slate-50 disabled:text-slate-400 placeholder:text-slate-400"
-            />
-            <span className="text-xs text-slate-400 text-right">{generalNotes.length}/2000</span>
+            <span className="text-[11px] text-slate-400 font-medium">{generalNotes.length}/2000</span>
           </div>
+          <textarea
+            id="general-notes"
+            rows={2}
+            maxLength={2000}
+            disabled={!access.editable}
+            value={generalNotes}
+            onChange={(e) => setGeneralNotes(e.target.value)}
+            placeholder="Anotações sobre a aula ou ocorrências gerais da turma..."
+            className="w-full p-2.5 text-xs sm:text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all disabled:bg-slate-50 disabled:text-slate-400 placeholder:text-slate-400"
+          />
+        </div>
+      </div>
 
+      {/* Read-only Alert */}
+      {!access.editable && classId && canonicalDate && (
+        <div className="flex items-start gap-3 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs sm:text-sm text-amber-800" role="alert">
+          <Lock className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+          <div>
+            <strong>Somente leitura.</strong> {access.message}
+          </div>
+        </div>
+      )}
+
+      {classId && canonicalDate && (
+        <>
           {/* Empty States */}
           {!loading && rows.length === 0 && (
-            <div className="p-4 rounded-xl bg-sky-50 border border-sky-200 text-xs sm:text-sm text-sky-800">
+            <div className="p-4 rounded-xl bg-sky-50 border border-sky-200 text-xs sm:text-sm text-sky-800 text-left">
               A turma selecionada não possui matrículas ativas.
             </div>
           )}
 
           {!loading && rows.length > 0 && visibleRows.length === 0 && (
-            <div className="p-4 rounded-xl bg-slate-100 border border-slate-200 text-xs sm:text-sm text-slate-600">
+            <div className="p-4 rounded-xl bg-slate-100 border border-slate-200 text-xs sm:text-sm text-slate-600 text-left">
               Nenhum aluno corresponde à busca.
             </div>
           )}
 
-          {/* Student Calling Cards */}
-          <div className="flex flex-col gap-2.5">
+          {/* High-Density Student Calling Cards */}
+          <div className="flex flex-col gap-2">
             {visibleRows.map((row) => {
               const rowIndex = rows.findIndex((candidate) => candidate.student.id === row.student.id);
               const noteOpen = expandedNotes.has(row.student.id);
@@ -399,7 +361,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
               return (
                 <div
                   key={row.student.id}
-                  className={`bg-white border rounded-xl p-3.5 sm:p-4 shadow-2xs transition-all ${
+                  className={`bg-white border rounded-xl p-2.5 sm:p-3 shadow-2xs transition-all ${
                     row.status === 'P'
                       ? 'border-l-4 border-l-emerald-500 border-slate-200'
                       : row.status === 'F'
@@ -413,17 +375,17 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                       : 'border-slate-200 hover:border-slate-300'
                   }`}
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3">
                     {/* Student Info */}
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-800 font-bold text-xs flex items-center justify-center shrink-0 border border-slate-200">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-800 font-bold text-xs flex items-center justify-center shrink-0 border border-slate-200">
                         {text(row.student, 'name').slice(0, 1).toUpperCase()}
                       </div>
                       <div className="min-w-0 text-left">
-                        <p className="text-sm font-bold text-slate-900 truncate">
+                        <p className="text-xs sm:text-sm font-bold text-slate-900 truncate">
                           {text(row.student, 'name')}
                         </p>
-                        <p className="text-xs text-slate-400 font-medium truncate">
+                        <p className="text-[11px] text-slate-400 font-medium truncate">
                           Matrícula {text(row.student, 'registration_number') || 'não informada'}
                         </p>
                       </div>
@@ -432,7 +394,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                     {/* Calling Controls */}
                     <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-end">
                       {/* Segmented Pill Group */}
-                      <div className="inline-flex p-1 bg-slate-100 rounded-lg gap-1 border border-slate-200">
+                      <div className="inline-flex p-0.5 bg-slate-100 rounded-lg gap-0.5 border border-slate-200">
                         {(['P', 'F', 'J', 'A', 'R'] as EditableAttendanceStatus[]).map((statusKey) => {
                           const selected = row.status === statusKey;
                           const cfg = statusConfig[statusKey];
@@ -443,7 +405,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                               disabled={!access.editable}
                               aria-pressed={selected}
                               onClick={() => selectStatus(rowIndex, statusKey)}
-                              className={`w-7 h-7 sm:w-8 sm:h-8 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
+                              className={`w-7 h-7 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
                                 selected
                                   ? `${cfg.activeBg} ${cfg.activeText} shadow-xs scale-105`
                                   : `text-slate-600 ${cfg.hoverBg}`
@@ -460,9 +422,9 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                         <button
                           type="button"
                           onClick={access.editable ? () => openReplacement(rowIndex) : undefined}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-purple-200 bg-purple-50 text-purple-700 text-xs font-semibold hover:bg-purple-100 transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-purple-200 bg-purple-50 text-purple-700 text-xs font-semibold hover:bg-purple-100 transition-colors cursor-pointer"
                         >
-                          <Calendar className="w-3.5 h-3.5" />
+                          <Calendar className="w-3 h-3" />
                           <span>
                             {row.replacement
                               ? `${formatDate(row.replacement.scheduledDate)} às ${row.replacement.scheduledTime}`
@@ -489,14 +451,14 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                             : 'bg-white border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-50'
                         }`}
                       >
-                        <Edit3 className="w-4 h-4" />
+                        <Edit3 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
 
-                  {/* Note Expandable Box */}
+                  {/* Student Note Expandable Box */}
                   {noteOpen && (
-                    <div className="mt-3 pt-3 border-t border-slate-100 flex flex-col gap-1 text-left">
+                    <div className="mt-2.5 pt-2.5 border-t border-slate-100 flex flex-col gap-1 text-left">
                       <label htmlFor={`note-${row.student.id}`} className="text-xs font-semibold text-slate-700">
                         Anotação do aluno
                       </label>
@@ -514,7 +476,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                             ? 'Adicione uma observação individual...'
                             : 'Selecione uma situação para registrar uma anotação.'
                         }
-                        className="w-full p-2.5 text-xs sm:text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all disabled:bg-slate-50 disabled:text-slate-400 placeholder:text-slate-400"
+                        className="w-full p-2 text-xs sm:text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all disabled:bg-slate-50 disabled:text-slate-400 placeholder:text-slate-400"
                       />
                       <span className="text-[11px] text-slate-400 text-right">
                         {row.status ? `${row.notes.length}/1000` : 'Selecione uma situação para registrar uma anotação.'}
