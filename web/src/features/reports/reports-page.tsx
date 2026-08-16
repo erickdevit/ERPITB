@@ -33,50 +33,44 @@ export function ReportsCenterPage() {
   const exportMetadata = view.context.map((item, index) => [`Contexto ${index + 1}`, item] as [string, string]);
 
   return (
-    <div className="flex flex-col gap-5 text-left">
-      <Section
-        title="Central de Relatórios"
-        subtitle="Emissão e exportação de diários de classe, desempenho e relatórios pedagógicos"
-        action={
-          <div className="flex items-center gap-2 flex-wrap" aria-label="Opções de exportação do relatório">
-            <button
-              type="button"
-              disabled={!view.ready}
-              onClick={() => void exportSimplePdf(filename, view.title, view.context, view.headers, view.rows)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
-            >
-              <FileText className="w-3.5 h-3.5 text-rose-600" />
-              <span>PDF</span>
-            </button>
-            <button
-              type="button"
-              disabled={!view.ready}
-              onClick={() =>
-                void exportExcelXlsx(
-                  filename,
-                  view.metrics.map((item) => [item.label, item.value]),
-                  view.headers,
-                  view.rows,
-                  exportMetadata,
-                )
-              }
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Excel</span>
-            </button>
-            <button
-              type="button"
-              disabled={!view.ready}
-              onClick={() => exportExcelCsv(filename, view.headers, view.rows)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5 text-sky-600" />
-              <span>CSV</span>
-            </button>
-          </div>
-        }
-      />
+    <div className="flex flex-col gap-3.5 text-left">
+      <div className="flex items-center justify-end gap-2 flex-wrap" aria-label="Opções de exportação do relatório">
+        <button
+          type="button"
+          disabled={!view.ready}
+          onClick={() => void exportSimplePdf(filename, view.title, view.context, view.headers, view.rows)}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
+        >
+          <FileText className="w-3.5 h-3.5 text-rose-600" />
+          <span>PDF</span>
+        </button>
+        <button
+          type="button"
+          disabled={!view.ready}
+          onClick={() =>
+            void exportExcelXlsx(
+              filename,
+              view.metrics.map((item) => [item.label, item.value]),
+              view.headers,
+              view.rows,
+              exportMetadata,
+            )
+          }
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
+        >
+          <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+          <span>Excel</span>
+        </button>
+        <button
+          type="button"
+          disabled={!view.ready}
+          onClick={() => exportExcelCsv(filename, view.headers, view.rows)}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
+        >
+          <Download className="w-3.5 h-3.5 text-sky-600" />
+          <span>CSV</span>
+        </button>
+      </div>
 
       <ReportFiltersBar
         filters={filters}

@@ -39,8 +39,8 @@ export function BiFilterBar({
   };
 
   return (
-    <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs text-left">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 items-end">
+    <div className="bg-white border border-slate-200/90 rounded-2xl p-2.5 sm:p-3 shadow-2xs text-left">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-2 sm:gap-2.5 items-end">
         <div>
           <DateField
             label="Data inicial"
@@ -118,14 +118,14 @@ export function BiFilterBar({
           />
         </div>
 
-        <div className="flex items-center gap-2">
+        <div>
           <button
             type="button"
             onClick={onReset}
             className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-900 text-xs font-medium rounded-lg transition-colors cursor-pointer w-full h-[38px]"
           >
             <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
-            <span>Restaurar filtros</span>
+            <span>Restaurar</span>
           </button>
         </div>
       </div>

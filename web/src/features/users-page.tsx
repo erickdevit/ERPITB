@@ -120,26 +120,11 @@ export function UsersPage() {
   };
 
   return (
-    <div className="flex flex-col gap-5 text-left">
-      <Section
-        title="Gestão de Usuários"
-        subtitle="Controle de acesso, contas de professores, coordenadores e administradores."
-        action={
-          <button
-            type="button"
-            onClick={openCreate}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-950 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg shadow-xs transition-colors cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Novo usuário</span>
-          </button>
-        }
-      />
-
+    <div className="flex flex-col gap-3.5 text-left">
       {/* Filter Bar */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
-          <div>
+        <div className="flex flex-col sm:flex-row sm:items-end gap-2.5 sm:gap-3">
+          <div className="flex-1 min-w-[200px]">
             <div className="flex flex-col gap-1.5">
               <label htmlFor="search-user" className="text-xs font-medium text-slate-700">
                 Buscar nome ou e-mail
@@ -160,7 +145,7 @@ export function UsersPage() {
             </div>
           </div>
 
-          <div>
+          <div className="w-full sm:w-48">
             <SelectField
               label="Perfil de acesso"
               value={filterRole}
@@ -169,7 +154,7 @@ export function UsersPage() {
             />
           </div>
 
-          <div>
+          <div className="w-full sm:w-40">
             <SelectField
               label="Situação"
               value={filterStatus}
@@ -180,6 +165,17 @@ export function UsersPage() {
                 { value: 'inactive', label: 'Inativos' },
               ]}
             />
+          </div>
+
+          <div className="shrink-0 pt-1 sm:pt-0">
+            <button
+              type="button"
+              onClick={openCreate}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-slate-950 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer w-full sm:w-auto h-[38px]"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Novo usuário</span>
+            </button>
           </div>
         </div>
       </div>

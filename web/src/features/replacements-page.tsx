@@ -123,16 +123,7 @@ export function ReplacementsPage({
   };
 
   return (
-    <div className="flex flex-col gap-5 text-left">
-      <Section
-        title={history ? 'Histórico de Reposições' : 'Reposições em Aberto'}
-        subtitle={
-          history
-            ? 'Registro consolidado de reposições de aula já realizadas.'
-            : 'Acompanhamento e conclusão de reposições agendadas para alunos.'
-        }
-      />
-
+    <div className="flex flex-col gap-3.5 text-left">
       {/* Filter Bar */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs">
         <div className="flex flex-col gap-1.5 max-w-md">

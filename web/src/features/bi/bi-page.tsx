@@ -154,22 +154,8 @@ export function BiPage({ viewKey }: { viewKey: BiViewKey }) {
   const rows = view.rows ?? [];
 
   return (
-    <div className="flex flex-col gap-5 text-left">
-      <Section
-        title={view.title}
-        subtitle={view.description}
-        action={
-          <ExportActions
-            title={view.title}
-            context={context}
-            headers={headers}
-            rows={rows}
-            payload={view.payload}
-            metrics={metrics}
-          />
-        }
-      />
-
+    <div className="flex flex-col gap-3 text-left">
+      {/* LINE 1: Filter toolbar */}
       <BiFilterBar
         filters={filters}
         onChange={setFilters}
@@ -178,23 +164,39 @@ export function BiPage({ viewKey }: { viewKey: BiViewKey }) {
         onReset={() => setFilters(defaults)}
       />
 
+      {/* LINE 2: Quantities Ribbon + Export Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-white border border-slate-200/90 rounded-2xl p-2 sm:p-2.5 px-3 sm:px-3.5 shadow-2xs">
+        {/* Metric Badges */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {metrics.map((metric) => (
+            <div
+              key={metric.label}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200/80 text-xs"
+            >
+              <span className="text-slate-500 font-medium text-[11px]">{metric.label}:</span>
+              <span className="font-bold text-slate-900 text-xs sm:text-sm tracking-tight">{metric.value}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Export Actions */}
+        <div className="shrink-0 flex items-center justify-end">
+          <ExportActions
+            title={view.title}
+            context={context}
+            headers={headers}
+            rows={rows}
+            payload={view.payload}
+            metrics={metrics}
+          />
+        </div>
+      </div>
+
       {loading && (
         <div className="w-full bg-slate-100 h-1 rounded-full overflow-hidden" aria-label="Carregando dados analíticos">
           <div className="bg-slate-950 h-full w-1/3 animate-pulse" />
         </div>
       )}
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {metrics.map((metric) => (
-          <div key={metric.label} className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs">
-            <p className="text-xs font-semibold text-slate-500 truncate">{metric.label}</p>
-            <p className="text-xl font-extrabold text-slate-900 tracking-tight mt-1 leading-none">
-              {metric.value}
-            </p>
-          </div>
-        ))}
-      </div>
 
       {/* Analytics Chart */}
       {view.chart && (
@@ -205,10 +207,10 @@ export function BiPage({ viewKey }: { viewKey: BiViewKey }) {
 
       {/* Data Table */}
       <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xs overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+        <div className="p-3 sm:p-3.5 border-b border-slate-100 flex items-center justify-between">
           <div>
-            <h2 className="text-sm font-bold text-slate-900 tracking-tight">{view.tableTitle}</h2>
-            <p className="text-xs text-slate-400 font-medium mt-0.5">
+            <h2 className="text-sm font-semibold text-slate-900 tracking-tight">{view.tableTitle}</h2>
+            <p className="text-[11px] text-slate-400 font-medium mt-0.5">
               {rows.length.toLocaleString('pt-BR')} linha(s) consolidada(s)
             </p>
           </div>
@@ -222,9 +224,9 @@ export function BiPage({ viewKey }: { viewKey: BiViewKey }) {
           <div className="overflow-x-auto max-h-[560px]">
             <table className="w-full text-left text-xs border-collapse" aria-label={view.tableTitle}>
               <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-xs z-1 border-b border-slate-200">
-                <tr className="text-slate-500 uppercase tracking-wider font-bold text-[11px]">
+                <tr className="text-slate-500 uppercase tracking-wider font-semibold text-[11px]">
                   {headers.map((header, index) => (
-                    <th key={`${header}-${index}`} className="py-3 px-4 whitespace-nowrap">
+                    <th key={`${header}-${index}`} className="py-2.5 px-3.5 whitespace-nowrap">
                       {header}
                     </th>
                   ))}
@@ -236,7 +238,7 @@ export function BiPage({ viewKey }: { viewKey: BiViewKey }) {
                     {(Array.isArray(row) ? row : [row]).map((value, index) => (
                       <td
                         key={`${rowIndex}-${index}`}
-                        className={`py-2.5 px-4 ${index === 0 ? 'font-bold text-slate-900' : 'text-slate-600'}`}
+                        className={`py-2 px-3.5 ${index === 0 ? 'font-semibold text-slate-900' : 'text-slate-600'}`}
                       >
                         {String(value ?? '—')}
                       </td>

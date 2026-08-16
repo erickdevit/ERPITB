@@ -210,26 +210,9 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
   };
 
   return (
-    <div className="flex flex-col gap-5 text-left">
-      <Section
-        title="Alunos"
-        subtitle="Cadastro de alunos, histórico de matrículas e taxas de frequência."
-        action={
-          permissions.canCreate && (
-            <button
-              type="button"
-              onClick={openCreate}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-slate-950 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg shadow-xs transition-colors cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Novo aluno</span>
-            </button>
-          )
-        }
-      />
-
+    <div className="flex flex-col gap-3.5 text-left">
       {session.role === 'professor' && (
-        <div className="flex items-center gap-2.5 p-4 rounded-xl bg-sky-50 border border-sky-200 text-xs sm:text-sm text-sky-800">
+        <div className="flex items-center gap-2.5 p-3 rounded-xl bg-sky-50 border border-sky-200 text-xs text-sky-800">
           <Info className="w-4 h-4 text-sky-600 shrink-0" />
           <span>Exibindo somente os alunos das turmas atribuídas a você.</span>
         </div>
@@ -237,8 +220,8 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
 
       {/* Filter Bar */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
-          <div className="lg:col-span-2">
+        <div className="flex flex-col lg:flex-row lg:items-end gap-2.5 sm:gap-3">
+          <div className="flex-1 min-w-[200px]">
             <div className="flex flex-col gap-1.5">
               <label htmlFor="search-student-page" className="text-xs font-medium text-slate-700">
                 Buscar aluno
@@ -259,7 +242,7 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
             </div>
           </div>
 
-          <div>
+          <div className="w-full lg:w-48">
             <SelectField
               label="Turma"
               value={filterClassId}
@@ -271,7 +254,7 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
             />
           </div>
 
-          <div>
+          <div className="w-full lg:w-44">
             <SelectField
               label="Situação da matrícula"
               value={filterStatus}
@@ -284,6 +267,19 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
               ]}
             />
           </div>
+
+          {permissions.canCreate && (
+            <div className="shrink-0 pt-1 lg:pt-0">
+              <button
+                type="button"
+                onClick={openCreate}
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-slate-950 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer w-full sm:w-auto h-[38px]"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Novo aluno</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

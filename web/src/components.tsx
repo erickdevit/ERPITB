@@ -82,12 +82,12 @@ export function Section({
     <div className="flex flex-col gap-4">
       {(subtitle || action) && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
-          {subtitle ? (
+          {subtitle && (
             <p className="text-xs sm:text-sm text-slate-500 text-left font-medium">
               {subtitle}
             </p>
-          ) : <div />}
-          {action && <div className="flex items-center gap-2 flex-wrap justify-end">{action}</div>}
+          )}
+          {action && <div className="flex items-center gap-2 flex-wrap justify-end ml-auto">{action}</div>}
         </div>
       )}
       {children}

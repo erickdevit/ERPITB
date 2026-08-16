@@ -163,12 +163,7 @@ export function ConflictsPage() {
   };
 
   return (
-    <div className="flex flex-col gap-5 text-left">
-      <Section
-        title="Central de Conflitos"
-        subtitle="Compare as duas versões antes de decidir. Toda resolução exige justificativa e fica auditada."
-      />
-
+    <div className="flex flex-col gap-3.5 text-left">
       {effectiveOffline && (
         <div className="flex items-center justify-between p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs sm:text-sm text-amber-800">
           <div className="flex items-center gap-2">

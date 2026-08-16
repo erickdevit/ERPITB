@@ -246,26 +246,9 @@ export function ClassesPage() {
   };
 
   return (
-    <div className="flex flex-col gap-5 text-left">
-      <Section
-        title="Turmas"
-        subtitle="Gerenciamento de turmas, turnos, salas e atribuição de professores."
-        action={
-          permissions.canCreate && (
-            <button
-              type="button"
-              onClick={openCreate}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-slate-950 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg shadow-xs transition-colors cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Nova turma</span>
-            </button>
-          )
-        }
-      />
-
+    <div className="flex flex-col gap-3.5 text-left">
       {session.role === 'professor' && (
-        <div className="flex items-center gap-2.5 p-4 rounded-xl bg-sky-50 border border-sky-200 text-xs sm:text-sm text-sky-800">
+        <div className="flex items-center gap-2.5 p-3 rounded-xl bg-sky-50 border border-sky-200 text-xs text-sky-800">
           <Info className="w-4 h-4 text-sky-600 shrink-0" />
           <span>Estas são as turmas atribuídas a você.</span>
         </div>
@@ -273,8 +256,8 @@ export function ClassesPage() {
 
       {/* Filter Bar */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
-          <div>
+        <div className="flex flex-col sm:flex-row sm:items-end gap-2.5 sm:gap-3">
+          <div className="flex-1 min-w-[200px]">
             <div className="flex flex-col gap-1.5">
               <label htmlFor="search-class" className="text-xs font-medium text-slate-700">
                 Buscar turma
@@ -296,13 +279,26 @@ export function ClassesPage() {
           </div>
 
           {permissions.canAssignTeachers && (
-            <div>
+            <div className="w-full sm:w-56">
               <SelectField
                 label="Professor"
                 value={filterTeacherId}
                 onChange={setFilterTeacherId}
                 options={[{ value: '', label: 'Todos os professores' }, ...teacherOptions.slice(1)]}
               />
+            </div>
+          )}
+
+          {permissions.canCreate && (
+            <div className="shrink-0 pt-1 sm:pt-0">
+              <button
+                type="button"
+                onClick={openCreate}
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-slate-950 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer w-full sm:w-auto h-[38px]"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Nova turma</span>
+              </button>
             </div>
           )}
         </div>

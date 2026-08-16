@@ -97,7 +97,6 @@ function KpiCard({
 
 function DashboardCard({
   title,
-  subtitle,
   children,
 }: {
   title: string;
@@ -105,10 +104,9 @@ function DashboardCard({
   children: ReactNode;
 }) {
   return (
-    <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 shadow-2xs text-left">
-      <h2 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">{title}</h2>
-      {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
-      <div className="mt-4">{children}</div>
+    <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs text-left">
+      <h2 className="text-sm font-semibold text-slate-900 tracking-tight">{title}</h2>
+      <div className="mt-3">{children}</div>
     </div>
   );
 }
@@ -194,14 +192,7 @@ export function DashboardPage() {
   };
 
   return (
-    <div className="flex flex-col gap-5">
-      {/* Header Greeting */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-left">
-        <p className="text-xs sm:text-sm text-slate-500 font-medium">
-          Olá, {session.name.split(' ')[0]}. Indicadores pedagógicos e taxa de presença consolidada no período.
-        </p>
-      </div>
-
+    <div className="flex flex-col gap-4">
       {/* Period Selector Card */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs text-left">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
