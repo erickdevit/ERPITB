@@ -97,6 +97,7 @@ const LaboratoriesPage = lazy(() => import('./features/catalog-page').then((m) =
 const UsersPage = lazy(() => import('./features/users-page').then((m) => ({ default: m.UsersPage })));
 const AttendancePage = lazy(() => import('./features/attendance-page').then((m) => ({ default: m.AttendancePage })));
 const ReplacementsPage = lazy(() => import('./features/replacements-page').then((m) => ({ default: m.ReplacementsPage })));
+const PublicStudentPortal = lazy(() => import('./features/public-student-portal').then((m) => ({ default: m.PublicStudentPortal })));
 
 const LoadingSpinner = () => (
   <div className="w-full py-16 flex items-center justify-center">
@@ -140,6 +141,9 @@ function AppRoutes() {
       <Route path="/usuarios" element={session.role === 'admin' ? deferred(<UsersPage />) : <Navigate to="/" replace />} />
       <Route path="/conflitos" element={manager ? deferred(<ConflictsPage />) : <Navigate to="/" replace />} />
       <Route path="/auditoria" element={manager ? deferred(<AuditPage />) : <Navigate to="/" replace />} />
+      <Route path="/matricula/:code" element={deferred(<PublicStudentPortal />)} />
+      <Route path="/portal/:code" element={deferred(<PublicStudentPortal />)} />
+      <Route path="/aluno/:code" element={deferred(<PublicStudentPortal />)} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
@@ -527,6 +531,19 @@ function Shell() {
 }
 
 export function App() {
+  const location = useLocation();
+  const isPublicPortalRoute = /^\/(?:matricula|portal|aluno|public\/student|public\/matricula)\/([^/]+)/i.test(location.pathname);
+
+  if (isPublicPortalRoute) {
+    return (
+      <ErrorBoundary>
+        <Suspense fallback={<LoadingSpinner />}>
+          <PublicStudentPortal />
+        </Suspense>
+      </ErrorBoundary>
+    );
+  }
+
   const boot = useBoot();
   const [override, setOverride] = useState<typeof boot>();
   const state = override ?? boot;

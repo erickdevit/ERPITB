@@ -1,5 +1,5 @@
 import { authenticate, bootstrap, login, logout, refresh } from './auth';
-import { handleDataRoute } from './data';
+import { getPublicStudentData, handleDataRoute } from './data';
 import { AppError, json } from './http';
 import { pull, push } from './sync';
 import type { Env } from './types';
@@ -49,6 +49,10 @@ export default {
       }
       if (url.pathname === '/auth/refresh' && request.method === 'POST') {
         return withHeaders(json(await refresh(request, env)), commonHeaders, requestId);
+      }
+      const publicStudent = url.pathname.match(/^\/(?:public\/students|portal|matricula|aluno)\/([^/]+)$/);
+      if (publicStudent && request.method === 'GET') {
+        return withHeaders(json(await getPublicStudentData(env, decodeURIComponent(publicStudent[1]!))), commonHeaders, requestId);
       }
       const user = await authenticate(request, env);
       if (url.pathname === '/auth/logout' && request.method === 'POST') {

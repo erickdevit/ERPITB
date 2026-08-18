@@ -10,6 +10,9 @@ import {
   Phone,
   Filter,
   Info,
+  Share2,
+  ExternalLink,
+  Check,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../app-context';
@@ -79,6 +82,7 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
   const [editingId, setEditingId] = useState<string>();
   const [draft, setDraft] = useState<StudentDraft>(() => emptyDraft());
   const [formError, setFormError] = useState<string>();
+  const [copiedId, setCopiedId] = useState<string>();
 
   const permissions = permissionsForStudents(session.role);
 
@@ -132,6 +136,14 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
     });
     setFormError(undefined);
     setDialogOpen(true);
+  };
+
+  const copyPublicLink = (row: StudentView) => {
+    const code = row.registrationNumber || row.id;
+    const url = `${window.location.origin}/matricula/${encodeURIComponent(code)}`;
+    navigator.clipboard.writeText(url);
+    setCopiedId(row.id);
+    setTimeout(() => setCopiedId(undefined), 2000);
   };
 
   const saveStudent = async () => {
@@ -332,6 +344,33 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
                   </td>
                   <td className="py-3 px-4 text-right">
                     <div className="inline-flex items-center gap-1 justify-end">
+                      {/* Copy Public Link */}
+                      <button
+                        type="button"
+                        aria-label={`Copiar link público de ${row.name}`}
+                        onClick={() => copyPublicLink(row)}
+                        title={copiedId === row.id ? 'Link público copiado!' : 'Copiar link público do aluno'}
+                        className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                          copiedId === row.id
+                            ? 'text-emerald-600 bg-emerald-50'
+                            : 'text-slate-400 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
+                      >
+                        {copiedId === row.id ? <Check className="w-3.5 h-3.5" /> : <Share2 className="w-3.5 h-3.5" />}
+                      </button>
+
+                      {/* Open Public Portal in New Tab */}
+                      <a
+                        href={`/matricula/${encodeURIComponent(row.registrationNumber || row.id)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Abrir portal público de ${row.name}`}
+                        title="Abrir portal público em nova aba"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+
                       {permissions.canEdit && (
                         <button
                           type="button"

@@ -474,5 +474,44 @@ describe('End-to-End Integration and Real Database Simulation', () => {
     expect(attList.data.items).toHaveLength(1);
     expect(attList.data.items[0].student_name).toBe('Lucas Gabriel');
     expect(attList.data.items[0].status).toBe('P');
+
+    // 13. Public Student Portal (Unauthenticated access by registration number)
+    const publicRes = await request(env, '/matricula/MAT-9988');
+    expect(publicRes.status).toBe(200);
+    expect(publicRes.data.student).toMatchObject({
+      name: 'Lucas Gabriel',
+      registrationNumber: 'MAT-9988',
+      active: true,
+    });
+    expect(publicRes.data.metrics).toMatchObject({
+      totalLessons: 1,
+      present: 1,
+      absent: 0,
+      attendanceRate: 100,
+    });
+    expect(publicRes.data.classes).toHaveLength(1);
+    expect(publicRes.data.classes[0]).toMatchObject({
+      className: 'Turma DG-01',
+      courseName: 'Design Gráfico',
+      shift: 'tarde',
+    });
+    expect(publicRes.data.history).toHaveLength(1);
+    expect(publicRes.data.history[0]).toMatchObject({
+      date: today,
+      status: 'P',
+      statusLabel: 'Presente',
+      className: 'Turma DG-01',
+      courseName: 'Design Gráfico',
+    });
+
+    // Ensure zero sensitive data leakage (LGPD)
+    expect(publicRes.data.student.cpf).toBeUndefined();
+    expect(publicRes.data.student.encrypted_cpf).toBeUndefined();
+    expect(publicRes.data.student.contact).toBeUndefined();
+    expect(publicRes.data.student.encrypted_contact).toBeUndefined();
+
+    // Query non-existent student returns 404
+    const notFoundRes = await request(env, '/matricula/INVALID-CODE-999');
+    expect(notFoundRes.status).toBe(404);
   });
 });

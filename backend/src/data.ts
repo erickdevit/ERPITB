@@ -797,3 +797,136 @@ export async function handleDataRoute(request: Request, env: Env, user: AuthUser
   if (path === '/audit-logs' && method === 'GET') return listAudit(url, env, user);
   return undefined;
 }
+
+const MONTH_NAMES_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+export async function getPublicStudentData(env: Env, rawIdentifier: string): Promise<unknown> {
+  const identifier = rawIdentifier.trim();
+  if (!identifier || identifier.length > 80) {
+    throw new AppError(400, 'Identificador de aluno inválido.', 'VALIDATION_ERROR');
+  }
+  const student = await env.DB.prepare(
+    `SELECT id, encrypted_name, registration_number, active, created_at
+       FROM students
+      WHERE (registration_number = ? COLLATE NOCASE OR id = ?) AND deleted_at IS NULL
+      LIMIT 1`,
+  ).bind(identifier, identifier).first<{ id: string; encrypted_name: string; registration_number: string; active: number; created_at: string }>();
+
+  if (!student) {
+    throw new AppError(404, 'Aluno não encontrado ou matrícula inválida.', 'NOT_FOUND');
+  }
+
+  let studentName = `Aluno ${student.registration_number || ''}`;
+  try {
+    studentName = await decryptText(env, student.encrypted_name);
+  } catch {
+    // fallback gracefully
+  }
+
+  const enrollmentsQuery = await env.DB.prepare(
+    `SELECT e.id AS enrollment_id, e.status AS enrollment_status,
+            c.id AS class_id, c.name AS class_name, c.shift, c.week_day,
+            co.id AS course_id, co.name AS course_name, co.code AS course_code
+       FROM enrollments e
+       JOIN classes c ON c.id = e.class_id AND c.deleted_at IS NULL
+       JOIN courses co ON co.id = c.course_id AND co.deleted_at IS NULL
+      WHERE e.student_id = ? AND e.deleted_at IS NULL
+      ORDER BY CASE e.status WHEN 'ativa' THEN 0 WHEN 'trancada' THEN 1 ELSE 2 END, c.name`,
+  ).bind(student.id).all<{
+    enrollment_id: string; enrollment_status: string; class_id: string; class_name: string;
+    shift: string; week_day: string | null; course_id: string; course_name: string; course_code: string | null;
+  }>();
+
+  const attendanceQuery = await env.DB.prepare(
+    `SELECT a.id, a.date, a.status, a.notes, a.completed_at,
+            c.name AS class_name, co.name AS course_name
+       FROM attendance_records a
+       JOIN classes c ON c.id = a.class_id AND c.deleted_at IS NULL
+       JOIN courses co ON co.id = c.course_id AND co.deleted_at IS NULL
+      WHERE a.student_id = ? AND a.deleted_at IS NULL
+      ORDER BY a.date DESC`,
+  ).bind(student.id).all<{
+    id: string; date: string; status: AttendanceStatus; notes: string | null;
+    completed_at: string | null; class_name: string; course_name: string;
+  }>();
+
+  const records = attendanceQuery.results;
+  const totalLessons = records.length;
+  const present = records.filter((r) => r.status === 'P' || r.status === 'RC').length;
+  const absent = records.filter((r) => r.status === 'F').length;
+  const justified = records.filter((r) => r.status === 'J').length;
+  const delayed = records.filter((r) => r.status === 'A').length;
+  const replacement = records.filter((r) => r.status === 'R').length;
+  const attendanceRate = totalLessons > 0 ? Math.round((present / totalLessons) * 1000) / 10 : 100;
+
+  // Monthly breakdown
+  const monthlyMap = new Map<string, { present: number; total: number }>();
+  for (const r of records) {
+    const monthKey = r.date.slice(0, 7);
+    const curr = monthlyMap.get(monthKey) ?? { present: 0, total: 0 };
+    curr.total += 1;
+    if (r.status === 'P' || r.status === 'RC') curr.present += 1;
+    monthlyMap.set(monthKey, curr);
+  }
+
+  const monthlyEvolution = Array.from(monthlyMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([monthKey, data]) => {
+      const [year, month] = monthKey.split('-');
+      const mIdx = parseInt(month ?? '1', 10) - 1;
+      const label = `${MONTH_NAMES_PT[mIdx] || month}/${year}`;
+      const rate = data.total > 0 ? Math.round((data.present / data.total) * 1000) / 10 : 100;
+      return {
+        month: monthKey,
+        label,
+        rate,
+        present: data.present,
+        total: data.total,
+        absent: data.total - data.present,
+      };
+    });
+
+  const statusLabels: Record<string, string> = {
+    P: 'Presente',
+    F: 'Falta',
+    J: 'Justificada',
+    A: 'Atraso',
+    R: 'Reposição Necessária',
+    RC: 'Reposição Concluída',
+  };
+
+  return {
+    student: {
+      name: studentName,
+      registrationNumber: student.registration_number,
+      active: Boolean(student.active),
+    },
+    metrics: {
+      totalLessons,
+      present,
+      absent,
+      justified,
+      delayed,
+      replacement,
+      attendanceRate,
+    },
+    classes: enrollmentsQuery.results.map((e) => ({
+      className: e.class_name,
+      courseName: e.course_name,
+      courseCode: e.course_code,
+      shift: e.shift,
+      status: e.enrollment_status,
+    })),
+    monthlyEvolution,
+    history: records.map((r) => ({
+      id: r.id,
+      date: r.date,
+      status: r.status,
+      statusLabel: statusLabels[r.status] || r.status,
+      className: r.class_name,
+      courseName: r.course_name,
+      notes: r.notes,
+      completedAt: r.completed_at,
+    })),
+  };
+}
