@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useLocation, Link } from 'react-router-dom';
 import {
   GraduationCap,
   Calendar,
@@ -62,7 +62,17 @@ interface PublicStudentPayload {
 }
 
 export function PublicStudentPortal() {
-  const { code } = useParams<{ code: string }>();
+  const { code: paramCode } = useParams<{ code: string }>();
+  const location = useLocation();
+
+  const code = useMemo(() => {
+    if (paramCode) return paramCode.trim();
+    const match = location.pathname.match(/^\/(?:matricula|portal|aluno|public\/student|public\/matricula)\/([^/]+)/i);
+    if (match && match[1]) return decodeURIComponent(match[1]).trim();
+    const segments = location.pathname.split('/').filter(Boolean);
+    return segments[segments.length - 1] ? decodeURIComponent(segments[segments.length - 1]).trim() : '';
+  }, [paramCode, location.pathname]);
+
   const [data, setData] = useState<PublicStudentPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

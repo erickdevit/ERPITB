@@ -538,7 +538,14 @@ export function App() {
     return (
       <ErrorBoundary>
         <Suspense fallback={<LoadingSpinner />}>
-          <PublicStudentPortal />
+          <Routes>
+            <Route path="/matricula/:code" element={<PublicStudentPortal />} />
+            <Route path="/portal/:code" element={<PublicStudentPortal />} />
+            <Route path="/aluno/:code" element={<PublicStudentPortal />} />
+            <Route path="/public/student/:code" element={<PublicStudentPortal />} />
+            <Route path="/public/matricula/:code" element={<PublicStudentPortal />} />
+            <Route path="*" element={<PublicStudentPortal />} />
+          </Routes>
         </Suspense>
       </ErrorBoundary>
     );
