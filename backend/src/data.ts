@@ -7,9 +7,15 @@ import type { AttendanceStatus, AuthUser, Env, Role } from './types';
 type JsonRecord = Record<string, unknown>;
 
 function boolInt(value: unknown, fallback = true): number {
-  if (value === undefined) return fallback ? 1 : 0;
-  if (typeof value !== 'boolean') throw new AppError(400, 'Valor booleano inválido.', 'VALIDATION_ERROR');
-  return value ? 1 : 0;
+  if (value === undefined || value === null) return fallback ? 1 : 0;
+  if (typeof value === 'boolean') return value ? 1 : 0;
+  if (typeof value === 'number') return value === 0 ? 0 : 1;
+  if (typeof value === 'string') {
+    const trimmed = value.trim().toLowerCase();
+    if (trimmed === 'true' || trimmed === '1' || trimmed === 'ativo' || trimmed === 'active') return 1;
+    if (trimmed === 'false' || trimmed === '0' || trimmed === 'inativo' || trimmed === 'inactive') return 0;
+  }
+  throw new AppError(400, 'Valor booleano inválido.', 'VALIDATION_ERROR');
 }
 
 function oneOf<T extends string>(value: unknown, field: string, allowed: readonly T[]): T {
@@ -389,9 +395,12 @@ async function deleteUser(env: Env, user: AuthUser, id: string): Promise<unknown
     );
   }
 
-  // 3. Remove tokens and user record
+  // 3. Remove tokens, logs and user record
   await env.DB.prepare(`DELETE FROM refresh_tokens WHERE user_id = ?`).bind(id).run();
   await env.DB.prepare(`DELETE FROM class_teachers WHERE user_id = ?`).bind(id).run();
+  await env.DB.prepare(`DELETE FROM sync_operations WHERE user_id = ?`).bind(id).run();
+  await env.DB.prepare(`DELETE FROM sync_changes WHERE changed_by_user_id = ?`).bind(id).run();
+  await env.DB.prepare(`DELETE FROM audit_logs WHERE user_id = ?`).bind(id).run();
   await env.DB.prepare(`DELETE FROM users WHERE id = ?`).bind(id).run();
   await env.DB.batch([audit(env, user, 'DELETE', 'users', id, { name: current.name, email: current.email, role: current.role })]);
 

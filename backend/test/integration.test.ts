@@ -523,15 +523,23 @@ describe('End-to-End Integration and Real Database Simulation', () => {
     expect(tempUserRes.status).toBe(201);
     const tempUserId = tempUserRes.data.id;
 
-    // Edit user name and password
+    // Edit user name, active state and password
     const editRes = await request(env, `/api/users/${tempUserId}`, {
       method: 'PATCH',
       token: adminToken,
-      body: { name: 'Temp Colab Renomeado', role: 'professor' },
+      body: { name: 'Temp Colab Renomeado', role: 'professor', active: 1, password: 'Nova Senha 654321!' },
     });
     expect(editRes.status).toBe(200);
     expect(editRes.data.name).toBe('Temp Colab Renomeado');
     expect(editRes.data.role).toBe('professor');
+    expect(editRes.data.active).toBe(1);
+
+    // Verify login with new password works
+    const newLogin = await request(env, '/api/auth/login', {
+      body: { email: 'temp@itb.org.br', password: 'Nova Senha 654321!' },
+    });
+    expect(newLogin.status).toBe(200);
+    expect(newLogin.data.user.name).toBe('Temp Colab Renomeado');
 
     // 14.2 Try to delete assigned professor (profId is assigned to class DG-01) -> MUST FAIL (400)
     const delAssigned = await request(env, `/api/users/${profId}`, {
