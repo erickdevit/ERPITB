@@ -246,6 +246,30 @@ async function findExisting(env: Env, operation: SyncOperation): Promise<Row | n
       `SELECT * FROM replacements WHERE attendance_record_id = ? LIMIT 1`,
     ).bind(attendanceRecordId).first<Row>();
   }
+  if (operation.entity === 'class_notes') {
+    const classId = operation.data.class_id;
+    const date = operation.data.date;
+    if (typeof classId !== 'string' || typeof date !== 'string') return null;
+    return env.DB.prepare(
+      `SELECT * FROM class_notes WHERE class_id = ? AND date = ? LIMIT 1`,
+    ).bind(classId, date).first<Row>();
+  }
+  if (operation.entity === 'enrollments') {
+    const classId = operation.data.class_id;
+    const studentId = operation.data.student_id;
+    if (typeof classId !== 'string' || typeof studentId !== 'string') return null;
+    return env.DB.prepare(
+      `SELECT * FROM enrollments WHERE class_id = ? AND student_id = ? LIMIT 1`,
+    ).bind(classId, studentId).first<Row>();
+  }
+  if (operation.entity === 'class_teachers') {
+    const classId = operation.data.class_id;
+    const userId = operation.data.user_id;
+    if (typeof classId !== 'string' || typeof userId !== 'string') return null;
+    return env.DB.prepare(
+      `SELECT * FROM class_teachers WHERE class_id = ? AND user_id = ? LIMIT 1`,
+    ).bind(classId, userId).first<Row>();
+  }
   if (operation.entity !== 'attendance_records') return null;
   const classId = operation.data.class_id;
   const studentId = operation.data.student_id;
