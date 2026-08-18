@@ -11,8 +11,10 @@ describe('Synchronizer', () => {
     const operation: SyncOperation = { operationId: 'operation-1', entity: 'students', action: 'upsert', id: 'student-1', baseVersion: 0, updatedAt: '2026-01-01T00:00:00.000Z', data: { id: 'student-1', name: 'Ana' } };
     const completed: Array<[string, number]> = []; const remote: Array<[string, LocalRecord]> = [];
     const store = {
+      accountId: 'user-1',
       pending: async () => [operation], complete: async (operationId: string, version: number) => { completed.push([operationId, version]); }, conflict: async () => {}, reject: async () => {},
       cursor: async () => 4, setCursor: async () => {}, putRemote: async (entity: string, record: LocalRecord) => { remote.push([entity, record]); },
+      list: async () => [],
     };
     const api = {
       post: async () => ({ results: [{ operationId: 'operation-1', status: 'applied', version: 2 }] }),
@@ -75,5 +77,51 @@ describe('Synchronizer', () => {
     const remove: SyncOperation = { operationId: 'previous', entity: 'enrollments', action: 'delete', id: 'previous', baseVersion: 1, updatedAt: '2026-08-15T12:00:01.000Z', data: { id: 'previous', student_id: 'student-1', class_id: 'class-a', status: 'ativa' } };
 
     expect(buildSyncBatches([upsert, remove])[0]?.map((operation) => operation.operationId)).toEqual(['previous', 'target']);
+  });
+
+  it('triggers catchup sync from cursor 0 when local store is missing an assigned class', async () => {
+    let currentCursor = 10;
+    const remote: Array<[string, LocalRecord]> = [];
+    const store = {
+      accountId: 'prof-1',
+      pending: async () => [],
+      cursor: async () => currentCursor,
+      setCursor: async (c: number) => { currentCursor = c; },
+      putRemote: async (entity: string, record: LocalRecord) => { remote.push([entity, record]); },
+      list: async (entity: string) => {
+        if (entity === 'class_teachers') return [{ id: 'ct-1', user_id: 'prof-1', class_id: 'class-new', deleted_at: null }];
+        if (entity === 'classes') return []; // Missing class-new!
+        return [];
+      },
+    };
+
+    let callCount = 0;
+    const api = {
+      post: async () => ({ results: [] }),
+      get: async (url: string) => {
+        callCount++;
+        if (url.includes('cursor=10')) {
+          return {
+            changes: [{ entity: 'class_teachers', operation: 'upsert', data: { id: 'ct-1', user_id: 'prof-1', class_id: 'class-new' } }],
+            nextCursor: 11,
+            hasMore: false,
+          };
+        }
+        // Catchup from cursor=0
+        return {
+          changes: [{ entity: 'classes', operation: 'upsert', data: { id: 'class-new', name: 'Turma Nova' } }],
+          nextCursor: 11,
+          hasMore: false,
+        };
+      },
+    };
+
+    const result = await new Synchronizer(store as never, api as never).run();
+    expect(result.synced).toBe(0);
+    expect(callCount).toBe(2); // Normal sync + catchup sync
+    expect(remote).toEqual([
+      ['class_teachers', { id: 'ct-1', user_id: 'prof-1', class_id: 'class-new' }],
+      ['classes', { id: 'class-new', name: 'Turma Nova' }],
+    ]);
   });
 });

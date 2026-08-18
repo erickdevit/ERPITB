@@ -556,5 +556,31 @@ describe('End-to-End Integration and Real Database Simulation', () => {
     });
     expect(delUnassigned.status).toBe(200);
     expect(delUnassigned.data.ok).toBe(true);
+
+    // 15. Professor Sync and Scoped Data Access
+    const profLogin = await request(env, '/api/auth/login', {
+      body: { email: 'ana@itb.org.br', password: 'Senha Forte 123!' },
+    });
+    expect(profLogin.status).toBe(200);
+    const profToken = profLogin.data.accessToken;
+
+    // 15.1 Professor pulls sync changes from cursor 0
+    const profPull = await request(env, '/sync/pull?cursor=0&limit=200', {
+      token: profToken,
+    });
+    expect(profPull.status).toBe(200);
+    const pulledEntities = new Set(profPull.data.changes.map((c: { entity: string }) => c.entity));
+    expect(pulledEntities.has('courses')).toBe(true);
+    expect(pulledEntities.has('classes')).toBe(true);
+    expect(pulledEntities.has('students')).toBe(true);
+    expect(pulledEntities.has('enrollments')).toBe(true);
+
+    // 15.2 Professor calls /api/students without classId -> returns assigned students
+    const profStudents = await request(env, '/api/students', {
+      token: profToken,
+    });
+    expect(profStudents.status).toBe(200);
+    expect(profStudents.data.items).toHaveLength(1);
+    expect(profStudents.data.items[0].name).toBe('Lucas Gabriel');
   });
 });

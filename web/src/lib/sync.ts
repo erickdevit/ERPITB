@@ -57,6 +57,25 @@ export class Synchronizer {
         for (const change of result.changes) await this.store.putRemote(change.entity, change.data, change.operation);
         await this.store.setCursor(result.nextCursor); more = result.hasMore;
       }
+
+      // Check if local store is missing any assigned class (e.g. assigned after cursor advanced)
+      const currentCursor = await this.store.cursor();
+      if (currentCursor > 0 && typeof this.store.list === 'function') {
+        const assignments = await this.store.list('class_teachers');
+        const classes = await this.store.list('classes');
+        const existingClassIds = new Set(classes.map((c) => c.id));
+        const ownAssignments = assignments.filter((a) => !a.deleted_at && a.user_id === this.store.accountId);
+        const hasMissingClasses = ownAssignments.some((a) => !existingClassIds.has(String(a.class_id)));
+        if (hasMissingClasses) {
+          await this.store.setCursor(0);
+          let catchupMore = true;
+          while (catchupMore) {
+            const catchupResult = await this.api.get<{ changes: Array<{ entity: Parameters<LocalStore['putRemote']>[0]; operation: 'upsert' | 'delete'; data: LocalRecord }>; nextCursor: number; hasMore: boolean }>(`/sync/pull?cursor=${await this.store.cursor()}&limit=200`);
+            for (const change of catchupResult.changes) await this.store.putRemote(change.entity, change.data, change.operation);
+            await this.store.setCursor(catchupResult.nextCursor); catchupMore = catchupResult.hasMore;
+          }
+        }
+      }
       return { synced, rejected, offline: false };
     } catch (error) { if (error instanceof OfflineError) return { synced: 0, rejected: 0, offline: true }; throw error; }
   }

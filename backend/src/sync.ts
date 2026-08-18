@@ -386,22 +386,20 @@ export async function push(request: Request, env: Env, user: AuthUser): Promise<
 
 async function mayReadChange(env: Env, user: AuthUser, entity: SyncEntity, payload: Row): Promise<boolean> {
   if (user.role !== 'professor') return true;
+  if (entity === 'laboratories' || entity === 'courses') return true;
   if (entity === 'classes') return teacherOwnsClass(env, user.id, String(payload.id));
   if (entity === 'class_teachers') return String(payload.user_id) === user.id || teacherOwnsClass(env, user.id, String(payload.class_id));
-  if (entity === 'courses') {
-    const row = await env.DB.prepare(
-      `SELECT 1 AS allowed FROM classes c JOIN class_teachers ct ON ct.class_id = c.id WHERE c.course_id = ? AND ct.user_id = ? AND ct.deleted_at IS NULL LIMIT 1`,
-    ).bind(String(payload.id), user.id).first();
-    return Boolean(row);
-  }
   if (entity === 'students') {
+    const studentId = String(payload.id ?? '');
     const row = await env.DB.prepare(
       `SELECT 1 AS allowed FROM enrollments e JOIN class_teachers ct ON ct.class_id = e.class_id WHERE e.student_id = ? AND ct.user_id = ? AND e.deleted_at IS NULL AND ct.deleted_at IS NULL LIMIT 1`,
-    ).bind(String(payload.id), user.id).first();
+    ).bind(studentId, user.id).first();
     return Boolean(row);
   }
-  if (entity === 'class_notes') return teacherOwnsClass(env, user.id, String(payload.class_id));
-  return teacherOwnsClass(env, user.id, String(payload.class_id));
+  if (entity === 'enrollments' || entity === 'attendance_records' || entity === 'class_notes' || entity === 'replacements') {
+    return teacherOwnsClass(env, user.id, String(payload.class_id ?? ''));
+  }
+  return false;
 }
 
 async function clientPayload(env: Env, entity: SyncEntity, payload: Row): Promise<Row> {

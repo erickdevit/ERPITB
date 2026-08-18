@@ -478,7 +478,6 @@ async function clearStudent(env: Env, row: StudentRow): Promise<JsonRecord> {
 
 async function listStudents(url: URL, env: Env, user: AuthUser): Promise<unknown> {
   const classId = url.searchParams.get('classId');
-  if (user.role === 'professor' && !classId) throw new AppError(400, 'classId é obrigatório para professores.', 'VALIDATION_ERROR');
   if (classId) await requireClassAccess(env, user, classId);
   const rows = classId
     ? await env.DB.prepare(
@@ -486,6 +485,14 @@ async function listStudents(url: URL, env: Env, user: AuthUser): Promise<unknown
          FROM students s JOIN enrollments e ON e.student_id = s.id
         WHERE e.class_id = ? AND e.deleted_at IS NULL AND s.deleted_at IS NULL ORDER BY s.registration_number`,
     ).bind(classId).all<StudentRow>()
+    : user.role === 'professor'
+    ? await env.DB.prepare(
+      `SELECT DISTINCT s.id, s.encrypted_name, s.encrypted_cpf, s.encrypted_contact, s.registration_number, s.birth_date, s.active, s.sync_version, s.created_at, s.updated_at, e.status AS enrollment_status, e.id AS enrollment_id, e.class_id
+         FROM students s JOIN enrollments e ON e.student_id = s.id
+         JOIN class_teachers ct ON ct.class_id = e.class_id
+        WHERE ct.user_id = ? AND ct.deleted_at IS NULL AND e.deleted_at IS NULL AND s.deleted_at IS NULL
+        ORDER BY s.registration_number`,
+    ).bind(user.id).all<StudentRow>()
     : await env.DB.prepare(`SELECT * FROM students WHERE deleted_at IS NULL ORDER BY registration_number`).all<StudentRow>();
   return { items: await Promise.all(rows.results.map((row) => clearStudent(env, row))) };
 }
