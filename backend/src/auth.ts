@@ -96,8 +96,16 @@ interface UserRow extends AuthUser { password_hash: string; active: number }
 
 export async function login(request: Request, env: Env): Promise<unknown> {
   const body = await readJson<Record<string, unknown>>(request);
-  const email = normalizeEmail(body.email);
-  const password = requireString(body.password, 'senha', { min: 6, max: 200 });
+  let email = '';
+  try {
+    email = normalizeEmail(body.email);
+  } catch {
+    throw new AppError(401, 'E-mail ou senha inválidos.', 'INVALID_CREDENTIALS');
+  }
+  const password = typeof body.password === 'string' ? body.password : '';
+  if (!email || !password) {
+    throw new AppError(401, 'E-mail ou senha inválidos.', 'INVALID_CREDENTIALS');
+  }
   const row = await env.DB.prepare(
     `SELECT id, name, email, password_hash, role, active FROM users WHERE email = ? LIMIT 1`,
   ).bind(email).first<UserRow>();

@@ -15,7 +15,14 @@ export class ApiClient {
       if (response.status === 401 && session && refresh && await this.refresh()) return this.request<T>(path, method, body, false);
       if (!response.ok) {
         const requestId = payload.requestId ?? response.headers.get('x-request-id') ?? undefined;
-        const baseMessage = payload.error?.message ?? 'Falha na comunicação com o servidor.';
+        let baseMessage = payload.error?.message;
+        if (!baseMessage) {
+          if (response.status === 401) baseMessage = 'E-mail ou senha inválidos.';
+          else if (response.status === 403) baseMessage = 'Acesso não autorizado.';
+          else if (response.status === 404) baseMessage = 'Recurso não encontrado.';
+          else if (response.status === 409) baseMessage = 'Já existe um registro com estes dados.';
+          else baseMessage = 'Falha na comunicação com o servidor.';
+        }
         const message = response.status >= 500 && requestId ? `${baseMessage} Referência: ${requestId}.` : baseMessage;
         throw new ApiError(response.status, message, payload.error?.code, requestId);
       }

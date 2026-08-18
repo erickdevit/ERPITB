@@ -42,3 +42,38 @@ describe('request authentication', () => {
     }), env)).rejects.toThrow('D1 unavailable');
   });
 });
+
+describe('login authentication error resilience', () => {
+  it('returns 401 with consistent message for invalid email or password variations', async () => {
+    const { login } = await import('../src/auth');
+    const statement = {
+      bind: () => statement,
+      first: async () => null,
+    };
+    const env = { DB: { prepare: () => statement } } as unknown as Env;
+
+    // Short password should not throw 400 validation error
+    const reqShortPwd = new Request('https://example.invalid/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'admin@itb.org.br', password: '123' }),
+    });
+    await expect(login(reqShortPwd, env)).rejects.toMatchObject({
+      status: 401,
+      message: 'E-mail ou senha inválidos.',
+      code: 'INVALID_CREDENTIALS',
+    });
+
+    // Malformed email should return 401
+    const reqBadEmail = new Request('https://example.invalid/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'not-an-email', password: 'Senha Forte 123!' }),
+    });
+    await expect(login(reqBadEmail, env)).rejects.toMatchObject({
+      status: 401,
+      message: 'E-mail ou senha inválidos.',
+      code: 'INVALID_CREDENTIALS',
+    });
+  });
+});

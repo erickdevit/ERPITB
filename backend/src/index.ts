@@ -72,9 +72,14 @@ export default {
       throw new AppError(404, 'Rota não encontrada.', 'NOT_FOUND');
     } catch (error) {
       const known = error instanceof AppError;
-      const message = known ? error.message : 'Ocorreu um erro interno.';
-      const status = known ? error.status : String(error).includes('UNIQUE constraint failed') ? 409 : 500;
-      const code = known ? error.code : status === 409 ? 'DUPLICATE_RECORD' : 'INTERNAL_ERROR';
+      const isDuplicate = String(error).includes('UNIQUE constraint failed');
+      const message = known
+        ? error.message
+        : isDuplicate
+        ? 'Já existe um registro com estes dados no sistema.'
+        : 'Ocorreu um erro interno no servidor.';
+      const status = known ? error.status : isDuplicate ? 409 : 500;
+      const code = known ? error.code : isDuplicate ? 'DUPLICATE_RECORD' : 'INTERNAL_ERROR';
       if (!known) console.error(JSON.stringify({ requestId, error: error instanceof Error ? error.stack : String(error) }));
       return withHeaders(json({ error: { code, message, details: known ? error.details : undefined }, requestId }, status), commonHeaders, requestId);
     }

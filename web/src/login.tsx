@@ -23,18 +23,20 @@ export function Login({
     setError(undefined);
     try {
       const api = new ApiClient(() => null, async () => {});
-      const session = await api.login(email, password);
+      const normalizedEmail = email.trim().toLowerCase();
+      const session = await api.login(normalizedEmail, password);
       const store = await LocalStore.open(session);
-      await store.saveOfflineVerifier(email, password, session);
+      await store.saveOfflineVerifier(normalizedEmail, password, session);
       onLogin(session, store);
     } catch (cause) {
       if (cause instanceof OfflineError) {
-        const restored = await LocalStore.openOffline(email, password);
+        const normalizedEmail = email.trim().toLowerCase();
+        const restored = await LocalStore.openOffline(normalizedEmail, password);
         if (restored) {
           onLogin(restored.session, restored.store);
           return;
         }
-        setError('Sem conexão. Para entrar offline, esta conta precisa ter feito ao menos um login online neste dispositivo.');
+        setError('Sem conexão com o servidor. Para entrar offline, esta conta precisa ter feito ao menos um login prévio neste dispositivo.');
       } else {
         setError(cause instanceof Error ? cause.message : 'Não foi possível entrar.');
       }
