@@ -4,15 +4,19 @@ import {
   Search,
   UserX,
   UserCheck,
+  Edit2,
+  Trash2,
   Shield,
   KeyRound,
   Mail,
   User,
+  AlertTriangle,
 } from 'lucide-react';
 import { useApp } from '../app-context';
 import { PageDialog, Section, SelectField } from '../components';
 import { roleLabel, type Role, type UserSession } from '../types';
 import type { LocalRecord } from '../types';
+import { useEntity } from '../lib/use-entity';
 
 const text = (record: Record<string, unknown> | undefined, key: string) => String(record?.[key] ?? '');
 const active = (record: LocalRecord) => !record.deleted_at && record.active !== 0 && record.active !== false;
@@ -25,6 +29,9 @@ const roleOptions: Array<{ value: Role; label: string }> = [
 
 export function UsersPage() {
   const { api, session } = useApp();
+  const classes = useEntity('classes');
+  const classTeachers = useEntity('class_teachers');
+
   const [users, setUsers] = useState<LocalRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -32,9 +39,11 @@ export function UsersPage() {
   const [filterStatus, setFilterStatus] = useState('all');
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string>();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<Role>('professor');
+  const [activeState, setActiveState] = useState<number>(1);
   const [password, setPassword] = useState('');
   const [formError, setFormError] = useState<string>();
   const [saving, setSaving] = useState(false);
@@ -56,6 +65,17 @@ export function UsersPage() {
     void loadUsers();
   }, []);
 
+  const getAssignedClassNames = (userId: string): string[] => {
+    const assignments = (classTeachers.items ?? []).filter(
+      (ct) => ct.user_id === userId && !ct.deleted_at,
+    );
+    if (assignments.length === 0) return [];
+    const classMap = new Map((classes.items ?? []).map((c) => [c.id, text(c, 'name')]));
+    return assignments
+      .map((a) => classMap.get(String(a.class_id || '')) || 'Turma')
+      .filter(Boolean);
+  };
+
   const filteredUsers = useMemo(() => {
     return (users ?? []).filter((u) => {
       if (!u) return false;
@@ -73,32 +93,67 @@ export function UsersPage() {
   }, [users, filterRole, filterStatus, search]);
 
   const openCreate = () => {
+    setEditingId(undefined);
     setName('');
     setEmail('');
     setRole('professor');
+    setActiveState(1);
+    setPassword('');
+    setFormError(undefined);
+    setDialogOpen(true);
+  };
+
+  const openEdit = (user: LocalRecord) => {
+    setEditingId(user.id);
+    setName(text(user, 'name'));
+    setEmail(text(user, 'email'));
+    setRole((text(user, 'role') as Role) || 'professor');
+    setActiveState(active(user) ? 1 : 0);
     setPassword('');
     setFormError(undefined);
     setDialogOpen(true);
   };
 
   const saveUser = async () => {
-    if (!name.trim() || !email.trim() || !password.trim()) {
-      setFormError('Todos os campos são obrigatórios.');
+    if (!name.trim() || !email.trim()) {
+      setFormError('Nome e e-mail são campos obrigatórios.');
+      return;
+    }
+
+    if (!editingId && !password.trim()) {
+      setFormError('A senha inicial é obrigatória para novos usuários.');
+      return;
+    }
+
+    if (password.trim() && password.trim().length < 6) {
+      setFormError('A senha deve ter no mínimo 6 caracteres.');
       return;
     }
 
     setSaving(true);
+    setFormError(undefined);
+
     try {
-      await api.post('/users', {
-        name: name.trim(),
-        email: email.trim(),
-        role,
-        password,
-      });
+      if (editingId) {
+        await api.patch(`/users/${editingId}`, {
+          name: name.trim(),
+          email: email.trim(),
+          role,
+          active: activeState,
+          password: password.trim() ? password.trim() : undefined,
+        });
+      } else {
+        await api.post('/users', {
+          name: name.trim(),
+          email: email.trim(),
+          role,
+          password: password.trim(),
+        });
+      }
       await loadUsers();
       setDialogOpen(false);
     } catch (e) {
-      setFormError(e instanceof Error ? e.message : 'Erro ao cadastrar usuário.');
+      setFormError(e instanceof Error ? e.message : 'Erro ao salvar usuário.');
     } finally {
       setSaving(false);
     }
@@ -110,14 +165,37 @@ export function UsersPage() {
     if (!window.confirm(`Deseja realmente ${actionName} o usuário "${text(user, 'name')}"?`)) return;
 
     try {
-      if (isAct) {
-        await api.request(`/users/${user.id}`, 'DELETE');
-      } else {
-        await api.request(`/users/${user.id}`, 'PATCH', { active: 1 });
-      }
+      await api.patch(`/users/${user.id}`, { active: isAct ? 0 : 1 });
       await loadUsers();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Erro ao alterar situação do usuário.');
+    }
+  };
+
+  const deleteUser = async (user: LocalRecord) => {
+    if (user.id === session.id) {
+      alert('Você não pode excluir sua própria conta de administrador.');
+      return;
+    }
+
+    const assignedClasses = getAssignedClassNames(user.id);
+    if (assignedClasses.length > 0) {
+      alert(
+        `Não é possível excluir o usuário "${text(user, 'name')}" pois ele está vinculado à(s) seguinte(s) turma(s):\n\n• ${assignedClasses.join('\n• ')}\n\nRemova a atribuição deste professor nas turmas antes de realizar a exclusão.`,
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `ATENÇÃO: Deseja realmente excluir permanentemente o usuário "${text(user, 'name')}" (${text(user, 'email')})?\n\nEsta ação é definitiva e removerá completamente o cadastro do colaborador.`,
+    );
+    if (!confirmed) return;
+
+    try {
+      await api.delete(`/users/${user.id}`);
+      await loadUsers();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Erro ao excluir usuário.');
     }
   };
 
@@ -201,58 +279,110 @@ export function UsersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                {(filteredUsers ?? []).map((user) => (
-                  <tr key={user.id} className="hover:bg-slate-50/75 transition-colors">
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 text-slate-800 font-bold text-xs flex items-center justify-center">
-                          {text(user, 'name').slice(0, 1).toUpperCase()}
+                {(filteredUsers ?? []).map((user) => {
+                  const assignedClasses = getAssignedClassNames(user.id);
+                  const isAssigned = assignedClasses.length > 0;
+                  const isSelf = user.id === session.id;
+
+                  return (
+                    <tr key={user.id} className="hover:bg-slate-50/75 transition-colors">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 text-slate-800 font-bold text-xs flex items-center justify-center">
+                            {text(user, 'name').slice(0, 1).toUpperCase()}
+                          </div>
+                          <div>
+                            <span className="font-bold text-slate-900 block">{text(user, 'name')}</span>
+                            {isAssigned && (
+                              <span className="text-[10px] text-slate-400 font-medium">
+                                {assignedClasses.length} turma(s) atribuída(s)
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <span className="font-bold text-slate-900">{text(user, 'name')}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-slate-600">{text(user, 'email')}</td>
-                    <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-slate-100 text-slate-700 border border-slate-200">
-                        {roleLabel[text(user, 'role') as Role] ?? text(user, 'role')}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span
-                        className={`px-2 py-0.5 text-[10px] font-bold rounded-md border ${
-                          active(user)
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : 'bg-slate-100 text-slate-600 border-slate-200'
-                        }`}
-                      >
-                        {active(user) ? 'Ativo' : 'Inativo'}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      {user.id !== session.id && (
-                        <button
-                          type="button"
-                          aria-label={`Inativar ${text(user, 'name')}`}
-                          onClick={() => void toggleUserStatus(user)}
-                          title={active(user) ? 'Inativar usuário' : 'Reativar usuário'}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                      </td>
+                      <td className="py-3 px-4 text-slate-600">{text(user, 'email')}</td>
+                      <td className="py-3 px-4">
+                        <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                          {roleLabel[text(user, 'role') as Role] ?? text(user, 'role')}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span
+                          className={`px-2 py-0.5 text-[10px] font-bold rounded-md border ${
+                            active(user)
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : 'bg-slate-100 text-slate-600 border-slate-200'
+                          }`}
                         >
-                          {active(user) ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                          {active(user) ? 'Ativo' : 'Inativo'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="inline-flex items-center gap-1 justify-end">
+                          {/* Edit User Button */}
+                          <button
+                            type="button"
+                            aria-label={`Editar ${text(user, 'name')}`}
+                            onClick={() => openEdit(user)}
+                            title="Editar dados e senha do usuário"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Inactivate/Activate Button */}
+                          {!isSelf && (
+                            <button
+                              type="button"
+                              aria-label={`Inativar ${text(user, 'name')}`}
+                              onClick={() => void toggleUserStatus(user)}
+                              title={active(user) ? 'Inativar acesso' : 'Reativar acesso'}
+                              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                active(user)
+                                  ? 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'
+                                  : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'
+                              }`}
+                            >
+                              {active(user) ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
+                            </button>
+                          )}
+
+                          {/* Delete User Button (Sensitive, blocked if assigned) */}
+                          {!isSelf && (
+                            <button
+                              type="button"
+                              aria-label={`Excluir ${text(user, 'name')}`}
+                              onClick={() => void deleteUser(user)}
+                              title={
+                                isAssigned
+                                  ? `Não é possível excluir: vinculado a ${assignedClasses.join(', ')}`
+                                  : 'Excluir usuário permanentemente'
+                              }
+                              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                isAssigned
+                                  ? 'text-slate-300 hover:text-slate-400 hover:bg-slate-50 opacity-60'
+                                  : 'text-slate-400 hover:text-rose-600 hover:bg-rose-50'
+                              }`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
 
-      {/* Create Modal */}
+      {/* User Create / Edit Dialog */}
       <PageDialog
         open={dialogOpen}
-        title="Novo usuário"
+        title={editingId ? 'Editar usuário' : 'Novo usuário'}
         onClose={() => setDialogOpen(false)}
         onSave={saveUser}
       >
@@ -299,19 +429,37 @@ export function UsersPage() {
           options={roleOptions}
         />
 
+        {editingId && (
+          <SelectField
+            label="Situação cadastral"
+            value={String(activeState)}
+            onChange={(val) => setActiveState(Number(val))}
+            options={[
+              { value: '1', label: 'Ativo' },
+              { value: '0', label: 'Inativo' },
+            ]}
+          />
+        )}
+
         <div className="flex flex-col gap-1.5 text-left">
           <label htmlFor="user-pwd-input" className="text-xs font-semibold text-slate-700">
-            Senha inicial de acesso <span className="text-rose-500">*</span>
+            {editingId ? 'Nova senha de acesso (opcional)' : 'Senha inicial de acesso'}{' '}
+            {!editingId && <span className="text-rose-500">*</span>}
           </label>
           <input
             id="user-pwd-input"
             type="password"
-            required
+            required={!editingId}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
+            placeholder={editingId ? '•••••••• (deixe em branco para manter a atual)' : '••••••••'}
             className="w-full px-3 py-2 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all"
           />
+          {editingId && (
+            <span className="text-[11px] text-slate-400">
+              Preencha somente se desejar redefinir a senha do colaborador.
+            </span>
+          )}
         </div>
       </PageDialog>
     </div>

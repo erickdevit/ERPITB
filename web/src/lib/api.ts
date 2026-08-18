@@ -39,5 +39,7 @@ export class ApiClient {
   }
   post<T>(path: string, body: unknown) { return this.request<T>(path, 'POST', body); }
   put<T>(path: string, body: unknown) { return this.request<T>(path, 'PUT', body); }
+  patch<T>(path: string, body?: unknown) { return this.request<T>(path, 'PATCH', body); }
+  delete<T>(path: string) { return this.request<T>(path, 'DELETE'); }
   get<T>(path: string) { return this.request<T>(path); }
 }

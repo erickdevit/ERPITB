@@ -335,7 +335,7 @@ async function updateUser(request: Request, env: Env, user: AuthUser, id: string
   if (current.role === 'professor' && (role !== 'professor' || !active)) {
     await ensureProfessorMayBeDisabled(env, id);
   }
-  const password = body.password == null ? null : requireString(body.password, 'senha', { min: 6, max: 200 });
+  const password = !body.password || typeof body.password !== 'string' || !body.password.trim() ? null : requireString(body.password, 'senha', { min: 6, max: 200 });
   const timestamp = nowIso();
   if (password) {
     const passwordHash = await hashPassword(password);
@@ -347,21 +347,55 @@ async function updateUser(request: Request, env: Env, user: AuthUser, id: string
   return { id, name, email, role, active, updated_at: timestamp };
 }
 
-async function inactivateUser(env: Env, user: AuthUser, id: string): Promise<unknown> {
-  if (user.role !== 'admin') throw new AppError(403, 'Apenas administradores inativam usuários.', 'FORBIDDEN');
-  if (id === user.id) throw new AppError(400, 'Você não pode inativar seu próprio usuário.', 'SELF_LOCKOUT');
-  const current = await env.DB.prepare(`SELECT role, active FROM users WHERE id = ?`).bind(id).first<{ role: Role; active: number }>();
+async function deleteUser(env: Env, user: AuthUser, id: string): Promise<unknown> {
+  if (user.role !== 'admin') throw new AppError(403, 'Apenas administradores podem excluir usuários.', 'FORBIDDEN');
+  if (id === user.id) throw new AppError(400, 'Você não pode excluir seu próprio usuário.', 'SELF_LOCKOUT');
+
+  const current = await env.DB.prepare(`SELECT id, name, email, role, active FROM users WHERE id = ?`).bind(id).first<{ id: string; name: string; email: string; role: Role; active: number }>();
   if (!current) throw new AppError(404, 'Usuário não encontrado.', 'NOT_FOUND');
-  if (current.role === 'admin' && current.active) {
-    const admins = await env.DB.prepare(`SELECT COUNT(*) AS total FROM users WHERE role = 'admin' AND active = 1`).first<{ total: number }>();
-    if (Number(admins?.total ?? 0) <= 1) throw new AppError(400, 'É necessário manter ao menos um administrador ativo.', 'LAST_ADMIN');
+
+  if (current.role === 'admin') {
+    const admins = await env.DB.prepare(`SELECT COUNT(*) AS total FROM users WHERE role = 'admin' AND id <> ? AND active = 1`).bind(id).first<{ total: number }>();
+    if (Number(admins?.total ?? 0) < 1) throw new AppError(400, 'É necessário manter ao menos um administrador ativo no sistema.', 'LAST_ADMIN');
   }
-  if (current.role === 'professor' && current.active) {
-    await ensureProfessorMayBeDisabled(env, id);
+
+  // 1. STRICT REQUIREMENT: User must NOT be assigned to any class
+  const assignedClass = await env.DB.prepare(
+    `SELECT c.id, c.name
+       FROM class_teachers ct
+       JOIN classes c ON c.id = ct.class_id AND c.deleted_at IS NULL
+      WHERE ct.user_id = ? AND ct.deleted_at IS NULL
+      LIMIT 1`,
+  ).bind(id).first<{ id: string; name: string }>();
+
+  if (assignedClass) {
+    throw new AppError(
+      400,
+      `Não é possível excluir o usuário "${current.name}" pois ele está vinculado à turma "${assignedClass.name}". Desvincule-o de todas as turmas antes de realizar a exclusão.`,
+      'USER_ASSIGNED_TO_CLASS',
+    );
   }
-  await env.DB.prepare(`UPDATE users SET active = 0, updated_at = ? WHERE id = ?`).bind(nowIso(), id).run();
-  await env.DB.batch([audit(env, user, 'INACTIVATE', 'users', id)]);
-  return { ok: true };
+
+  // 2. SENSITIVITY CHECK: Verify if user recorded historical attendance or notes
+  const hasAttendance = await env.DB.prepare(`SELECT 1 AS linked FROM attendance_records WHERE recorded_by_user_id = ? LIMIT 1`).bind(id).first();
+  const hasNotes = await env.DB.prepare(`SELECT 1 AS linked FROM class_notes WHERE recorded_by_user_id = ? LIMIT 1`).bind(id).first();
+  const hasReplacements = await env.DB.prepare(`SELECT 1 AS linked FROM replacements WHERE recorded_by_user_id = ? LIMIT 1`).bind(id).first();
+
+  if (hasAttendance || hasNotes || hasReplacements) {
+    throw new AppError(
+      400,
+      `Não é possível excluir permanentemente o usuário "${current.name}" pois existem registros históricos de chamadas ou atividades vinculadas a este login. Inative o usuário para revogar seu acesso mantendo a rastreabilidade.`,
+      'USER_HAS_HISTORICAL_RECORDS',
+    );
+  }
+
+  // 3. Remove tokens and user record
+  await env.DB.prepare(`DELETE FROM refresh_tokens WHERE user_id = ?`).bind(id).run();
+  await env.DB.prepare(`DELETE FROM class_teachers WHERE user_id = ?`).bind(id).run();
+  await env.DB.prepare(`DELETE FROM users WHERE id = ?`).bind(id).run();
+  await env.DB.batch([audit(env, user, 'DELETE', 'users', id, { name: current.name, email: current.email, role: current.role })]);
+
+  return { ok: true, deleted: id };
 }
 
 async function assignTeacher(request: Request, env: Env, user: AuthUser, classId: string): Promise<unknown> {
@@ -781,7 +815,7 @@ export async function handleDataRoute(request: Request, env: Env, user: AuthUser
   if (path === '/users' && method === 'POST') return createUser(request, env, user);
   const userRoute = path.match(/^\/users\/([^/]+)$/);
   if (userRoute && method === 'PATCH') return updateUser(request, env, user, userRoute[1]!);
-  if (userRoute && method === 'DELETE') return inactivateUser(env, user, userRoute[1]!);
+  if (userRoute && method === 'DELETE') return deleteUser(env, user, userRoute[1]!);
   if (path === '/students' && method === 'GET') return listStudents(url, env, user);
   if (path === '/students' && method === 'POST') return createStudent(request, env, user);
   const student = path.match(/^\/students\/([^/]+)$/);

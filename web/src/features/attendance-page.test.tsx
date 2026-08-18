@@ -63,7 +63,7 @@ describe('AttendancePage', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Confirmar reposição' }));
 
     expect(await screen.findByText('20/08/2026 às 09:30')).toBeInTheDocument();
-    await waitForElementToBeRemoved(() => screen.queryByRole('dialog'));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: 'Salvar chamada' }));
     await waitFor(() => expect(mocks.store.mutateBatch).toHaveBeenCalledWith(expect.arrayContaining([
       expect.objectContaining({ entity: 'attendance_records', data: expect.objectContaining({ class_id: 'class-1', student_id: 'student-1', date: '2026-08-15', status: 'R' }) }),

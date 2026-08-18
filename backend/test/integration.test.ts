@@ -513,5 +513,40 @@ describe('End-to-End Integration and Real Database Simulation', () => {
     // Query non-existent student returns 404
     const notFoundRes = await request(env, '/matricula/INVALID-CODE-999');
     expect(notFoundRes.status).toBe(404);
+
+    // 14. User Edit and Sensitive Delete
+    // 14.1 Edit unassigned or existing user
+    const tempUserRes = await request(env, '/api/users', {
+      token: adminToken,
+      body: { name: 'Temp Colab', email: 'temp@itb.org.br', password: 'Senha 123456!', role: 'pedagogico' },
+    });
+    expect(tempUserRes.status).toBe(201);
+    const tempUserId = tempUserRes.data.id;
+
+    // Edit user name and password
+    const editRes = await request(env, `/api/users/${tempUserId}`, {
+      method: 'PATCH',
+      token: adminToken,
+      body: { name: 'Temp Colab Renomeado', role: 'professor' },
+    });
+    expect(editRes.status).toBe(200);
+    expect(editRes.data.name).toBe('Temp Colab Renomeado');
+    expect(editRes.data.role).toBe('professor');
+
+    // 14.2 Try to delete assigned professor (profId is assigned to class DG-01) -> MUST FAIL (400)
+    const delAssigned = await request(env, `/api/users/${profId}`, {
+      method: 'DELETE',
+      token: adminToken,
+    });
+    expect(delAssigned.status).toBe(400);
+    expect(delAssigned.data.error.code).toBe('USER_ASSIGNED_TO_CLASS');
+
+    // 14.3 Delete unassigned user -> MUST SUCCEED (200)
+    const delUnassigned = await request(env, `/api/users/${tempUserId}`, {
+      method: 'DELETE',
+      token: adminToken,
+    });
+    expect(delUnassigned.status).toBe(200);
+    expect(delUnassigned.data.ok).toBe(true);
   });
 });
