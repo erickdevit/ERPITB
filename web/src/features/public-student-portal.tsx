@@ -191,41 +191,6 @@ export function PublicStudentPortal() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 antialiased flex flex-col">
-      {/* Top Header Bar */}
-      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-8 py-3.5 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-slate-950 text-white flex items-center justify-center font-bold text-sm shadow-2xs">
-            ITB
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-900 tracking-tight">
-                Instituto Transforma Brasil
-              </span>
-              <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
-                <ShieldCheck className="w-3 h-3" />
-                Consulta Pública Oficial
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-500 font-medium">
-              Portal do Aluno • Histórico de Frequência
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleCopyLink}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:text-slate-950 bg-slate-100 hover:bg-slate-200/80 transition-all border border-slate-200 shadow-2xs cursor-pointer"
-            title="Copiar link desta página"
-          >
-            {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
-            <span>{copied ? 'Link Copiado!' : 'Copiar Link'}</span>
-          </button>
-        </div>
-      </header>
-
       {/* Main Container */}
       <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
         {/* Student Profile Card */}
@@ -249,6 +214,15 @@ export function PublicStudentPortal() {
                   >
                     {student.active ? 'Matrícula Ativa' : 'Matrícula Inativa'}
                   </span>
+                  <button
+                    type="button"
+                    onClick={handleCopyLink}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 transition-colors border border-slate-200 cursor-pointer"
+                    title="Copiar link desta página"
+                  >
+                    {copied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3 text-slate-500" />}
+                    <span>{copied ? 'Copiado!' : 'Copiar link'}</span>
+                  </button>
                 </div>
                 <div className="flex flex-wrap items-center gap-y-1 gap-x-3 text-xs text-slate-500 font-medium">
                   <span>
@@ -493,16 +467,9 @@ export function PublicStudentPortal() {
         </section>
 
         {/* LGPD and Privacy Notice Banner */}
-        <footer className="bg-slate-100/80 border border-slate-200 rounded-xl p-4 text-center text-[11px] text-slate-500 leading-relaxed">
-          <p className="font-semibold text-slate-700 mb-1 flex items-center justify-center gap-1.5">
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            Transparência Acadêmica & Proteção de Dados (LGPD)
-          </p>
-          <p>
-            Este link público é gerado com criptografia em repouso e destina-se exclusivamente ao
-            acompanhamento acadêmico pelo próprio estudante e responsáveis. Dados cadastrais sensíveis
-            (como CPF, telefones e endereços) não são exibidos nesta consulta pública.
-          </p>
+        <footer className="py-6 text-center text-xs font-semibold text-slate-500 flex items-center justify-center gap-1.5">
+          <ShieldCheck className="w-4 h-4 text-emerald-600" />
+          <span>Transparência Acadêmica & Proteção de Dados (LGPD)</span>
         </footer>
       </main>
     </div>
