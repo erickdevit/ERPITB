@@ -44,7 +44,7 @@ class ApiClient {
         final response = await _raw(
           'POST',
           '/auth/login',
-          body: {'email': email, 'password': password},
+          body: {'email': email.trim().toLowerCase(), 'password': password},
           authenticated: false,
         );
         await _saveTokens(response);

@@ -419,7 +419,7 @@ describe('End-to-End Integration and Real Database Simulation', () => {
   });
 
   it('queries attendance list with transparent field decryption and teacher scope constraints', async () => {
-    const { env } = createTestEnvironment();
+    const { env, rawDb } = createTestEnvironment();
 
     // Bootstrap Admin
     const bootstrap = await request(env, '/auth/bootstrap', {
@@ -582,5 +582,43 @@ describe('End-to-End Integration and Real Database Simulation', () => {
     expect(profStudents.status).toBe(200);
     expect(profStudents.data.items).toHaveLength(1);
     expect(profStudents.data.items[0].name).toBe('Lucas Gabriel');
+
+    // 16. Legacy password migration and trailing-slash route normalization
+    const { argon2id } = await import('@noble/hashes/argon2');
+    const { base64 } = await import('../src/crypto');
+    const legacySalt = new Uint8Array(16).fill(11);
+    const legacyHashBytes = argon2id(new TextEncoder().encode('Senha Legada 123!'), legacySalt, {
+      m: 19 * 1024,
+      t: 2,
+      p: 1,
+      dkLen: 32,
+    });
+    const legacyArgonHash = `$argon2id$v=19$m=19456,t=2,p=1$${base64.encode(legacySalt)}$${base64.encode(legacyHashBytes)}`;
+
+    // Insert legacy user directly into SQLite
+    rawDb.exec(`INSERT INTO users (id, name, email, password_hash, role, active, created_at, updated_at) VALUES ('legacy-user-1', 'Usuario Legado', 'legado@itbcursos.com', '${legacyArgonHash}', 'admin', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');`);
+
+    // Verify initial hash is argon2id
+    const beforeRow = rawDb.prepare(`SELECT password_hash FROM users WHERE id = 'legacy-user-1'`).get() as { password_hash: string };
+    expect(beforeRow.password_hash).toContain('$argon2id$');
+
+    // Login using trailing slash on /api/auth/login/
+    const legacyLogin = await request(env, '/api/auth/login/', {
+      body: { email: 'legado@itbcursos.com', password: 'Senha Legada 123!' },
+    });
+    expect(legacyLogin.status).toBe(200);
+    expect(legacyLogin.data.user.email).toBe('legado@itbcursos.com');
+    expect(legacyLogin.data.accessToken).toBeDefined();
+
+    // Verify that the user's password_hash was automatically upgraded in SQLite to PBKDF2
+    const afterRow = rawDb.prepare(`SELECT password_hash FROM users WHERE id = 'legacy-user-1'`).get() as { password_hash: string };
+    expect(afterRow.password_hash).toContain('$pbkdf2-sha256$i=100000$');
+
+    // Subsequent login works seamlessly using the updated PBKDF2 hash
+    const secondLogin = await request(env, '/auth/login', {
+      body: { email: 'legado@itbcursos.com', password: 'Senha Legada 123!' },
+    });
+    expect(secondLogin.status).toBe(200);
+    expect(secondLogin.data.user.email).toBe('legado@itbcursos.com');
   });
 });

@@ -112,6 +112,15 @@ export async function login(request: Request, env: Env): Promise<unknown> {
   if (!row || row.active !== 1 || !(await verifyPassword(row.password_hash, password))) {
     throw new AppError(401, 'E-mail ou senha inválidos.', 'INVALID_CREDENTIALS');
   }
+  // Automatically upgrade legacy Argon2id or outdated PBKDF2 hashes to current PBKDF2 format
+  if (row.password_hash.startsWith('$argon2id$') || !row.password_hash.startsWith(`$pbkdf2-sha256$i=${PBKDF2_ITERATIONS}$`)) {
+    try {
+      const newHash = await hashPassword(password);
+      await env.DB.prepare(`UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?`).bind(newHash, nowIso(), row.id).run();
+    } catch {
+      // Non-fatal hash upgrade
+    }
+  }
   const user: AuthUser = { id: row.id, name: row.name, email: row.email, role: row.role };
   const session = await issueSession(env, user);
   await env.DB.prepare(

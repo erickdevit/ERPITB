@@ -7,7 +7,7 @@ import type { Env } from './types';
 function corsHeaders(env: Env, request: Request): HeadersInit {
   const allowed = env.ALLOWED_ORIGIN ?? '*';
   const origin = request.headers.get('origin');
-  const selected = allowed === '*' ? '*' : origin === allowed ? origin : allowed;
+  const selected = allowed === '*' ? (origin ?? '*') : origin === allowed ? origin : allowed;
   return {
     'access-control-allow-origin': selected,
     'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
@@ -37,6 +37,9 @@ export default {
       const url = new URL(incomingUrl);
       if (url.pathname === '/api' || url.pathname.startsWith('/api/')) {
         url.pathname = url.pathname === '/api' ? '/' : url.pathname.slice(4);
+      }
+      if (url.pathname.length > 1 && url.pathname.endsWith('/')) {
+        url.pathname = url.pathname.slice(0, -1);
       }
       if (url.pathname === '/health' && request.method === 'GET') {
         return withHeaders(json({ status: 'ok', service: 'frequencia-itb-api' }), commonHeaders, requestId);
