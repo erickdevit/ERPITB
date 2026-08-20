@@ -1,4 +1,6 @@
-# Verificação do EPIC de branding, navegação e funcionalidades core
+# Verificação do EPIC de branding, navegação e funcionalidades core (Histórico)
+
+> **Nota de Arquivo**: Este documento é um registro histórico de auditoria do sistema em sua fase inicial. O sistema foi migrado integralmente para a arquitetura Web PWA (`web/`) e a versão legada em Flutter foi descontinuada.
 
 Data da auditoria: 20/07/2026  
 Versão auditada: `0.2.6+8`

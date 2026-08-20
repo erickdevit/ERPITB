@@ -1,69 +1,66 @@
 # Frequência ITB
 
-Aplicativo offline-first para controle de frequência do Instituto Transforma Brasil, com cliente Flutter para Windows/Android e API em Cloudflare Workers + D1.
+Sistema offline-first para controle de frequência do Instituto Transforma Brasil, composto por cliente Web PWA (React + TypeScript) e API serverless em Cloudflare Workers + D1.
 
-## Instância de teste publicada
+## Produção
 
-- API: `https://frequencia-itb-api.wx-f24.workers.dev`
-- D1: `frequencia-itb` (`be668f55-5a2c-40a2-9cdc-25248be7e65e`)
-- Builds testáveis `0.2.6+8` e credenciais: diretório local `artifacts/`
-- Auditoria dos 12 itens do EPIC: `docs/epic-verification.md`
+- **Aplicação & API**: `https://freq.itbcursos.com`
+- **Banco D1**: `frequencia-itb` (`be668f55-5a2c-40a2-9cdc-25248be7e65e`)
+- **Autenticação**: Web Crypto PBKDF2-HMAC-SHA256 (100.000 iterações, nativo V8 < 1ms) com fallback legado para Argon2id
 
-O Worker está publicado e funcional, mas Argon2id é deliberadamente pesado. Para
-uso contínuo, ative Workers Paid; o plano Free limita cada chamada a 10 ms e pode
-interromper autenticações mesmo quando os primeiros testes passam.
+## Estrutura do Repositório
 
-## Componentes
+- `backend/`: API REST em Cloudflare Workers, autenticação JWT, RBAC, criptografia AES-256-GCM para dados sensíveis e motor de sincronização com resolução de conflitos.
+- `web/`: Aplicação Web PWA em React 19 + TypeScript, IndexedDB cifrado (Dexie), fila offline durável, relatórios (PDF, Excel, CSV) e dashboards analíticos de B.I.
+- `itb-logo.svg`: Ativo oficial da marca Instituto Transforma Brasil.
+- `.github/workflows/ci.yml`: Pipeline de CI/CD para backend e web PWA.
 
-- `backend/`: API REST, autenticação, RBAC, criptografia AES-256-GCM e sincronização com conflitos.
-- `mobile_desktop/`: cliente Flutter adaptativo, SQLite/SQLCipher, dashboards, chamada, conflitos e relatórios PDF.
-- `itb-logo.svg`: fonte oficial única para a marca e seus derivados nativos.
-- `.github/workflows/ci.yml`: testes e análise estática.
+## Desenvolvimento Rápido
 
-## Desenvolvimento rápido
+### 1. Web PWA (`web/`)
 
-### API
-
-```powershell
-cd backend
+```bash
+cd web
 npm install
-npm test
-npm run dev
+npm run dev        # Executa com proxy apontando para backend local (8787)
+npm run dev:real   # Executa com proxy apontando para a API de produção
+npm test           # Executa a suíte de testes unitários e de componentes
+npm run build      # Gera o bundle de produção PWA em web/dist
 ```
 
-Copie `.env.example` para `.dev.vars`, crie um banco D1 e atualize o `database_id` em `wrangler.toml`. Aplique o schema com:
+### 2. Backend Worker (`backend/`)
 
-```powershell
+```bash
+cd backend
+npm install
+npm run typecheck  # Validação estática de tipos TypeScript
+npm test           # Executa os testes de integração e unitários (Vitest)
+npm run dev        # Inicia o servidor local do Cloudflare Worker (Wrangler)
+```
+
+Para aplicar o schema no banco D1 local:
+
+```bash
 npx wrangler d1 execute frequencia-itb --local --file=src/schema.sql
 ```
 
-O backend com Argon2id requer **Cloudflare Workers Paid**: o plano Free limita cada requisição a 10 ms de CPU, incompatível com hashing de senha memory-hard. Se a implantação precisar permanecer gratuita, use autenticação externa e preserve D1/Sync no Worker.
+### 3. Build & Deploy Completo
 
-O Observability está versionado em `backend/wrangler.toml`; assim, os próximos
-deploys mantêm habilitada a coleta configurada no painel da Cloudflare.
+A partir do diretório `backend/`:
 
-### Flutter
-
-O Flutter 3.32+ deve estar instalado. Na primeira vez, gere os runners nativos preservando o código existente:
-
-```powershell
-cd mobile_desktop
-flutter create . --platforms=android,windows --org br.org.institutotransformabrasil
-flutter pub get
-flutter run -d windows --dart-define=API_URL=http://127.0.0.1:8787
+```bash
+npm run deploy     # Compila o PWA (web/dist) e publica no Cloudflare Worker
 ```
 
-No Android, use um endereço acessível pelo emulador/dispositivo (por exemplo, `http://10.0.2.2:8787`). O primeiro acesso exige conexão; depois dele o usuário pode entrar offline no mesmo dispositivo.
-
-## Bootstrap do primeiro administrador
+## Bootstrap do Primeiro Administrador
 
 Com o Worker em execução e `BOOTSTRAP_SECRET` configurado:
 
-```powershell
-Invoke-RestMethod -Method Post http://127.0.0.1:8787/auth/bootstrap `
-  -Headers @{ 'X-Bootstrap-Secret' = 'troque-este-segredo' } `
-  -ContentType 'application/json' `
-  -Body '{"name":"Administrador","email":"admin@itb.org.br","password":"TroqueAgora123!"}'
+```bash
+curl -X POST http://127.0.0.1:8787/auth/bootstrap \
+  -H "X-Bootstrap-Secret: troque-este-segredo" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Administrador","email":"admin@itb.org.br","password":"Senha Forte 123!"}'
 ```
 
-O endpoint deixa de funcionar assim que houver um usuário cadastrado.
+O endpoint de bootstrap é automaticamente desabilitado após a criação do primeiro usuário no banco de dados.

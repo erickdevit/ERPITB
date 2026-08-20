@@ -1,16 +1,3 @@
-# Flutter / Dart
-.dart_tool/
-.flutter-plugins
-.flutter-plugins-dependencies
-.packages
-.pub-cache/
-.pub/
-build/
-coverage/
-mobile_desktop/android/.gradle/
-mobile_desktop/android/local.properties
-mobile_desktop/windows/flutter/ephemeral/
-
 # Node / Cloudflare
 node_modules/
 .wrangler/
@@ -23,6 +10,13 @@ backend/.wrangler-*.log
 backend/.wrangler-integration-*/
 backend/.migration-check/
 
+# Web PWA
+web/node_modules/
+web/dist/
+web/*.tsbuildinfo
+dist/
+coverage/
+
 # IDE / OS
 .idea/
 .vscode/
@@ -34,9 +28,6 @@ Thumbs.db
 *.jks
 *.keystore
 *.p12
-key.properties
-android/key.properties
-mobile_desktop/android/key.properties
 
 # Generated reports and local databases
 *.db
@@ -44,6 +35,3 @@ mobile_desktop/android/key.properties
 *.db-wal
 *.pdf
 /artifacts/
-web/node_modules/
-web/dist/
-web/*.tsbuildinfo

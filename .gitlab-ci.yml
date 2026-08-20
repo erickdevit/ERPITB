@@ -4,7 +4,7 @@ stages:
   - release
 
 variables:
-  NODE_VERSION: "20"
+  NODE_VERSION: "22"
 
 # ==========================================
 # 1. TEST STAGE
@@ -12,7 +12,7 @@ variables:
 
 test:backend:
   stage: test
-  image: node:20-alpine
+  image: node:22-alpine
   before_script:
     - cd backend
     - npm ci
@@ -22,16 +22,15 @@ test:backend:
   rules:
     - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_TAG =~ /^v/'
 
-test:flutter:
+test:web:
   stage: test
-  image: mobiledevops/flutter-sdk-image:latest
+  image: node:22-alpine
   before_script:
-    - apt-get update -qq && apt-get install -y -qq libsqlite3-dev sqlite3 || true
-    - cd mobile_desktop
-    - flutter pub get
+    - cd web
+    - npm ci
   script:
-    - flutter analyze
-    - flutter test
+    - npx tsc -b
+    - npm test
   rules:
     - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_TAG =~ /^v/'
 
@@ -39,48 +38,21 @@ test:flutter:
 # 2. BUILD STAGE
 # ==========================================
 
-build:android:
+build:web:
   stage: build
-  image: mobiledevops/flutter-sdk-image:latest
-  needs: ["test:flutter"]
+  image: node:22-alpine
+  needs: ["test:web"]
   before_script:
-    - cd mobile_desktop
-    - flutter pub get
-    - |
-      if [ -n "$ANDROID_KEYSTORE_FILE" ]; then
-        echo "Configurando assinatura de produção do Android..."
-        cp "$ANDROID_KEYSTORE_FILE" android/app/upload-keystore.jks
-        printf "storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=app/upload-keystore.jks\n" "$ANDROID_KEYSTORE_PASSWORD" "$ANDROID_KEY_PASSWORD" "$ANDROID_KEY_ALIAS" > android/key.properties
-      fi
+    - cd web
+    - npm ci
   script:
-    - flutter build apk --release
+    - npm run build
     - mkdir -p ../artifacts
-    - cp build/app/outputs/flutter-apk/app-release.apk ../artifacts/frequencia-itb-android-${CI_COMMIT_REF_SLUG}.apk
+    - tar -czf ../artifacts/frequencia-itb-web-${CI_COMMIT_REF_SLUG}.tar.gz dist
   artifacts:
-    name: "frequencia-itb-android-${CI_COMMIT_REF_SLUG}"
+    name: "frequencia-itb-web-${CI_COMMIT_REF_SLUG}"
     paths:
-      - artifacts/frequencia-itb-android-*.apk
-    expire_in: 30 days
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_TAG =~ /^v/'
-
-build:windows:
-  stage: build
-  tags:
-    - saas-windows-medium-amd64
-  allow_failure: true
-  needs: ["test:flutter"]
-  before_script:
-    - Set-Location mobile_desktop
-    - flutter pub get
-  script:
-    - flutter build windows --release
-    - New-Item -ItemType Directory -Path ..\artifacts -Force
-    - Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath ..\artifacts\frequencia-itb-windows-$env:CI_COMMIT_REF_SLUG.zip -Force
-  artifacts:
-    name: "frequencia-itb-windows-${CI_COMMIT_REF_SLUG}"
-    paths:
-      - artifacts/frequencia-itb-windows-*.zip
+      - artifacts/frequencia-itb-web-*.tar.gz
     expire_in: 30 days
   rules:
     - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_TAG =~ /^v/'
@@ -93,22 +65,18 @@ release:create:
   stage: release
   image: registry.gitlab.com/gitlab-org/release-cli:latest
   needs:
-    - job: build:android
-      optional: true
-    - job: build:windows
+    - job: build:web
       optional: true
   script:
     - echo "Criando release automatizado no GitLab para a tag $CI_COMMIT_TAG"
   release:
     name: "Frequência ITB $CI_COMMIT_TAG"
-    description: "Versão oficial $CI_COMMIT_TAG do aplicativo Frequência ITB para Android e Windows Desktop."
+    description: "Versão oficial $CI_COMMIT_TAG do sistema Frequência ITB (Web PWA e Cloudflare Worker API)."
     tag_name: "$CI_COMMIT_TAG"
     ref: "$CI_COMMIT_TAG"
     assets:
       links:
-        - name: "Frequência ITB - APK Android"
-          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/raw/artifacts/frequencia-itb-android-${CI_COMMIT_REF_SLUG}.apk?job=build:android"
-        - name: "Frequência ITB - Executável Windows (ZIP)"
-          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/raw/artifacts/frequencia-itb-windows-${CI_COMMIT_REF_SLUG}.zip?job=build:windows"
+        - name: "Frequência ITB - Web PWA Bundle"
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/raw/artifacts/frequencia-itb-web-${CI_COMMIT_REF_SLUG}.tar.gz?job=build:web"
   rules:
     - if: '$CI_COMMIT_TAG =~ /^v/'

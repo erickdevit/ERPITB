@@ -27,36 +27,21 @@ jobs:
       - name: Validate D1 schema
         run: npx wrangler d1 execute frequencia-itb --local --file=src/schema.sql
 
-  flutter-quality:
+  web-pwa:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: mobile_desktop
+        working-directory: web
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - uses: actions/setup-node@v4
         with:
-          channel: stable
-          cache: true
-      - run: flutter pub get
-      - run: dart format --output=none --set-exit-if-changed lib test
-      - run: flutter analyze
-      - run: flutter test
-      - run: flutter build apk --debug
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck || npx tsc -b
+      - run: npm test
+      - run: npm run build
 
-  windows-build:
-    runs-on: windows-latest
-    defaults:
-      run:
-        working-directory: mobile_desktop
-    steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-      - name: Install SQLCipher build dependency
-        run: choco install openssl -y --no-progress
-      - run: flutter pub get
-      - run: flutter build windows --debug
 

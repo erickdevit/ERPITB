@@ -32,8 +32,8 @@ export default {
     if (request.method === 'OPTIONS') return withHeaders(new Response(null, { status: 204 }), commonHeaders, requestId);
     try {
       const incomingUrl = new URL(request.url);
-      // The PWA uses a namespaced API to avoid collisions with client-side SPA
-      // routes. Legacy Flutter clients continue using the original routes.
+      // The Web PWA uses a namespaced /api prefix to cleanly separate API calls
+      // from client-side SPA routes and static assets.
       const url = new URL(incomingUrl);
       if (url.pathname === '/api' || url.pathname.startsWith('/api/')) {
         url.pathname = url.pathname === '/api' ? '/' : url.pathname.slice(4);
