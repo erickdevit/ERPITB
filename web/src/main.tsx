@@ -6,3 +6,4 @@ import { Root } from './app';
 
 registerSW({ immediate: true });
 createRoot(document.getElementById('root')!).render(<StrictMode><Root /></StrictMode>);
+

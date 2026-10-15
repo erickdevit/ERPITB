@@ -167,6 +167,13 @@ export class LocalStore {
     await this.mutateBatch([{ entity, data, action }]);
   }
 
+  private api?: {
+    post: <T>(path: string, body: unknown) => Promise<T>;
+  };
+  setApi(api: { post: <T>(path: string, body: unknown) => Promise<T> }): void {
+    this.api = api;
+  }
+
   /** Commits local records and their compacted sync operations atomically. */
   async mutateBatch(mutations: LocalMutation[]): Promise<void> {
     if (!mutations.length) return;
@@ -193,8 +200,57 @@ export class LocalStore {
         return {
           record: { ...recordCipher, id: recordId(this.accountId, mutation.entity, record.id), accountId: this.accountId, entity: mutation.entity, entityId: record.id, updatedAt: now } as CipherRow,
           queue: { ...operationCipher, operationId: operation.operationId, accountId: this.accountId, updatedAt: now } as QueueRow,
+          operation,
+          rawRecord: record,
         };
       }));
+
+      // When API is available (live online application), persist directly to the server immediately:
+      if (this.api) {
+        const deviceId = typeof localStorage !== 'undefined'
+          ? (localStorage.getItem('frequencia-itb-device-id') || `web-${crypto.randomUUID()}`)
+          : `web-${crypto.randomUUID()}`;
+        if (typeof localStorage !== 'undefined') localStorage.setItem('frequencia-itb-device-id', deviceId);
+
+        const result = await this.api.post<{
+          results: Array<{
+            operationId: string;
+            status: string;
+            version?: number;
+            code?: string;
+            message?: string;
+          }>;
+        }>('/sync/push', { deviceId, operations: prepared.map((p) => p.operation) });
+
+        for (const res of result.results) {
+          if (res.status === 'rejected') {
+            throw new Error(res.message || 'Operação rejeitada pelo servidor.');
+          }
+        }
+
+        const versionMap = new Map(result.results.map((r) => [r.operationId, r.version ?? 1]));
+        const syncedRows = await Promise.all(
+          prepared.map(async (p) => {
+            const version = versionMap.get(p.operation.operationId) ?? (Number(p.rawRecord.sync_version ?? 0) + 1);
+            const syncedData: LocalRecord = { ...p.rawRecord, sync_status: 'SYNCED', sync_version: version };
+            const cipher = await encrypt(key, syncedData);
+            return {
+              ...cipher,
+              id: recordId(this.accountId, p.operation.entity, p.operation.id),
+              accountId: this.accountId,
+              entity: p.operation.entity,
+              entityId: p.operation.id,
+              updatedAt: now,
+            } as CipherRow;
+          }),
+        );
+
+        // Put directly into records without writing to queue!
+        await database.records.bulkPut(syncedRows);
+        return;
+      }
+
+      // Fallback for isolated unit tests without an active API instance
       const existing = await database.queue.where('accountId').equals(this.accountId).toArray();
       const duplicates: string[] = [];
       for (const row of existing) {

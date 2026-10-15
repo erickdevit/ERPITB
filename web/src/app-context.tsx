@@ -50,6 +50,10 @@ export function ApplicationProvider({
     [session, store],
   );
 
+  useEffect(() => {
+    store.setApi(api);
+  }, [store, api]);
+
   const sync = useCallback(async () => {
     if (syncing.current) return;
     syncing.current = true;
@@ -57,23 +61,21 @@ export function ApplicationProvider({
     try {
       await store.deduplicateAttendance();
       const result = await new Synchronizer(store, api).run();
-      setSyncState(result.offline ? 'offline' : result.rejected ? 'warning' : 'idle');
+      setSyncState(result.offline ? 'offline' : 'idle');
       setMessage(
         result.offline
-          ? 'Sem conexão — alterações protegidas neste dispositivo.'
-          : result.rejected
-          ? `${result.rejected} alteração(ões) não foi(ram) aceita(s). Revise em Conflitos.`
+          ? 'Sem conexão — a aplicação requer conexão online.'
           : undefined,
       );
       setRefresh((value) => value + 1);
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         await store.clearSession();
-        onSignedOut('Sua sessão expirou. Entre novamente; os dados offline foram preservados.');
+        onSignedOut('Sua sessão expirou. Entre novamente.');
         return;
       }
       setSyncState('error');
-      setMessage(error instanceof Error ? error.message : 'Não foi possível sincronizar.');
+      setMessage(error instanceof Error ? error.message : 'Não foi possível carregar os dados.');
     } finally {
       syncing.current = false;
     }
@@ -148,7 +150,7 @@ export function useBoot() {
             await restored.store.clearSession();
             setState({
               loading: false,
-              error: 'Sua sessão expirou. Entre novamente; os dados offline foram preservados.',
+              error: 'Sua sessão expirou. Entre novamente.',
             });
           } else {
             // Keep local offline session active

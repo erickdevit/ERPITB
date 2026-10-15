@@ -2,17 +2,15 @@
 
 ## Limites de confiança
 
-O cliente é offline-first, mas o Worker continua sendo a autoridade de autorização. A interface oculta ações proibidas e a API repete todas as verificações de papel, atribuição de turma e janela temporal. Um cliente modificado não consegue ampliar seu escopo apenas alterando a UI.
+O cliente opera como um PWA 100% online, e o Worker continua sendo a autoridade de autorização. A interface oculta ações proibidas e a API repete todas as verificações de papel, atribuição de turma e janela temporal. Um cliente modificado não consegue ampliar seu escopo apenas alterando a UI.
 
 ```mermaid
 flowchart LR
   UI[React 19 PWA] --> REPO[LocalStore Dexie/IndexedDB]
   REPO --> DB[(IndexedDB Cifrado AES-GCM)]
-  REPO --> Q[Fila de mutações offline]
-  Q --> PUSH[/api/sync/push]
-  PUSH --> RBAC[RBAC + versão base]
+  REPO --> PUSH[/api/sync/push - persistência online imediata]
+  PUSH --> RBAC[RBAC + validação]
   RBAC --> D1[(Cloudflare D1)]
-  RBAC -->|divergência| C[Central de conflitos]
   D1 --> PULL[/api/sync/pull por cursor]
   PULL --> DB
 ```
@@ -21,20 +19,20 @@ flowchart LR
 
 - A chave local do perfil no IndexedDB usa criptografia AES-256-GCM não exportável pelo Web Crypto.
 - O hash principal de autenticação usa **Web Crypto PBKDF2-HMAC-SHA256 (100.000 iterações)**, executando nativamente em < 1 ms no runtime V8/Workers.
-- A sessão permanece ativa entre reinicializações do navegador: os tokens e dados mínimos do usuário ficam salvos no armazenamento local criptografado. Na abertura, o app restaura imediatamente o cache, renova os tokens em segundo plano e mantém modo offline se a rede estiver indisponível. Logout remove as credenciais locais.
+- A sessão permanece ativa entre reinicializações do navegador: os tokens e dados mínimos do usuário ficam salvos no armazenamento local criptografado. Na abertura, o app restaura os dados e renova os tokens em segundo plano. Logout remove as credenciais locais.
 - No D1, nome, CPF e contato usam AES-256-GCM com IV aleatório por valor. O segredo fica em `DATA_ENCRYPTION_KEY`.
 - Access tokens são curtos (15 min); refresh tokens são aleatórios, guardados apenas como SHA-256 no D1 e rotacionados a cada uso.
 - O bootstrap do primeiro admin requer segredo externo e fecha definitivamente depois do primeiro usuário.
 
-## Sincronização
+## Persistência e Sincronização
 
-Cada operação possui `operationId`, `baseVersion` e UUID local. O Worker persiste o resultado por `operationId`, portanto retries são seguros. Versões diferentes criam uma pendência em vez de aplicar last-write-wins. Para chamadas novas simultâneas, o servidor também compara a chave natural `(class_id, student_id, date)`.
+As mutações realizadas pelo usuário são salvas de forma 100% online diretamente via `/api/sync/push`, persistindo no D1 em tempo real e mantendo o banco local como `SYNCED` sem acúmulo de fila offline ou divergências de versão.
 
-O pull usa um cursor monotônico (`sync_changes.seq`). Antes de aplicar um evento remoto, o cliente protege registros que ainda estão na fila local. Professores recebem apenas dados relacionados às turmas atribuídas.
+O pull sincroniza dados do servidor via cursor monotônico (`sync_changes.seq`). Professores recebem apenas dados relacionados às turmas atribuídas.
 
 ## Decisões de plataforma
 
-O sistema opera integralmente como uma aplicação Web PWA moderna (React 19 + Vite + Workbox) distribuída diretamente pela infraestrutura de Cloudflare Workers Assets. O build é incorporado ao deploy do Worker, garantindo que cliente e backend estejam sempre perfeitamente sincronizados.
+O sistema opera como um Progressive Web App (PWA) instalável (gerenciado via `vite-plugin-pwa` com Web App Manifest e Service Worker), porém com funcionamento 100% online. As mutações exigem conectividade com a API para salvar em tempo real diretamente no Cloudflare D1, garantindo consistência imediata entre todos os dispositivos.
 
 ## Operação
 

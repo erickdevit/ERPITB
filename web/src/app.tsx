@@ -67,7 +67,6 @@ const allDestinations: Destination[] = [
   { path: '/bi/laboratorios', label: 'Laboratórios', icon: FlaskConical, parent: 'bi' },
   { path: '/bi/qualidade', label: 'Qualidade dos dados', icon: Database, parent: 'bi', manager: true },
   { path: '/usuarios', label: 'Usuários', section: 'SISTEMA', icon: UserCog, admin: true },
-  { path: '/conflitos', label: 'Conflitos', section: 'SISTEMA', icon: GitCompare, manager: true },
   { path: '/auditoria', label: 'Auditoria', section: 'SISTEMA', icon: History, manager: true },
 ];
 
@@ -183,20 +182,8 @@ function UserDropdown({
   }, [open]);
 
   const isOffline = syncState === 'offline';
-  const isError = syncState === 'error' || syncState === 'warning';
-  const dotColor = isOffline
-    ? 'bg-amber-500'
-    : isError
-    ? 'bg-rose-500'
-    : 'bg-emerald-500';
-
-  const statusTooltip = isOffline
-    ? 'Offline (modo local)'
-    : syncState === 'syncing'
-    ? 'Sincronizando…'
-    : isError
-    ? 'Atenção na sincronização'
-    : 'Online';
+  const dotColor = isOffline ? 'bg-amber-500' : 'bg-emerald-500';
+  const statusTooltip = isOffline ? 'Sem conexão com a internet' : '100% Online';
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -234,13 +221,11 @@ function UserDropdown({
                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${
                   isOffline
                     ? 'bg-amber-50 text-amber-700 border-amber-200'
-                    : isError
-                    ? 'bg-rose-50 text-rose-700 border-rose-200'
                     : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                 }`}
               >
                 <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
-                <span>{isOffline ? 'Offline' : syncState === 'syncing' ? 'Sincronizando' : 'Conectado'}</span>
+                <span>{isOffline ? 'Sem conexão' : '100% Online'}</span>
               </span>
             </div>
           </div>
@@ -258,7 +243,7 @@ function UserDropdown({
               className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 text-slate-400 ${syncState === 'syncing' ? 'animate-spin' : ''}`} />
-              <span>Sincronizar dados agora</span>
+              <span>Atualizar dados</span>
             </button>
           </div>
 
@@ -495,12 +480,12 @@ function Shell() {
               type="button"
               disabled={syncState === 'syncing'}
               onClick={() => void sync()}
-              title={syncState === 'syncing' ? 'Sincronizando dados…' : 'Sincronizar dados agora'}
+              title={syncState === 'syncing' ? 'Atualizando dados…' : 'Atualizar dados'}
               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 disabled:opacity-50 transition-all shadow-2xs cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${syncState === 'syncing' ? 'animate-spin text-sky-600' : ''}`} />
               <span className="hidden sm:inline">
-                {syncState === 'syncing' ? 'Sincronizando…' : 'Sincronizar'}
+                {syncState === 'syncing' ? 'Atualizando…' : 'Atualizar'}
               </span>
             </button>
 

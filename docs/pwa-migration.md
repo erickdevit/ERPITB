@@ -1,12 +1,18 @@
-# Migração e Transição para Web PWA (Concluída)
+# Arquitetura PWA 100% Online
 
-O cliente oficial da aplicação é `web/`, uma Web PWA React/TypeScript integrada e publicada diretamente pelo Cloudflare Worker em `https://freq.itbcursos.com`. A versão legada em Flutter foi completamente descontinuada e removida do repositório.
+O cliente oficial da aplicação é `web/`, um Progressive Web App (PWA) em React 19 / TypeScript integrado e publicado diretamente pelo Cloudflare Worker em `https://freq.itbcursos.com`. O PWA é totalmente instalável via Web App Manifest e Service Worker, operando de modo 100% online.
 
-## Segurança e uso offline
+## Operação 100% Online e Persistência Direta
 
-Após um login válido, a PWA gera uma chave AES-GCM não exportável para aquela conta e perfil do navegador. Registros, fila de sincronização e tokens de sessão são cifrados no IndexedDB. A sessão persistida reabre o cache automaticamente no mesmo perfil; logout apaga a chave e todos os dados locais da conta.
+Para eliminar divergências locais/remotas e pendências em filas offline:
+- Mutações (criação de registros, frequências, usuários, turmas, reposições) são transmitidas diretamente à API (`/sync/push`) em tempo real.
+- As respostas confirmadas pelo servidor são persistidas localmente no IndexedDB cifrado já com status `SYNCED`.
+- A fila local não acumula pendências (`queue` com 0 itens), eliminando conflitos de sincronização.
+- Caso a conexão falhe, o usuário é prontamente alertado.
 
-O service worker armazena o application shell e os recursos estáticos. Dados institucionais são gravados primeiro no banco local cifrado (Dexie / IndexedDB) e enviados em segundo plano com o protocolo de `operationId`, versão base, cursor e resolução de conflitos.
+## Segurança e armazenamento de dados
+
+Após um login válido, a aplicação gera uma chave AES-GCM não exportável para aquela conta e perfil do navegador. Registros e tokens de sessão são cifrados no IndexedDB. A sessão persistida reabre automaticamente no mesmo perfil; logout apaga a chave e todos os dados locais da conta.
 
 ## Desenvolvimento e deploy
 
@@ -22,7 +28,3 @@ npm run deploy
 ```
 
 O Worker publica os assets compilados em `web/dist` e atende as chamadas de API em `/api/*`.
-
-## Execução local conectada à base remota
-
-Para testar o PWA com os usuários e dados existentes no D1 remoto, execute `npm run dev` em `backend/` (que inicia o Vite apontando o proxy para a API).

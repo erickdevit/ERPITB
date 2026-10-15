@@ -18,7 +18,7 @@ export default defineConfig(({ mode }) => {
         manifest: {
           name: 'Frequência ITB',
           short_name: 'Frequência ITB',
-          description: 'Controle de frequência offline-first do Instituto Transforma Brasil.',
+          description: 'Controle de frequência do Instituto Transforma Brasil.',
           theme_color: '#102A43',
           background_color: '#F4F7FA',
           display: 'standalone',
@@ -28,8 +28,6 @@ export default defineConfig(({ mode }) => {
         workbox: {
           navigateFallback: '/index.html',
           navigateFallbackDenylist: [/^\/api/],
-          globPatterns: ['**/*.{js,css,html,svg,woff2}'],
-          runtimeCaching: [],
         },
       }),
     ],

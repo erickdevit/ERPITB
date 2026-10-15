@@ -1,6 +1,6 @@
 # Frequência ITB
 
-Sistema offline-first para controle de frequência do Instituto Transforma Brasil, composto por cliente Web PWA (React + TypeScript) e API serverless em Cloudflare Workers + D1.
+Sistema de controle de frequência do Instituto Transforma Brasil, composto por aplicação Web PWA (React 19 + TypeScript) 100% online e API serverless em Cloudflare Workers + D1.
 
 ## Produção
 
@@ -10,14 +10,14 @@ Sistema offline-first para controle de frequência do Instituto Transforma Brasi
 
 ## Estrutura do Repositório
 
-- `backend/`: API REST em Cloudflare Workers, autenticação JWT, RBAC, criptografia AES-256-GCM para dados sensíveis e motor de sincronização com resolução de conflitos.
-- `web/`: Aplicação Web PWA em React 19 + TypeScript, IndexedDB cifrado (Dexie), fila offline durável, relatórios (PDF, Excel, CSV) e dashboards analíticos de B.I.
+- `backend/`: API REST em Cloudflare Workers, autenticação JWT, RBAC, criptografia AES-256-GCM para dados sensíveis e motor de dados.
+- `web/`: Aplicação Web PWA em React 19 + TypeScript (instalável via webmanifest e service worker, operação 100% online), IndexedDB cifrado (Dexie), relatórios (PDF, Excel, CSV) e dashboards analíticos de B.I.
 - `itb-logo.svg`: Ativo oficial da marca Instituto Transforma Brasil.
-- `.github/workflows/ci.yml`: Pipeline de CI/CD para backend e web PWA.
+- `.github/workflows/ci.yml`: Pipeline de CI/CD para backend e web.
 
 ## Desenvolvimento Rápido
 
-### 1. Web PWA (`web/`)
+### 1. Aplicação Web (`web/`)
 
 ```bash
 cd web
@@ -25,7 +25,7 @@ npm install
 npm run dev        # Executa com proxy apontando para backend local (8787)
 npm run dev:real   # Executa com proxy apontando para a API de produção
 npm test           # Executa a suíte de testes unitários e de componentes
-npm run build      # Gera o bundle de produção PWA em web/dist
+npm run build      # Gera o bundle de produção em web/dist
 ```
 
 ### 2. Backend Worker (`backend/`)

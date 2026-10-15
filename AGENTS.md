@@ -9,12 +9,12 @@ Welcome to **Frequência ITB**, an offline-first attendance control system devel
 The project is structured as a monorepo containing a Web PWA client and a serverless Cloudflare Workers backend.
 
 ### Tech Stack
-* **Client (`web/`)**: React 19 + TypeScript PWA (built with Vite).
-  * **Offline Database**: IndexedDB managed with Dexie.js and client-side AES-256-GCM encryption.
-  * **Routing & State**: React Router, custom reactive offline stores and hooks (`useSyncExternalStore`).
+* **Client (`web/`)**: React 19 + TypeScript PWA (built with Vite + `vite-plugin-pwa`, installable Progressive Web App with Service Worker and Web App Manifest).
+  * **Database & Persistence**: IndexedDB managed with Dexie.js and client-side AES-256-GCM encryption. Operates 100% online: mutations save immediately to the backend API (`/sync/push`) and store canonically as `SYNCED` locally, eliminating background sync queue backlog and divergence.
+  * **Routing & State**: React Router, custom reactive stores and hooks (`useSyncExternalStore`).
   * **Styling & Assets**: Tailwind CSS, Lucide React icons, official SVG brand assets.
   * **Reporting & Analytics**: `jspdf`, `exceljs`, `html2canvas`, DOMPurify, custom B.I. analytics engines.
-  * **PWA & Offline**: `vite-plugin-pwa`, Workbox Service Worker, background sync queue.
+  * **Deployment**: Direct Cloudflare Workers SPA static assets delivery.
   * **Testing**: Vitest + React Testing Library.
 * **Backend (`backend/`)**: Cloudflare Workers + D1 (Serverless SQLite).
   * **Language**: TypeScript (ES Module).
@@ -92,11 +92,10 @@ npm run deploy
 
 ## ⚠️ Important Constraints & Guardrails
 
-1. **Offline-First Paradigm**:
-   * All primary operations (creating records, logging attendance, managing users, recording replacements) MUST work without an active internet connection.
-   * Operations are enqueued locally into an encrypted durable IndexedDB queue and synchronized opportunistically in the background.
-   * Do NOT block UI operations on remote network requests.
-   * Preserve conflict resolution logic when modifying local DB models or sync payloads.
+1. **100% Online PWA Paradigm**:
+   * The application is an installable PWA that operates 100% online.
+   * All primary mutations (creating records, logging attendance, managing users, recording replacements) are dispatched immediately to the backend API (`/sync/push`) and saved canonically as `SYNCED`, preventing local/remote divergence and queue backlog.
+   * Dexie/IndexedDB provides secure client-side caching of synced state, avoiding background sync delays or merge conflicts.
 
 2. **Password Hashing & Performance**:
    * Primary password hashing uses Web Crypto PBKDF2-HMAC-SHA256 (100,000 iterations), which executes natively in C++/V8 under 1ms CPU time, fully compatible with Cloudflare Workers limits.
