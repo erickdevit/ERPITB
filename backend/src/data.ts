@@ -63,7 +63,11 @@ async function requireClassAccess(env: Env, user: AuthUser, classId: string): Pr
 }
 
 async function getEntityRow(env: Env, table: string, id: string): Promise<JsonRecord> {
-  const allowed = new Set(['laboratories', 'courses', 'classes', 'class_teachers', 'students', 'enrollments', 'attendance_records', 'class_notes', 'replacements']);
+  const allowed = new Set([
+    'laboratories', 'courses', 'classes', 'class_teachers', 'students',
+    'enrollments', 'attendance_records', 'class_notes', 'replacements',
+    'grade_tables', 'grade_items', 'student_grades',
+  ]);
   if (!allowed.has(table)) throw new AppError(500, 'Entidade de sync inválida.');
   const row = await env.DB.prepare(`SELECT * FROM ${table} WHERE id = ?`).bind(id).first<JsonRecord>();
   if (!row) throw new AppError(404, 'Registro não encontrado.', 'NOT_FOUND');
@@ -945,6 +949,191 @@ export async function getPublicStudentData(env: Env, rawIdentifier: string): Pro
     RC: 'Reposição Concluída',
   };
 
+  // Report Card (Boletim de Notas) for published grade tables in enrolled/graded classes
+  const gradeTablesQuery = await env.DB.prepare(
+    `SELECT gt.id, gt.class_id, gt.name, gt.calculation_mode, gt.passing_grade, gt.published,
+            gt.sort_order, gt.notes, gt.updated_at,
+            c.name AS class_name, co.name AS course_name, co.code AS course_code,
+            u.name AS teacher_name
+       FROM grade_tables gt
+       JOIN classes c ON c.id = gt.class_id AND c.deleted_at IS NULL
+       JOIN courses co ON co.id = c.course_id AND co.deleted_at IS NULL
+       LEFT JOIN users u ON u.id = gt.created_by_user_id
+      WHERE gt.deleted_at IS NULL AND gt.published = 1
+        AND (
+          gt.class_id IN (SELECT class_id FROM enrollments WHERE student_id = ? AND deleted_at IS NULL)
+          OR gt.id IN (SELECT grade_table_id FROM student_grades WHERE student_id = ? AND deleted_at IS NULL)
+        )
+      ORDER BY gt.sort_order ASC, gt.created_at ASC`,
+  ).bind(student.id, student.id).all<{
+    id: string; class_id: string; name: string; calculation_mode: 'simple' | 'weighted' | 'sum';
+    passing_grade: number; published: number; sort_order: number; notes: string | null; updated_at: string;
+    class_name: string; course_name: string; course_code: string | null; teacher_name: string | null;
+  }>();
+
+  const gradeItemsQuery = await env.DB.prepare(
+    `SELECT gi.id, gi.class_id, gi.grade_table_id, gi.name, gi.category, gi.evaluation_date,
+            gi.max_score, gi.weight, gi.sort_order, gi.notes
+       FROM grade_items gi
+       JOIN grade_tables gt ON gt.id = gi.grade_table_id AND gt.deleted_at IS NULL AND gt.published = 1
+      WHERE gi.deleted_at IS NULL
+        AND (
+          gi.class_id IN (SELECT class_id FROM enrollments WHERE student_id = ? AND deleted_at IS NULL)
+          OR gi.grade_table_id IN (SELECT grade_table_id FROM student_grades WHERE student_id = ? AND deleted_at IS NULL)
+        )
+      ORDER BY gi.sort_order ASC, gi.created_at ASC`,
+  ).bind(student.id, student.id).all<{
+    id: string; class_id: string; grade_table_id: string; name: string; category: string;
+    evaluation_date: string | null; max_score: number; weight: number; sort_order: number; notes: string | null;
+  }>();
+
+  const studentGradesQuery = await env.DB.prepare(
+    `SELECT sg.id, sg.grade_table_id, sg.grade_item_id, sg.score, sg.remarks, sg.updated_at
+       FROM student_grades sg
+       JOIN grade_items gi ON gi.id = sg.grade_item_id AND gi.deleted_at IS NULL
+       JOIN grade_tables gt ON gt.id = sg.grade_table_id AND gt.deleted_at IS NULL AND gt.published = 1
+      WHERE sg.student_id = ? AND sg.deleted_at IS NULL`,
+  ).bind(student.id).all<{
+    id: string; grade_table_id: string; grade_item_id: string; score: number | null; remarks: string | null; updated_at: string;
+  }>();
+
+  const gradeByItemId = new Map(studentGradesQuery.results.map((g) => [g.grade_item_id, g]));
+  const itemsByTableId = new Map<string, typeof gradeItemsQuery.results>();
+  for (const item of gradeItemsQuery.results) {
+    const list = itemsByTableId.get(item.grade_table_id) ?? [];
+    list.push(item);
+    itemsByTableId.set(item.grade_table_id, list);
+  }
+
+  const categoryMap = new Map<string, { category: string; count: number; evaluatedCount: number; normalizedSum: number }>();
+
+  const tables = gradeTablesQuery.results.map((table) => {
+    const rawItems = itemsByTableId.get(table.id) ?? [];
+    const items = rawItems.map((item) => {
+      const entry = gradeByItemId.get(item.id);
+      const score = entry?.score !== undefined && entry?.score !== null ? Number(entry.score) : null;
+      const maxScore = Number(item.max_score || 10);
+      const weight = Number(item.weight || 1);
+      const normalizedScore = score !== null && maxScore > 0 ? Math.round(((score / maxScore) * 10) * 10) / 10 : null;
+
+      const catKey = (item.category || 'Avaliação').trim();
+      const catEntry = categoryMap.get(catKey) ?? { category: catKey, count: 0, evaluatedCount: 0, normalizedSum: 0 };
+      catEntry.count += 1;
+      if (normalizedScore !== null) {
+        catEntry.evaluatedCount += 1;
+        catEntry.normalizedSum += normalizedScore;
+      }
+      categoryMap.set(catKey, catEntry);
+
+      return {
+        id: item.id,
+        name: item.name,
+        category: catKey,
+        evaluationDate: item.evaluation_date,
+        maxScore,
+        weight,
+        notes: item.notes,
+        score,
+        normalizedScore,
+        remarks: entry?.remarks ?? null,
+        updatedAt: entry?.updated_at ?? null,
+      };
+    });
+
+    const evaluated = items.filter((i) => i.score !== null);
+    let average: number | null = null;
+    if (evaluated.length > 0) {
+      if (table.calculation_mode === 'sum') {
+        const sum = evaluated.reduce((acc, i) => acc + (i.score ?? 0), 0);
+        average = Math.round(Math.min(10, sum) * 10) / 10;
+      } else if (table.calculation_mode === 'weighted') {
+        const weightSum = evaluated.reduce((acc, i) => acc + i.weight, 0);
+        const weightedTotal = evaluated.reduce((acc, i) => acc + ((i.normalizedScore ?? 0) * i.weight), 0);
+        average = weightSum > 0 ? Math.round((weightedTotal / weightSum) * 10) / 10 : null;
+      } else {
+        const sumNorm = evaluated.reduce((acc, i) => acc + (i.normalizedScore ?? 0), 0);
+        average = Math.round((sumNorm / evaluated.length) * 10) / 10;
+      }
+    }
+
+    const passingGrade = Number(table.passing_grade ?? 6.0);
+    const recoveryFloor = Math.max(4.0, passingGrade - 2.0);
+    let status: 'aprovado' | 'recuperacao' | 'reprovado' | 'em_andamento' = 'em_andamento';
+    let statusLabel = 'Em andamento';
+
+    if (items.length > 0 && evaluated.length === items.length && average !== null) {
+      if (average >= passingGrade) {
+        status = 'aprovado';
+        statusLabel = 'Aprovado';
+      } else if (average >= recoveryFloor) {
+        status = 'recuperacao';
+        statusLabel = 'Em Recuperação';
+      } else {
+        status = 'reprovado';
+        statusLabel = 'Reprovado';
+      }
+    } else if (table.calculation_mode === 'sum' && average !== null && average >= passingGrade) {
+      status = 'aprovado';
+      statusLabel = 'Aprovado';
+    }
+
+    return {
+      id: table.id,
+      name: table.name,
+      className: table.class_name,
+      courseName: table.course_name,
+      courseCode: table.course_code,
+      teacherName: table.teacher_name,
+      calculationMode: table.calculation_mode,
+      passingGrade,
+      notes: table.notes,
+      updatedAt: table.updated_at,
+      average,
+      status,
+      statusLabel,
+      totalItems: items.length,
+      evaluatedItems: evaluated.length,
+      items,
+    };
+  });
+
+  const tablesWithAvg = tables.filter((t) => t.average !== null);
+  const overallAverage = tablesWithAvg.length > 0
+    ? Math.round((tablesWithAvg.reduce((acc, t) => acc + (t.average ?? 0), 0) / tablesWithAvg.length) * 10) / 10
+    : null;
+  const averagePassingGrade = tables.length > 0
+    ? Math.round((tables.reduce((acc, t) => acc + t.passingGrade, 0) / tables.length) * 10) / 10
+    : 6.0;
+
+  let overallStatus: 'aprovado' | 'recuperacao' | 'reprovado' | 'em_andamento' | 'sem_notas' = 'sem_notas';
+  let overallStatusLabel = 'Sem notas lançadas';
+  if (tables.length > 0 && overallAverage !== null) {
+    const allCompleted = tables.every((t) => t.totalItems > 0 && t.evaluatedItems === t.totalItems);
+    if (!allCompleted) {
+      overallStatus = 'em_andamento';
+      overallStatusLabel = 'Em andamento';
+    } else if (overallAverage >= averagePassingGrade) {
+      overallStatus = 'aprovado';
+      overallStatusLabel = 'Aprovado';
+    } else if (overallAverage >= Math.max(4.0, averagePassingGrade - 2.0)) {
+      overallStatus = 'recuperacao';
+      overallStatusLabel = 'Em Recuperação';
+    } else {
+      overallStatus = 'reprovado';
+      overallStatusLabel = 'Reprovado';
+    }
+  } else if (tables.length > 0) {
+    overallStatus = 'em_andamento';
+    overallStatusLabel = 'Em andamento';
+  }
+
+  const byCategory = Array.from(categoryMap.values()).map((c) => ({
+    category: c.category,
+    totalItems: c.count,
+    evaluatedItems: c.evaluatedCount,
+    average: c.evaluatedCount > 0 ? Math.round((c.normalizedSum / c.evaluatedCount) * 10) / 10 : null,
+  }));
+
   return {
     student: {
       name: studentName,
@@ -978,5 +1167,16 @@ export async function getPublicStudentData(env: Env, rawIdentifier: string): Pro
       notes: r.notes,
       completedAt: r.completed_at,
     })),
+    reportCard: {
+      overallAverage,
+      passingGrade: averagePassingGrade,
+      overallStatus,
+      overallStatusLabel,
+      totalTables: tables.length,
+      totalAssessments: tables.reduce((acc, t) => acc + t.totalItems, 0),
+      evaluatedAssessments: tables.reduce((acc, t) => acc + t.evaluatedItems, 0),
+      byCategory,
+      tables,
+    },
   };
 }

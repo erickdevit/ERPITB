@@ -144,4 +144,100 @@ describe('PublicStudentPortal', () => {
     expect(screen.getByText('11/08/2026')).toBeInTheDocument();
     expect(screen.queryByText('18/08/2026')).not.toBeInTheDocument();
   });
+
+  it('renders the complete Boletim Acadêmico de Notas and switches tabs', async () => {
+    const payloadWithReportCard = {
+      ...mockPayload,
+      reportCard: {
+        overallAverage: 8.5,
+        passingGrade: 6.0,
+        overallStatus: 'aprovado',
+        overallStatusLabel: 'Aprovado',
+        totalTables: 1,
+        totalAssessments: 2,
+        evaluatedAssessments: 2,
+        byCategory: [
+          { category: 'Prova', totalItems: 1, evaluatedItems: 1, average: 8.0 },
+          { category: 'Atividade Prática', totalItems: 1, evaluatedItems: 1, average: 9.0 },
+        ],
+        tables: [
+          {
+            id: 'gt-1',
+            name: '1º Módulo - Desenvolvimento Web',
+            className: 'Turma Noite 2026',
+            courseName: 'Desenvolvimento Web',
+            courseCode: 'DEV-01',
+            teacherName: 'Prof. Carlos',
+            calculationMode: 'simple',
+            passingGrade: 6.0,
+            notes: null,
+            updatedAt: '2026-08-20T12:00:00Z',
+            average: 8.5,
+            status: 'aprovado',
+            statusLabel: 'Aprovado',
+            totalItems: 2,
+            evaluatedItems: 2,
+            items: [
+              {
+                id: 'gi-1',
+                name: 'Prova HTML/CSS',
+                category: 'Prova',
+                evaluationDate: '2026-08-10',
+                maxScore: 10,
+                weight: 1,
+                notes: null,
+                score: 8.0,
+                normalizedScore: 8.0,
+                remarks: 'Ótima estrutura semântica',
+                updatedAt: '2026-08-12T10:00:00Z',
+              },
+              {
+                id: 'gi-2',
+                name: 'Projeto Prático Flexbox',
+                category: 'Atividade Prática',
+                evaluationDate: '2026-08-17',
+                maxScore: 10,
+                weight: 1,
+                notes: null,
+                score: 9.0,
+                normalizedScore: 9.0,
+                remarks: 'Excelente entrega',
+                updatedAt: '2026-08-19T10:00:00Z',
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => payloadWithReportCard,
+    } as Response);
+
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={['/matricula/MAT-2026-001']}>
+        <Routes>
+          <Route path="/matricula/:code" element={<PublicStudentPortal />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Boletim Acadêmico de Notas')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('1º Módulo - Desenvolvimento Web')).toBeInTheDocument();
+    expect(screen.getByText('Prova HTML/CSS')).toBeInTheDocument();
+    expect(screen.getByText('Projeto Prático Flexbox')).toBeInTheDocument();
+    expect(screen.getByText('Ótima estrutura semântica')).toBeInTheDocument();
+    expect(screen.getAllByText('8,5').length).toBeGreaterThanOrEqual(1);
+
+    // Switch to Boletim tab only
+    await user.click(screen.getByRole('button', { name: /Boletim de Notas/i }));
+    expect(screen.getByText('Prova HTML/CSS')).toBeInTheDocument();
+    expect(screen.queryByText('Histórico Detalhado de Aulas')).not.toBeInTheDocument();
+  });
 });

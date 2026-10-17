@@ -25,6 +25,7 @@ import {
   ChevronLeft,
   User,
   ShieldCheck,
+  Award,
 } from 'lucide-react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { ApplicationProvider, useApp, useBoot } from './app-context';
@@ -47,6 +48,7 @@ type Destination = {
 const allDestinations: Destination[] = [
   { path: '/', label: 'Visão geral', section: 'PRINCIPAL', icon: LayoutDashboard },
   { path: '/frequencia', label: 'Chamada', shortLabel: 'Frequência', section: 'PRINCIPAL', icon: ClipboardCheck },
+  { path: '/notas', label: 'Notas', section: 'PRINCIPAL', icon: Award },
   { path: '/turmas', label: 'Turmas', section: 'ACADÊMICO', icon: Users },
   { path: '/alunos', label: 'Alunos', section: 'ACADÊMICO', icon: GraduationCap },
   { path: '/relatorios', label: 'Relatórios', section: 'ACADÊMICO', icon: FileText },
@@ -56,6 +58,7 @@ const allDestinations: Destination[] = [
   { path: '/laboratorios', label: 'Laboratórios', section: 'CADASTROS', icon: FlaskConical, manager: true },
   { path: '/bi/institucional', label: 'Institucional', icon: Building2, parent: 'bi' },
   { path: '/bi/frequencia', label: 'Frequência', icon: TrendingUp, parent: 'bi' },
+  { path: '/bi/notas', label: 'Notas e desempenho', icon: Award, parent: 'bi' },
   { path: '/bi/risco', label: 'Risco', icon: AlertTriangle, parent: 'bi' },
   { path: '/bi/reposicoes', label: 'Reposições', icon: CalendarCheck, parent: 'bi' },
   { path: '/bi/cursos-turmas', label: 'Cursos e turmas', icon: Layers, parent: 'bi' },
@@ -72,6 +75,7 @@ function allowed(item: Destination, role: Role) {
 
 const BiInstitutionalPage = lazy(() => import('./features/bi/institutional-page').then((m) => ({ default: m.BiInstitutionalPage })));
 const BiAttendancePage = lazy(() => import('./features/bi/attendance-page').then((m) => ({ default: m.BiAttendancePage })));
+const BiGradesPage = lazy(() => import('./features/bi/grades-page').then((m) => ({ default: m.BiGradesPage })));
 const BiRiskPage = lazy(() => import('./features/bi/risk-page').then((m) => ({ default: m.BiRiskPage })));
 const BiReplacementsPage = lazy(() => import('./features/bi/replacements-page').then((m) => ({ default: m.BiReplacementsPage })));
 const BiCoursesClassesPage = lazy(() => import('./features/bi/courses-classes-page').then((m) => ({ default: m.BiCoursesClassesPage })));
@@ -91,6 +95,7 @@ const CoursesPage = lazy(() => import('./features/catalog-page').then((m) => ({ 
 const LaboratoriesPage = lazy(() => import('./features/catalog-page').then((m) => ({ default: m.LaboratoriesPage })));
 const UsersPage = lazy(() => import('./features/users-page').then((m) => ({ default: m.UsersPage })));
 const AttendancePage = lazy(() => import('./features/attendance-page').then((m) => ({ default: m.AttendancePage })));
+const GradesPage = lazy(() => import('./features/grades-page').then((m) => ({ default: m.GradesPage })));
 const ReplacementsPage = lazy(() => import('./features/replacements-page').then((m) => ({ default: m.ReplacementsPage })));
 const PublicStudentPortal = lazy(() => import('./features/public-student-portal').then((m) => ({ default: m.PublicStudentPortal })));
 
@@ -117,6 +122,7 @@ function AppRoutes() {
       <Route path="/alunos" element={deferred(<StudentsPage />)} />
       <Route path="/alunos/:studentId" element={deferred(<StudentDetailPage />)} />
       <Route path="/frequencia" element={deferred(<AttendancePage />)} />
+      <Route path="/notas" element={deferred(<GradesPage />)} />
       <Route path="/relatorios" element={deferred(<ReportsCenterPage />)} />
       <Route path="/reposicoes" element={<Navigate to="/reposicoes/abertas" replace />} />
       <Route path="/reposicoes/abertas" element={deferred(<ReplacementsPage />)} />
@@ -127,6 +133,7 @@ function AppRoutes() {
       <Route path="/bi" element={<Navigate to="/bi/institucional" replace />} />
       <Route path="/bi/institucional" element={deferred(<BiInstitutionalPage />)} />
       <Route path="/bi/frequencia" element={deferred(<BiAttendancePage />)} />
+      <Route path="/bi/notas" element={deferred(<BiGradesPage />)} />
       <Route path="/bi/risco" element={deferred(<BiRiskPage />)} />
       <Route path="/bi/reposicoes" element={deferred(<BiReplacementsPage />)} />
       <Route path="/bi/cursos-turmas" element={deferred(<BiCoursesClassesPage />)} />

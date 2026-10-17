@@ -4,6 +4,7 @@ import type { BiDataset } from './model';
 export type BiViewKey =
   | 'institutional'
   | 'attendance'
+  | 'grades'
   | 'risk'
   | 'replacements'
   | 'courses'
@@ -270,6 +271,70 @@ export function buildBiView(key: BiViewKey, dataset: BiDataset): BiView {
         replacements: dataset.replacementRows ?? [],
       },
     };
+
+  if (key === 'grades') {
+    const gs = dataset.gradesSummary;
+    const avgLabel =
+      gs?.overallAverage !== null && gs?.overallAverage !== undefined
+        ? gs.overallAverage.toFixed(1).replace('.', ',')
+        : '—';
+    return {
+      key,
+      title: 'B.I de Notas e Desempenho Acadêmico',
+      description:
+        'Panorama consolidado das tabelas de avaliação, médias por tipo de atividade e aprovação por turma.',
+      metrics: [
+        { label: 'Média geral (0-10)', value: avgLabel },
+        { label: 'Tabelas de notas', value: number(gs?.totalTables ?? 0) },
+        { label: 'Avaliações criadas', value: number(gs?.totalAssessments ?? 0) },
+        { label: 'Notas lançadas', value: number(gs?.gradedEntries ?? 0) },
+        { label: 'Aprovados', value: number(gs?.approvedStudents ?? 0) },
+        {
+          label: 'Recuperação / Reprov.',
+          value: number((gs?.recoveryStudents ?? 0) + (gs?.failedStudents ?? 0)),
+        },
+      ],
+      chart: {
+        type: 'bar',
+        title: 'Média por tipo de avaliação',
+        description: 'Média normalizada (0 a 10) nas categorias de avaliação criadas pelos professores.',
+        data: (gs?.byCategory ?? []).map((item) => ({
+          category: item.category,
+          average: item.averageScore,
+        })),
+        categoryKey: 'category',
+        valueKey: 'average',
+      },
+      tableTitle: 'Desempenho acadêmico por turma',
+      headers: [
+        'Curso',
+        'Turma',
+        'Tabelas',
+        'Avaliações',
+        'Aprovados',
+        'Em Recuperação',
+        'Reprovados',
+        'Média da Turma',
+      ],
+      rows: (gs?.byClass ?? []).map((item) => [
+        item.courseName,
+        item.className,
+        item.tables,
+        item.assessments,
+        item.approved,
+        item.recovery,
+        item.failed,
+        item.averageScore !== null ? item.averageScore.toFixed(1).replace('.', ',') : '—',
+      ]),
+      limitations: [
+        'As notas de diferentes tabelas são normalizadas na escala de 0,0 a 10,0 para consolidação.',
+      ],
+      payload: {
+        ...commonPayload(dataset),
+        gradesSummary: gs,
+      },
+    };
+  }
 
   if (key === 'courses')
     return {

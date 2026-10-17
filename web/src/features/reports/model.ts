@@ -1,8 +1,16 @@
 import { latestAttendance } from '../../lib/attendance';
 import type { ExportValue } from '../../lib/exports';
+import { buildClassGradeSummary, formatGrade, normalizeScoreToTen, roundGrade } from '../../lib/grades';
 import type { LocalRecord } from '../../types';
 
-export type ReportType = 'institutional' | 'course' | 'classDiary' | 'student' | 'dropoutRisk';
+export type ReportType =
+  | 'institutional'
+  | 'course'
+  | 'classDiary'
+  | 'classGrades'
+  | 'assessmentTypes'
+  | 'student'
+  | 'dropoutRisk';
 
 export interface ReportFilters {
   type: ReportType;
@@ -23,6 +31,9 @@ export interface ReportInput {
   directory: LocalRecord[];
   enrollments: LocalRecord[];
   students: LocalRecord[];
+  gradeTables?: LocalRecord[];
+  gradeItems?: LocalRecord[];
+  studentGrades?: LocalRecord[];
 }
 
 export interface ReportMetric {
@@ -49,6 +60,8 @@ export const reportTypeOptions: Array<{ value: ReportType; label: string }> = [
   { value: 'institutional', label: 'Consolidado institucional' },
   { value: 'course', label: 'Sintético por curso' },
   { value: 'classDiary', label: 'Diário de classe' },
+  { value: 'classGrades', label: 'Boletim / Mapa de notas da turma' },
+  { value: 'assessmentTypes', label: 'Desempenho por tipo de avaliação' },
   { value: 'student', label: 'Ficha detalhada do aluno' },
   { value: 'dropoutRisk', label: 'Risco de evasão' },
 ];
@@ -264,6 +277,164 @@ function dropoutRisk(input: ReportInput, filters: ReportFilters): ReportView {
   };
 }
 
+function classGradesReport(input: ReportInput, filters: ReportFilters): ReportView {
+  const classRecord = input.classes.find((item) => item.id === filters.classId && active(item));
+  if (!classRecord) {
+    return missing(filters, 'Boletim / Mapa de notas da turma', 'Selecione uma turma para visualizar o boletim de notas.');
+  }
+  const scope = baseScope(input, filters);
+  const course = input.courses.find((item) => item.id === classRecord.course_id);
+  const studentIds = new Set(scope.enrollments.map((item) => text(item, 'student_id')));
+  const students = input.students
+    .filter((item) => active(item) && studentIds.has(item.id))
+    .map((item) => ({
+      id: item.id,
+      name: text(item, 'name'),
+      registrationNumber: text(item, 'registration_number'),
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name));
+
+  const summary = buildClassGradeSummary({
+    classId: classRecord.id,
+    tables: input.gradeTables ?? [],
+    items: input.gradeItems ?? [],
+    studentGrades: input.studentGrades ?? [],
+    students,
+  });
+
+  const rows: ExportValue[][] = summary.studentSummaries.map((student) => {
+    const studentAtt = scope.attendance.filter((r) => r.student_id === student.studentId);
+    const present = studentAtt.filter((r) => r.status === 'P').length;
+    const freq = studentAtt.length ? percent(pct(present, studentAtt.length)) : '—';
+    return [
+      student.registrationNumber,
+      student.studentName,
+      ...student.tableResults.map((tr) => formatGrade(tr.average)),
+      formatGrade(student.overallAverage),
+      freq,
+      student.overallStatusLabel,
+    ];
+  });
+
+  return {
+    type: filters.type,
+    title: `Boletim da turma — ${text(classRecord, 'name')}`,
+    description: 'Mapa consolidado das tabelas de avaliação, médias parciais/finais, frequência e situação de cada aluno.',
+    tableTitle: 'Boletim por aluno',
+    metrics: [
+      { label: 'Alunos ativos', value: students.length.toLocaleString('pt-BR') },
+      { label: 'Tabelas de notas', value: summary.tables.length.toLocaleString('pt-BR') },
+      { label: 'Média da turma', value: formatGrade(summary.classAverage) },
+      { label: 'Aprovados', value: summary.approvedCount.toLocaleString('pt-BR') },
+    ],
+    headers: [
+      'Matrícula',
+      'Aluno',
+      ...summary.tables.map((t) => text(t, 'name')),
+      'Média Geral',
+      'Frequência',
+      'Situação',
+    ],
+    rows,
+    context: context(input, filters, [
+      `Curso: ${text(course, 'name') || 'Não informado'}`,
+      `Turma: ${text(classRecord, 'name')}`,
+    ]),
+    notices: [
+      'As médias respeitam o modo de cálculo de cada tabela (Simples, Ponderada ou Soma de Pontos) na escala de 0 a 10.',
+    ],
+    ready: true,
+    matrix: summary.tables.length > 3,
+  };
+}
+
+function assessmentTypesReport(input: ReportInput, filters: ReportFilters): ReportView {
+  const scope = baseScope(input, filters);
+  const activeTables = new Map(
+    (input.gradeTables ?? [])
+      .filter((t) => !t.deleted_at && scope.classIds.has(text(t, 'class_id')))
+      .map((t) => [t.id, t]),
+  );
+  const activeItems = (input.gradeItems ?? []).filter(
+    (i) => !i.deleted_at && activeTables.has(text(i, 'grade_table_id')),
+  );
+  const itemById = new Map(activeItems.map((i) => [i.id, i]));
+  const grades = (input.studentGrades ?? []).filter(
+    (g) => !g.deleted_at && itemById.has(text(g, 'grade_item_id')) && g.score !== null && g.score !== undefined && g.score !== '',
+  );
+
+  const byCategory = new Map<
+    string,
+    { category: string; classIds: Set<string>; itemIds: Set<string>; scores: number[] }
+  >();
+
+  for (const item of activeItems) {
+    const cat = text(item, 'category').trim() || 'Avaliação';
+    const entry = byCategory.get(cat) ?? {
+      category: cat,
+      classIds: new Set<string>(),
+      itemIds: new Set<string>(),
+      scores: [],
+    };
+    entry.classIds.add(text(item, 'class_id'));
+    entry.itemIds.add(item.id);
+    byCategory.set(cat, entry);
+  }
+
+  for (const grade of grades) {
+    const item = itemById.get(text(grade, 'grade_item_id'));
+    if (!item) continue;
+    const cat = text(item, 'category').trim() || 'Avaliação';
+    const norm = normalizeScoreToTen(Number(grade.score), Number(item.max_score ?? 10));
+    if (norm !== null) {
+      byCategory.get(cat)?.scores.push(norm);
+    }
+  }
+
+  const allScores = [...byCategory.values()].flatMap((c) => c.scores);
+  const overallAvg = allScores.length
+    ? roundGrade(allScores.reduce((a, b) => a + b, 0) / allScores.length)
+    : null;
+
+  const rows: ExportValue[][] = [...byCategory.values()]
+    .sort((a, b) => a.category.localeCompare(b.category))
+    .map((entry) => {
+      const avg = entry.scores.length
+        ? roundGrade(entry.scores.reduce((a, b) => a + b, 0) / entry.scores.length)
+        : null;
+      const min = entry.scores.length ? roundGrade(Math.min(...entry.scores)) : null;
+      const max = entry.scores.length ? roundGrade(Math.max(...entry.scores)) : null;
+      return [
+        entry.category,
+        entry.classIds.size,
+        entry.itemIds.size,
+        entry.scores.length,
+        formatGrade(min),
+        formatGrade(max),
+        formatGrade(avg),
+      ];
+    });
+
+  return {
+    type: filters.type,
+    title: 'Desempenho por tipo de avaliação',
+    description: 'Análise consolidada das notas agrupadas pelas categorias livres criadas pelos professores (Provas, Práticas, Projetos, etc.).',
+    tableTitle: 'Categorias de avaliação no escopo',
+    metrics: [
+      { label: 'Tipos de avaliação', value: byCategory.size.toLocaleString('pt-BR') },
+      { label: 'Avaliações criadas', value: activeItems.length.toLocaleString('pt-BR') },
+      { label: 'Notas lançadas', value: allScores.length.toLocaleString('pt-BR') },
+      { label: 'Média geral (0-10)', value: formatGrade(overallAvg) },
+    ],
+    headers: ['Tipo de Avaliação', 'Turmas', 'Avaliações', 'Notas Lançadas', 'Menor Nota', 'Maior Nota', 'Média (0-10)'],
+    rows,
+    context: context(input, filters),
+    notices: ['Todas as notas são normalizadas na escala de 0,0 a 10,0 para permitir comparação direta entre diferentes tipos de atividades.'],
+    ready: true,
+    matrix: false,
+  };
+}
+
 function missing(filters: ReportFilters, title: string, message: string): ReportView {
   return { type: filters.type, title, description: '', tableTitle: '', metrics: [], headers: [], rows: [], context: [], notices: [], ready: false, requiredMessage: message, matrix: false };
 }
@@ -278,12 +449,17 @@ export function buildReportView(rawInput: ReportInput, filters: ReportFilters): 
     directory: rawInput?.directory ?? [],
     enrollments: rawInput?.enrollments ?? [],
     students: rawInput?.students ?? [],
+    gradeTables: rawInput?.gradeTables ?? [],
+    gradeItems: rawInput?.gradeItems ?? [],
+    studentGrades: rawInput?.studentGrades ?? [],
   };
   if (filters.from > filters.to) return missing(filters, reportTypeOptions.find((item) => item.value === filters.type)?.label ?? 'Relatório', 'A data inicial precisa ser anterior ou igual à data final.');
   switch (filters.type) {
     case 'institutional': return institutional(input, filters);
     case 'course': return courseSummary(input, filters);
     case 'classDiary': return classDiary(input, filters);
+    case 'classGrades': return classGradesReport(input, filters);
+    case 'assessmentTypes': return assessmentTypesReport(input, filters);
     case 'student': return studentSheet(input, filters);
     case 'dropoutRisk': return dropoutRisk(input, filters);
   }

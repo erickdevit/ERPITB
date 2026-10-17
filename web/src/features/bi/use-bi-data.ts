@@ -15,6 +15,9 @@ export function useBiData(filters: BiFilters, today: string) {
   const courses = useEntity('courses', true);
   const laboratories = useEntity('laboratories', true);
   const replacements = useEntity('replacements', true);
+  const gradeTables = useEntity('grade_tables', true);
+  const gradeItems = useEntity('grade_items', true);
+  const studentGrades = useEntity('student_grades', true);
   const [directory, setDirectory] = useState<LocalRecord[]>([
     { id: session.id, name: session.name, role: session.role, active: 1 },
   ]);
@@ -41,7 +44,10 @@ export function useBiData(filters: BiFilters, today: string) {
     classTeachers.loading ||
     courses.loading ||
     laboratories.loading ||
-    replacements.loading;
+    replacements.loading ||
+    gradeTables.loading ||
+    gradeItems.loading ||
+    studentGrades.loading;
 
   const data = useMemo(
     () =>
@@ -56,6 +62,9 @@ export function useBiData(filters: BiFilters, today: string) {
           laboratories: laboratories.items ?? [],
           replacements: replacements.items ?? [],
           directory: directory ?? [],
+          gradeTables: gradeTables.items ?? [],
+          gradeItems: gradeItems.items ?? [],
+          studentGrades: studentGrades.items ?? [],
         },
         filters,
         today,
@@ -70,6 +79,9 @@ export function useBiData(filters: BiFilters, today: string) {
       laboratories.items,
       replacements.items,
       directory,
+      gradeTables.items,
+      gradeItems.items,
+      studentGrades.items,
       filters,
       today,
     ],

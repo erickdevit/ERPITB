@@ -1,5 +1,6 @@
 export { BiInstitutionalPage } from './institutional-page';
 export { BiAttendancePage } from './attendance-page';
+export { BiGradesPage } from './grades-page';
 export { BiRiskPage } from './risk-page';
 export { BiReplacementsPage } from './replacements-page';
 export { BiCoursesClassesPage } from './courses-classes-page';

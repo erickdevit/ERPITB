@@ -21,7 +21,7 @@ export function classRevocationTargets(snapshot: EntitySnapshot, accountId: stri
     for (const record of snapshot[entity] ?? []) if (record.class_id === classId) targets.push({ entity, id: record.id });
   };
   for (const item of snapshot.classes ?? []) if (item.id === classId) targets.push({ entity: 'classes', id: item.id });
-  for (const entity of ['class_teachers', 'enrollments', 'attendance_records', 'class_notes', 'replacements'] as Entity[]) addByClass(entity);
+  for (const entity of ['class_teachers', 'enrollments', 'attendance_records', 'class_notes', 'replacements', 'grade_tables', 'grade_items', 'student_grades'] as Entity[]) addByClass(entity);
   for (const student of snapshot.students ?? []) {
     if (removedStudentIds.has(student.id) && !retainedStudentIds.has(student.id)) targets.push({ entity: 'students', id: student.id });
   }

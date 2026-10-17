@@ -135,7 +135,7 @@ export class LocalStore {
   }
 
   private async purgeClassScope(classId: string): Promise<void> {
-    const entities: Entity[] = ['classes', 'class_teachers', 'students', 'enrollments', 'attendance_records', 'class_notes', 'replacements'];
+    const entities: Entity[] = ['classes', 'class_teachers', 'students', 'enrollments', 'attendance_records', 'class_notes', 'replacements', 'grade_tables', 'grade_items', 'student_grades'];
     const snapshot: EntitySnapshot = {};
     for (const entity of entities) snapshot[entity] = await this.list(entity, true);
     const targets = classRevocationTargets(snapshot, this.accountId, classId);

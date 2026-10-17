@@ -60,8 +60,17 @@ export function ReportFiltersBar({
     .filter((item) => active(item) && studentIds.has(item.id))
     .sort((left, right) => text(left, 'name').localeCompare(text(right, 'name')));
 
-  const showCourse = filters.type === 'course' || filters.type === 'dropoutRisk';
-  const showClass = filters.type === 'classDiary' || filters.type === 'student' || filters.type === 'dropoutRisk';
+  const showCourse =
+    filters.type === 'course' ||
+    filters.type === 'dropoutRisk' ||
+    filters.type === 'classGrades' ||
+    filters.type === 'assessmentTypes';
+  const showClass =
+    filters.type === 'classDiary' ||
+    filters.type === 'classGrades' ||
+    filters.type === 'assessmentTypes' ||
+    filters.type === 'student' ||
+    filters.type === 'dropoutRisk';
 
   const changeType = (type: string) =>
     onChange({

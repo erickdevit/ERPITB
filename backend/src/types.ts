@@ -53,7 +53,10 @@ export type SyncEntity =
   | 'enrollments'
   | 'attendance_records'
   | 'class_notes'
-  | 'replacements';
+  | 'replacements'
+  | 'grade_tables'
+  | 'grade_items'
+  | 'student_grades';
 
 export interface SyncPushBody {
   deviceId: string;

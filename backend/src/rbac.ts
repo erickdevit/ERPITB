@@ -15,6 +15,7 @@ export type Permission =
   | 'students:delete'
   | 'teachers:assign'
   | 'attendance:write'
+  | 'grades:write'
   | 'conflicts:resolve'
   | 'audit:read';
 
@@ -23,14 +24,14 @@ const grants: Record<Role, ReadonlySet<Permission>> = {
     'laboratories:create', 'laboratories:update', 'laboratories:delete',
     'courses:create', 'courses:update', 'courses:delete',
     'classes:create', 'classes:update', 'classes:delete',
-    'students:write', 'students:delete', 'teachers:assign', 'attendance:write',
+    'students:write', 'students:delete', 'teachers:assign', 'attendance:write', 'grades:write',
     'conflicts:resolve', 'audit:read',
   ]),
   pedagogico: new Set([
     'laboratories:update', 'courses:update', 'classes:update', 'students:write', 'teachers:assign',
-    'attendance:write', 'conflicts:resolve', 'audit:read',
+    'attendance:write', 'grades:write', 'conflicts:resolve', 'audit:read',
   ]),
-  professor: new Set(['attendance:write']),
+  professor: new Set(['attendance:write', 'grades:write']),
 };
 
 export function hasPermission(role: Role, permission: Permission): boolean {

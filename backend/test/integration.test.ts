@@ -583,6 +583,110 @@ describe('End-to-End Integration and Real Database Simulation', () => {
     expect(profStudents.data.items).toHaveLength(1);
     expect(profStudents.data.items[0].name).toBe('Lucas Gabriel');
 
+    // 15.3 Professor pushes grade_tables, grade_items, and student_grades and verifies Public Portal Boletim
+    const gradePush = await request(env, '/api/sync/push', {
+      token: profToken,
+      body: {
+        deviceId: 'prof-device-1',
+        operations: [
+          {
+            operationId: 'op-gt-1',
+            entity: 'grade_tables',
+            action: 'upsert',
+            id: 'gt-1',
+            baseVersion: 0,
+            updatedAt: '2026-08-20T10:00:00.000Z',
+            data: {
+              class_id: classId,
+              name: '1º Módulo - Robótica',
+              calculation_mode: 'weighted',
+              passing_grade: 6.0,
+              published: 1,
+              sort_order: 1,
+            },
+          },
+          {
+            operationId: 'op-gi-1',
+            entity: 'grade_items',
+            action: 'upsert',
+            id: 'gi-1',
+            baseVersion: 0,
+            updatedAt: '2026-08-20T10:01:00.000Z',
+            data: {
+              class_id: classId,
+              grade_table_id: 'gt-1',
+              name: 'Prova Teórica',
+              category: 'Prova',
+              max_score: 10,
+              weight: 2,
+              sort_order: 1,
+            },
+          },
+          {
+            operationId: 'op-gi-2',
+            entity: 'grade_items',
+            action: 'upsert',
+            id: 'gi-2',
+            baseVersion: 0,
+            updatedAt: '2026-08-20T10:02:00.000Z',
+            data: {
+              class_id: classId,
+              grade_table_id: 'gt-1',
+              name: 'Montagem Arduino',
+              category: 'Atividade Prática',
+              max_score: 10,
+              weight: 1,
+              sort_order: 2,
+            },
+          },
+          {
+            operationId: 'op-sg-1',
+            entity: 'student_grades',
+            action: 'upsert',
+            id: 'sg-1',
+            baseVersion: 0,
+            updatedAt: '2026-08-20T10:03:00.000Z',
+            data: {
+              class_id: classId,
+              grade_table_id: 'gt-1',
+              grade_item_id: 'gi-1',
+              student_id: studentId,
+              score: 9.0,
+              remarks: 'Excelente desempenho na prova',
+            },
+          },
+          {
+            operationId: 'op-sg-2',
+            entity: 'student_grades',
+            action: 'upsert',
+            id: 'sg-2',
+            baseVersion: 0,
+            updatedAt: '2026-08-20T10:04:00.000Z',
+            data: {
+              class_id: classId,
+              grade_table_id: 'gt-1',
+              grade_item_id: 'gi-2',
+              student_id: studentId,
+              score: 6.0,
+              remarks: 'Circuito funcional',
+            },
+          },
+        ],
+      },
+    });
+    expect(gradePush.status).toBe(200);
+    expect(gradePush.data.results.every((r: { status: string }) => r.status === 'applied')).toBe(true);
+
+    // Public student portal returns complete reportCard with weighted average (9*2 + 6*1)/3 = 8.0
+    const publicPortal = await request(env, `/api/matricula/${profStudents.data.items[0].registration_number}`);
+    expect(publicPortal.status).toBe(200);
+    expect(publicPortal.data.reportCard).toBeDefined();
+    expect(publicPortal.data.reportCard.overallAverage).toBe(8.0);
+    expect(publicPortal.data.reportCard.overallStatus).toBe('aprovado');
+    expect(publicPortal.data.reportCard.tables).toHaveLength(1);
+    expect(publicPortal.data.reportCard.tables[0].items).toHaveLength(2);
+    expect(publicPortal.data.reportCard.byCategory).toHaveLength(2);
+
     // 16. Legacy password migration and trailing-slash route normalization
     const { argon2id } = await import('@noble/hashes/argon2');
     const { base64 } = await import('../src/crypto');

@@ -1,4 +1,5 @@
 import { buildAnalytics, type AnalyticsInput } from '../../lib/analytics';
+import { buildClassGradeSummary, normalizeScoreToTen, roundGrade } from '../../lib/grades';
 import type { LocalRecord } from '../../types';
 
 export interface BiFilters {
@@ -21,6 +22,9 @@ export interface BiInput {
   laboratories: LocalRecord[];
   replacements: LocalRecord[];
   directory?: LocalRecord[];
+  gradeTables?: LocalRecord[];
+  gradeItems?: LocalRecord[];
+  studentGrades?: LocalRecord[];
 }
 
 export interface BiCourseRow {
@@ -104,6 +108,39 @@ export interface BiQualityIssue {
   explanation: string;
 }
 
+export interface BiGradeCategoryRow {
+  category: string;
+  classes: number;
+  assessments: number;
+  gradedEntries: number;
+  averageScore: number;
+}
+
+export interface BiClassGradeRow {
+  id: string;
+  className: string;
+  courseName: string;
+  tables: number;
+  assessments: number;
+  averageScore: number | null;
+  approved: number;
+  recovery: number;
+  failed: number;
+  inProgress: number;
+}
+
+export interface BiGradesSummary {
+  totalTables: number;
+  totalAssessments: number;
+  gradedEntries: number;
+  overallAverage: number | null;
+  approvedStudents: number;
+  recoveryStudents: number;
+  failedStudents: number;
+  byCategory: BiGradeCategoryRow[];
+  byClass: BiClassGradeRow[];
+}
+
 export interface BiDataset {
   filters: BiFilters;
   analytics: ReturnType<typeof buildAnalytics>;
@@ -123,6 +160,7 @@ export interface BiDataset {
     completed: number;
     completionRate: number;
   };
+  gradesSummary?: BiGradesSummary;
   limitations: string[];
 }
 
@@ -507,6 +545,113 @@ export function buildBiDataset(rawInput: BiInput, filters: BiFilters, today: str
       : 0,
   };
   const qualityIssues = buildQualityIssues(input, classes, attendance);
+
+  // Build Grades B.I. Summary
+  const gradeTables = (input.gradeTables ?? []).filter(
+    (t) => current(t) && classIds.has(text(t, 'class_id')),
+  );
+  const tableIds = new Set(gradeTables.map((t) => t.id));
+  const gradeItems = (input.gradeItems ?? []).filter(
+    (i) => current(i) && tableIds.has(text(i, 'grade_table_id')),
+  );
+  const itemById = new Map(gradeItems.map((i) => [i.id, i]));
+  const studentGrades = (input.studentGrades ?? []).filter(
+    (g) =>
+      current(g) &&
+      itemById.has(text(g, 'grade_item_id')) &&
+      (!filters.studentId || g.student_id === filters.studentId),
+  );
+
+  const studentMap = new Map(
+    (input.students ?? []).filter(current).map((s) => [s.id, s]),
+  );
+
+  const byClassGrades: BiClassGradeRow[] = classes.map((cls) => {
+    const clsEnrollments = activeEnrollments.filter((e) => e.class_id === cls.id);
+    const clsStudents = clsEnrollments
+      .map((e) => studentMap.get(text(e, 'student_id')))
+      .filter((s): s is LocalRecord => Boolean(s))
+      .map((s) => ({
+        id: s.id,
+        name: text(s, 'name'),
+        registrationNumber: text(s, 'registration_number'),
+      }));
+    const summary = buildClassGradeSummary({
+      classId: cls.id,
+      tables: gradeTables,
+      items: gradeItems,
+      studentGrades,
+      students: clsStudents,
+    });
+    const clsAssessments = gradeItems.filter((i) => i.class_id === cls.id).length;
+    return {
+      id: cls.id,
+      className: text(cls, 'name'),
+      courseName: text(courseById.get(text(cls, 'course_id')), 'name') || 'Curso não informado',
+      tables: summary.tables.length,
+      assessments: clsAssessments,
+      averageScore: summary.classAverage,
+      approved: summary.approvedCount,
+      recovery: summary.recoveryCount,
+      failed: summary.failedCount,
+      inProgress: summary.inProgressCount,
+    };
+  });
+
+  const catMap = new Map<
+    string,
+    { classIds: Set<string>; itemIds: Set<string>; scores: number[] }
+  >();
+  for (const item of gradeItems) {
+    const cat = text(item, 'category').trim() || 'Avaliação';
+    const entry = catMap.get(cat) ?? {
+      classIds: new Set<string>(),
+      itemIds: new Set<string>(),
+      scores: [],
+    };
+    entry.classIds.add(text(item, 'class_id'));
+    entry.itemIds.add(item.id);
+    catMap.set(cat, entry);
+  }
+  const allNormalizedScores: number[] = [];
+  for (const g of studentGrades) {
+    if (g.score === null || g.score === undefined || g.score === '') continue;
+    const item = itemById.get(text(g, 'grade_item_id'));
+    if (!item) continue;
+    const norm = normalizeScoreToTen(Number(g.score), Number(item.max_score ?? 10));
+    if (norm !== null) {
+      allNormalizedScores.push(norm);
+      const cat = text(item, 'category').trim() || 'Avaliação';
+      catMap.get(cat)?.scores.push(norm);
+    }
+  }
+
+  const byCategoryGrades: BiGradeCategoryRow[] = [...catMap.entries()]
+    .map(([category, data]) => ({
+      category,
+      classes: data.classIds.size,
+      assessments: data.itemIds.size,
+      gradedEntries: data.scores.length,
+      averageScore: data.scores.length
+        ? roundGrade(data.scores.reduce((a, b) => a + b, 0) / data.scores.length)
+        : 0,
+    }))
+    .sort((a, b) => b.averageScore - a.averageScore || a.category.localeCompare(b.category));
+
+  const gradesSummary: BiGradesSummary = {
+    totalTables: gradeTables.length,
+    totalAssessments: gradeItems.length,
+    gradedEntries: allNormalizedScores.length,
+    overallAverage: allNormalizedScores.length
+      ? roundGrade(allNormalizedScores.reduce((a, b) => a + b, 0) / allNormalizedScores.length)
+      : null,
+    approvedStudents: byClassGrades.reduce((acc, c) => acc + c.approved, 0),
+    recoveryStudents: byClassGrades.reduce((acc, c) => acc + c.recovery, 0),
+    failedStudents: byClassGrades.reduce((acc, c) => acc + c.failed, 0),
+    byCategory: byCategoryGrades,
+    byClass: byClassGrades,
+  };
+
   const limitations = [
     'Presença diária calculada com a mesma regra do relatório oficial.',
     'Alunos com frequência abaixo de 75% ou três faltas consecutivas.',
@@ -525,6 +670,7 @@ export function buildBiDataset(rawInput: BiInput, filters: BiFilters, today: str
     laboratoryRows,
     qualityIssues,
     replacementSummary,
+    gradesSummary,
     limitations,
   };
 }

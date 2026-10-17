@@ -211,13 +211,17 @@ export function ClassDetailPage() {
   const students = useEntity('students');
   const attendance = useEntity('attendance_records');
   const classTeachers = useEntity('class_teachers');
+  const gradeTables = useEntity('grade_tables');
 
   const classRecord = (classes.items ?? []).find((c) => c.id === classId);
   const course = (courses.items ?? []).find((c) => c.id === classRecord?.course_id);
   const lab = (laboratories.items ?? []).find((l) => l.id === classRecord?.laboratory_id);
 
   const ownEnrollments = useMemo(
-    () => (enrollments.items ?? []).filter((e) => !e.deleted_at && e.class_id === classId && e.status === 'active'),
+    () =>
+      (enrollments.items ?? []).filter(
+        (e) => !e.deleted_at && e.class_id === classId && (e.status === 'active' || e.status === 'ativa'),
+      ),
     [enrollments.items, classId],
   );
 
@@ -227,6 +231,11 @@ export function ClassDetailPage() {
       return { ...student, enrollmentId: enr.id };
     });
   }, [ownEnrollments, students.items]);
+
+  const classGradeTables = useMemo(
+    () => (gradeTables.items ?? []).filter((t) => !t.deleted_at && t.class_id === classId),
+    [gradeTables.items, classId],
+  );
 
   if (!classRecord && !classes.loading) {
     return (
@@ -238,7 +247,7 @@ export function ClassDetailPage() {
 
   return (
     <div className="flex flex-col gap-5 text-left">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -254,16 +263,25 @@ export function ClassDetailPage() {
             <p className="text-xs text-slate-500 font-medium mt-0.5">
               {text(course, 'name')} · {shiftLabel(text(classRecord, 'shift'))}{' '}
               {text(classRecord, 'week_day') ? `· ${text(classRecord, 'week_day')}` : ''}
+              {lab ? ` · Lab: ${text(lab, 'name')}` : ''}
             </p>
           </div>
         </div>
 
-        <Link
-          to="/frequencia"
-          className="inline-flex items-center gap-2 px-4 py-2 bg-slate-950 hover:bg-slate-800 text-white text-xs sm:text-sm font-semibold rounded-lg shadow-xs transition-colors"
-        >
-          <span>Fazer chamada</span>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            to={`/notas?classId=${classId}`}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-900 border border-slate-200 text-xs sm:text-sm font-semibold rounded-lg shadow-2xs transition-colors"
+          >
+            <span>Gerenciar notas ({classGradeTables.length})</span>
+          </Link>
+          <Link
+            to="/frequencia"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-950 hover:bg-slate-800 text-white text-xs sm:text-sm font-semibold rounded-lg shadow-xs transition-colors"
+          >
+            <span>Fazer chamada</span>
+          </Link>
+        </div>
       </div>
 
       <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs">
@@ -305,12 +323,37 @@ export function StudentDetailPage() {
   const classes = useEntity('classes');
   const attendance = useEntity('attendance_records');
   const classTeachers = useEntity('class_teachers');
+  const gradeTables = useEntity('grade_tables');
+  const gradeItems = useEntity('grade_items');
+  const studentGrades = useEntity('student_grades');
 
   const student = (students.items ?? []).find((s) => s.id === studentId);
   const ownEnrollments = useMemo(
     () => (enrollments.items ?? []).filter((e) => !e.deleted_at && e.student_id === studentId),
     [enrollments.items, studentId],
   );
+
+  const studentGradeRows = useMemo(() => {
+    const grades = (studentGrades.items ?? []).filter((g) => !g.deleted_at && g.student_id === studentId);
+    const itemMap = new Map((gradeItems.items ?? []).filter((i) => !i.deleted_at).map((i) => [i.id, i]));
+    const tableMap = new Map((gradeTables.items ?? []).filter((t) => !t.deleted_at).map((t) => [t.id, t]));
+    return grades
+      .map((g) => {
+        const item = itemMap.get(String(g.grade_item_id));
+        const table = tableMap.get(String(g.grade_table_id));
+        if (!item || !table) return null;
+        return {
+          id: g.id,
+          tableName: text(table, 'name'),
+          itemName: text(item, 'name'),
+          category: text(item, 'category'),
+          score: g.score !== null && g.score !== undefined ? Number(g.score) : null,
+          maxScore: Number(item.max_score ?? 10),
+          remarks: text(g, 'remarks'),
+        };
+      })
+      .filter((r): r is NonNullable<typeof r> => Boolean(r));
+  }, [studentGrades.items, gradeItems.items, gradeTables.items, studentId]);
 
   if (!student && !students.loading) {
     return (
@@ -320,25 +363,38 @@ export function StudentDetailPage() {
     );
   }
 
+  const regNumber = text(student, 'registration_number');
+
   return (
     <div className="flex flex-col gap-5 text-left">
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => navigate('/alunos')}
-          className="p-2 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors cursor-pointer"
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </button>
-        <div>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
-            {text(student, 'name')}
-          </h1>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">
-            Matrícula {text(student, 'registration_number') || 'não informada'} · Contato:{' '}
-            {text(student, 'contact') || 'não informado'}
-          </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => navigate('/alunos')}
+            className="p-2 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+              {text(student, 'name')}
+            </h1>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">
+              Matrícula {regNumber || 'não informada'} · Contato:{' '}
+              {text(student, 'contact') || 'não informado'}
+            </p>
+          </div>
         </div>
+
+        {regNumber && (
+          <Link
+            to={`/matricula/${encodeURIComponent(regNumber)}`}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-950 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors"
+          >
+            <span>Abrir Boletim Público</span>
+          </Link>
+        )}
       </div>
 
       <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs">
@@ -346,6 +402,7 @@ export function StudentDetailPage() {
         <div className="divide-y divide-slate-100">
           {(ownEnrollments ?? []).map((enr) => {
             const cls = (classes.items ?? []).find((c) => c.id === enr.class_id);
+            const isActive = enr.status === 'active' || enr.status === 'ativa';
             return (
               <div key={enr.id} className="py-2.5 flex items-center justify-between">
                 <div>
@@ -356,17 +413,17 @@ export function StudentDetailPage() {
                     {text(cls, 'name') || 'Turma removida'}
                   </Link>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    Data: {formatDate(text(enr, 'registration_date'))}
+                    Data: {formatDate(text(enr, 'registration_date') || text(enr, 'created_at').slice(0, 10))}
                   </p>
                 </div>
                 <span
                   className={`px-2 py-0.5 text-[10px] font-bold rounded-md border ${
-                    enr.status === 'active'
+                    isActive
                       ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                       : 'bg-slate-100 text-slate-600 border-slate-200'
                   }`}
                 >
-                  {enr.status === 'active' ? 'Ativa' : 'Inativa'}
+                  {isActive ? 'Ativa' : 'Inativa'}
                 </span>
               </div>
             );
@@ -375,6 +432,36 @@ export function StudentDetailPage() {
             <p className="text-xs text-slate-400 py-3">Nenhuma matrícula registrada.</p>
           )}
         </div>
+      </div>
+
+      {/* Resumo de Avaliações e Notas do Aluno */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs">
+        <h2 className="text-sm font-bold text-slate-900 mb-3">
+          Avaliações e Notas Lançadas ({studentGradeRows.length})
+        </h2>
+        {studentGradeRows.length > 0 ? (
+          <div className="divide-y divide-slate-100 text-xs">
+            {studentGradeRows.map((row) => (
+              <div key={row.id} className="py-2.5 flex items-center justify-between gap-3">
+                <div>
+                  <div className="font-semibold text-slate-900">
+                    {row.itemName}{' '}
+                    <span className="text-slate-400 font-normal">({row.tableName})</span>
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    Tipo: {row.category}
+                    {row.remarks ? ` · Obs.: ${row.remarks}` : ''}
+                  </div>
+                </div>
+                <div className="font-bold text-slate-900">
+                  {row.score !== null ? `${row.score.toLocaleString('pt-BR')} / ${row.maxScore}` : 'Pendente'}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-slate-400 py-2">Nenhuma nota lançada para este aluno até o momento.</p>
+        )}
       </div>
 
       <AnalyticsCard

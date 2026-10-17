@@ -1,5 +1,17 @@
 export type Role = 'admin' | 'pedagogico' | 'professor';
-export type Entity = 'laboratories' | 'courses' | 'classes' | 'class_teachers' | 'students' | 'enrollments' | 'attendance_records' | 'class_notes' | 'replacements';
+export type Entity =
+  | 'laboratories'
+  | 'courses'
+  | 'classes'
+  | 'class_teachers'
+  | 'students'
+  | 'enrollments'
+  | 'attendance_records'
+  | 'class_notes'
+  | 'replacements'
+  | 'grade_tables'
+  | 'grade_items'
+  | 'student_grades';
 export type Action = 'upsert' | 'delete';
 export type AttendanceStatus = 'P' | 'F' | 'J' | 'A' | 'R' | 'RC';
 
@@ -34,8 +46,18 @@ export interface SyncOperation {
 }
 
 export const entityLabels: Record<Entity, string> = {
-  laboratories: 'Laboratórios', courses: 'Cursos', classes: 'Turmas', class_teachers: 'Professores',
-  students: 'Alunos', enrollments: 'Matrículas', attendance_records: 'Frequências', class_notes: 'Observações', replacements: 'Reposições',
+  laboratories: 'Laboratórios',
+  courses: 'Cursos',
+  classes: 'Turmas',
+  class_teachers: 'Professores',
+  students: 'Alunos',
+  enrollments: 'Matrículas',
+  attendance_records: 'Frequências',
+  class_notes: 'Observações',
+  replacements: 'Reposições',
+  grade_tables: 'Tabelas de Notas',
+  grade_items: 'Avaliações',
+  student_grades: 'Notas de Alunos',
 };
 
 export const roleLabel: Record<Role, string> = {

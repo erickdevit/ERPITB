@@ -15,6 +15,9 @@ export function useReportData(filters: ReportFilters) {
   const courses = useEntity('courses', true);
   const enrollments = useEntity('enrollments', true);
   const students = useEntity('students', true);
+  const gradeTables = useEntity('grade_tables', true);
+  const gradeItems = useEntity('grade_items', true);
+  const studentGrades = useEntity('student_grades', true);
   const [directory, setDirectory] = useState<LocalRecord[]>([{ id: session.id, name: session.name, role: session.role, active: 1 }]);
   const [directoryError, setDirectoryError] = useState('');
 
@@ -42,10 +45,35 @@ export function useReportData(filters: ReportFilters) {
     directory: directory ?? [],
     enrollments: enrollments.items ?? [],
     students: students.items ?? [],
-  }), [attendance.items, classes.items, classNotes.items, classTeachers.items, courses.items, directory, enrollments.items, students.items]);
+    gradeTables: gradeTables.items ?? [],
+    gradeItems: gradeItems.items ?? [],
+    studentGrades: studentGrades.items ?? [],
+  }), [
+    attendance.items,
+    classes.items,
+    classNotes.items,
+    classTeachers.items,
+    courses.items,
+    directory,
+    enrollments.items,
+    students.items,
+    gradeTables.items,
+    gradeItems.items,
+    studentGrades.items,
+  ]);
 
   const view = useMemo(() => buildReportView(input, effectiveFilters), [effectiveFilters, input]);
-  const loading = attendance.loading || classes.loading || classNotes.loading || classTeachers.loading || courses.loading || enrollments.loading || students.loading;
+  const loading =
+    attendance.loading ||
+    classes.loading ||
+    classNotes.loading ||
+    classTeachers.loading ||
+    courses.loading ||
+    enrollments.loading ||
+    students.loading ||
+    gradeTables.loading ||
+    gradeItems.loading ||
+    studentGrades.loading;
 
   return {
     view,

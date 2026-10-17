@@ -15,6 +15,9 @@ const columns: Record<SyncEntity, readonly string[]> = {
   attendance_records: ['class_id', 'student_id', 'date', 'status', 'notes', 'completed_at', 'recorded_by_user_id', 'sync_status'],
   class_notes: ['class_id', 'date', 'notes', 'recorded_by_user_id'],
   replacements: ['attendance_record_id', 'class_id', 'student_id', 'attendance_date', 'scheduled_date', 'scheduled_time', 'notes', 'completed_at', 'recorded_by_user_id'],
+  grade_tables: ['class_id', 'name', 'calculation_mode', 'passing_grade', 'published', 'sort_order', 'notes', 'created_by_user_id'],
+  grade_items: ['class_id', 'grade_table_id', 'name', 'category', 'evaluation_date', 'max_score', 'weight', 'sort_order', 'notes', 'created_by_user_id'],
+  student_grades: ['class_id', 'grade_table_id', 'grade_item_id', 'student_id', 'score', 'remarks', 'recorded_by_user_id'],
 };
 
 function isSyncEntity(value: unknown): value is SyncEntity {
@@ -70,6 +73,14 @@ async function authorizeOperation(env: Env, user: AuthUser, operation: SyncOpera
     }
     return;
   }
+  if (operation.entity === 'grade_tables' || operation.entity === 'grade_items' || operation.entity === 'student_grades') {
+    if (!hasPermission(user.role, 'grades:write')) throw new AppError(403, 'Ação não permitida.', 'FORBIDDEN');
+    const classId = String(operation.data.class_id ?? existing?.class_id ?? '');
+    if (user.role === 'professor' && !await teacherOwnsClass(env, user.id, classId)) {
+      throw new AppError(403, 'Turma não atribuída ao professor.', 'FORBIDDEN');
+    }
+    return;
+  }
   if (operation.entity === 'class_notes' || operation.entity === 'replacements') {
     if (!hasPermission(user.role, 'attendance:write')) throw new AppError(403, 'Ação não permitida.', 'FORBIDDEN');
     const classId = String(operation.data.class_id ?? existing?.class_id ?? '');
@@ -117,7 +128,7 @@ async function authorizeOperation(env: Env, user: AuthUser, operation: SyncOpera
     }
     return;
   }
-  if (user.role === 'professor') throw new AppError(403, 'Professores só sincronizam lançamentos de frequência.', 'FORBIDDEN');
+  if (user.role === 'professor') throw new AppError(403, 'Professores só sincronizam lançamentos de frequência e notas.', 'FORBIDDEN');
   if (operation.entity === 'students' || operation.entity === 'enrollments') {
     if (!hasPermission(user.role, 'students:write')) {
       throw new AppError(403, 'Ação não permitida.', 'FORBIDDEN');
@@ -187,9 +198,34 @@ async function normalizePayload(env: Env, user: AuthUser, operation: SyncOperati
     data.recorded_by_user_id = user.id;
   }
   if (operation.entity === 'replacements') data.recorded_by_user_id = user.id;
+  if (operation.entity === 'grade_tables') {
+    data.created_by_user_id = existing?.created_by_user_id ?? data.created_by_user_id ?? user.id;
+    data.calculation_mode = data.calculation_mode ?? existing?.calculation_mode ?? 'simple';
+    data.passing_grade = data.passing_grade !== undefined ? Number(data.passing_grade) : Number(existing?.passing_grade ?? 6.0);
+    data.published = data.published !== undefined ? (data.published === false || data.published === 0 ? 0 : 1) : Number(existing?.published ?? 1);
+    data.sort_order = data.sort_order !== undefined ? Number(data.sort_order) : Number(existing?.sort_order ?? 0);
+  }
+  if (operation.entity === 'grade_items') {
+    data.created_by_user_id = existing?.created_by_user_id ?? data.created_by_user_id ?? user.id;
+    data.max_score = data.max_score !== undefined ? Number(data.max_score) : Number(existing?.max_score ?? 10.0);
+    data.weight = data.weight !== undefined ? Number(data.weight) : Number(existing?.weight ?? 1.0);
+    data.sort_order = data.sort_order !== undefined ? Number(data.sort_order) : Number(existing?.sort_order ?? 0);
+  }
+  if (operation.entity === 'student_grades') {
+    data.recorded_by_user_id = user.id;
+    if (data.score === null || data.score === '') {
+      data.score = null;
+    } else if (data.score !== undefined) {
+      data.score = Number(data.score);
+    } else if (existing && 'score' in existing) {
+      data.score = existing.score;
+    } else {
+      data.score = null;
+    }
+  }
   const selected: Row = {};
   for (const column of columns[operation.entity]) {
-    const value = data[column] ?? existing?.[column];
+    const value = data[column] !== undefined ? data[column] : existing?.[column];
     if (value !== undefined) selected[column] = value;
   }
   return selected;
@@ -206,6 +242,9 @@ function ensureRequired(entity: SyncEntity, payload: Row): void {
     attendance_records: ['class_id', 'student_id', 'date', 'status', 'recorded_by_user_id'],
     class_notes: ['class_id', 'date', 'recorded_by_user_id'],
     replacements: ['attendance_record_id', 'class_id', 'student_id', 'attendance_date', 'scheduled_date', 'scheduled_time', 'recorded_by_user_id'],
+    grade_tables: ['class_id', 'name', 'calculation_mode', 'passing_grade', 'published', 'created_by_user_id'],
+    grade_items: ['class_id', 'grade_table_id', 'name', 'category', 'max_score', 'weight', 'created_by_user_id'],
+    student_grades: ['class_id', 'grade_table_id', 'grade_item_id', 'student_id', 'recorded_by_user_id'],
   };
   for (const field of required[entity]) {
     if (payload[field] === undefined || payload[field] === null || payload[field] === '') {
@@ -217,6 +256,31 @@ function ensureRequired(entity: SyncEntity, payload: Row): void {
   }
   if (entity === 'enrollments' && !['ativa', 'trancada', 'concluida'].includes(String(payload.status))) {
     throw new AppError(400, 'Status de matrícula inválido.', 'VALIDATION_ERROR');
+  }
+  if (entity === 'grade_tables') {
+    if (!['simple', 'weighted', 'sum'].includes(String(payload.calculation_mode))) {
+      throw new AppError(400, 'Modo de cálculo da tabela de notas inválido.', 'VALIDATION_ERROR');
+    }
+    const passing = Number(payload.passing_grade);
+    if (Number.isNaN(passing) || passing < 0 || passing > 10) {
+      throw new AppError(400, 'Média mínima de aprovação deve estar entre 0 e 10.', 'VALIDATION_ERROR');
+    }
+  }
+  if (entity === 'grade_items') {
+    const maxScore = Number(payload.max_score);
+    const weight = Number(payload.weight);
+    if (Number.isNaN(maxScore) || maxScore <= 0 || maxScore > 100) {
+      throw new AppError(400, 'Valor máximo da avaliação inválido.', 'VALIDATION_ERROR');
+    }
+    if (Number.isNaN(weight) || weight <= 0 || weight > 100) {
+      throw new AppError(400, 'Peso da avaliação inválido.', 'VALIDATION_ERROR');
+    }
+  }
+  if (entity === 'student_grades' && payload.score !== null && payload.score !== undefined) {
+    const score = Number(payload.score);
+    if (Number.isNaN(score) || score < 0 || score > 100) {
+      throw new AppError(400, 'Nota lançada inválida.', 'VALIDATION_ERROR');
+    }
   }
   if (entity === 'replacements') {
     const attendanceDate = String(payload.attendance_date);
@@ -269,6 +333,14 @@ async function findExisting(env: Env, operation: SyncOperation): Promise<Row | n
     return env.DB.prepare(
       `SELECT * FROM class_teachers WHERE class_id = ? AND user_id = ? LIMIT 1`,
     ).bind(classId, userId).first<Row>();
+  }
+  if (operation.entity === 'student_grades') {
+    const gradeItemId = operation.data.grade_item_id;
+    const studentId = operation.data.student_id;
+    if (typeof gradeItemId !== 'string' || typeof studentId !== 'string') return null;
+    return env.DB.prepare(
+      `SELECT * FROM student_grades WHERE grade_item_id = ? AND student_id = ? LIMIT 1`,
+    ).bind(gradeItemId, studentId).first<Row>();
   }
   if (operation.entity !== 'attendance_records') return null;
   const classId = operation.data.class_id;
@@ -396,7 +468,15 @@ async function mayReadChange(env: Env, user: AuthUser, entity: SyncEntity, paylo
     ).bind(studentId, user.id).first();
     return Boolean(row);
   }
-  if (entity === 'enrollments' || entity === 'attendance_records' || entity === 'class_notes' || entity === 'replacements') {
+  if (
+    entity === 'enrollments' ||
+    entity === 'attendance_records' ||
+    entity === 'class_notes' ||
+    entity === 'replacements' ||
+    entity === 'grade_tables' ||
+    entity === 'grade_items' ||
+    entity === 'student_grades'
+  ) {
     return teacherOwnsClass(env, user.id, String(payload.class_id ?? ''));
   }
   return false;
