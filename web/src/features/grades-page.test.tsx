@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  moveArrayItem,
   parseScoreText,
+  reorderGradeItems,
+  reorderGradeTables,
   saveGradeItem,
   saveGradeTable,
   saveStudentGradesBatch,
@@ -9,7 +12,7 @@ import {
 } from './grades-model';
 
 describe('grades-model', () => {
-  it('validates grade table and item inputs', () => {
+  it('validates grade table and item inputs including start and end dates', () => {
     expect(
       validateGradeTableInput({
         classId: '',
@@ -27,6 +30,20 @@ describe('grades-model', () => {
         calculationMode: 'weighted',
         passingGrade: 6.5,
         published: true,
+        startDate: '2026-08-20',
+        endDate: '2026-08-10',
+      }),
+    ).toBe('A data final da tabela não pode ser anterior à data inicial.');
+
+    expect(
+      validateGradeTableInput({
+        classId: 'c1',
+        name: '1º Bimestre',
+        calculationMode: 'weighted',
+        passingGrade: 6.5,
+        published: true,
+        startDate: '2026-08-01',
+        endDate: '2026-09-30',
       }),
     ).toBeUndefined();
 
@@ -51,7 +68,7 @@ describe('grades-model', () => {
     expect(parseScoreText('abc')).toBe('INVALID');
   });
 
-  it('saves grade tables, items, and batches of student grades', async () => {
+  it('saves grade tables with dates, items, and batches of student grades', async () => {
     const mutate = vi.fn().mockResolvedValue(undefined);
     const mutateBatch = vi.fn().mockResolvedValue(undefined);
     const sync = vi.fn().mockResolvedValue(undefined);
@@ -63,9 +80,13 @@ describe('grades-model', () => {
       calculationMode: 'weighted',
       passingGrade: 6,
       published: true,
+      startDate: '2026-08-01',
+      endDate: '2026-08-31',
     });
     expect(tableId).toBe('table-1');
     expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate.mock.calls[0]?.[1]?.start_date).toBe('2026-08-01');
+    expect(mutate.mock.calls[0]?.[1]?.end_date).toBe('2026-08-31');
 
     const itemId = await saveGradeItem({ mutate }, sync, 'prof-1', {
       id: 'item-1',
@@ -99,5 +120,36 @@ describe('grades-model', () => {
     expect(mutateBatch).toHaveBeenCalledTimes(1);
     expect(mutateBatch.mock.calls[0]?.[0]?.[0]?.data.score).toBe(8.5);
     expect(mutateBatch.mock.calls[0]?.[0]?.[0]?.data.remarks).toBe('Muito bom');
+  });
+
+  it('reorders grade tables and grade items updating sort_order', async () => {
+    const mutateBatch = vi.fn().mockResolvedValue(undefined);
+    const sync = vi.fn().mockResolvedValue(undefined);
+
+    const tables = [
+      { id: 't1', name: 'Tabela 1', sort_order: 1 },
+      { id: 't2', name: 'Tabela 2', sort_order: 2 },
+    ];
+    const movedTables = moveArrayItem(tables, 1, 0);
+    expect(movedTables.map((t) => t.id)).toEqual(['t2', 't1']);
+
+    await reorderGradeTables({ mutateBatch }, sync, movedTables);
+    expect(mutateBatch).toHaveBeenCalledTimes(1);
+    expect(mutateBatch.mock.calls[0]?.[0]).toEqual([
+      { entity: 'grade_tables', action: 'upsert', data: { id: 't2', name: 'Tabela 2', sort_order: 1 } },
+      { entity: 'grade_tables', action: 'upsert', data: { id: 't1', name: 'Tabela 1', sort_order: 2 } },
+    ]);
+
+    const items = [
+      { id: 'i1', name: 'Prova 1', sort_order: 1 },
+      { id: 'i2', name: 'Prática 1', sort_order: 2 },
+    ];
+    const movedItems = moveArrayItem(items, 0, 1);
+    await reorderGradeItems({ mutateBatch }, sync, movedItems);
+    expect(mutateBatch).toHaveBeenCalledTimes(2);
+    expect(mutateBatch.mock.calls[1]?.[0]).toEqual([
+      { entity: 'grade_items', action: 'upsert', data: { id: 'i2', name: 'Prática 1', sort_order: 1 } },
+      { entity: 'grade_items', action: 'upsert', data: { id: 'i1', name: 'Prova 1', sort_order: 2 } },
+    ]);
   });
 });

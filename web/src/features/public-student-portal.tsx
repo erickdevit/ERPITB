@@ -44,6 +44,8 @@ export interface PublicReportCardTable {
   teacherName: string | null;
   calculationMode: 'simple' | 'weighted' | 'sum';
   passingGrade: number;
+  startDate?: string | null;
+  endDate?: string | null;
   notes: string | null;
   updatedAt: string;
   average: number | null;
@@ -509,6 +511,15 @@ export function PublicStudentPortal() {
                             <span className="px-2 py-0.5 rounded bg-white border border-slate-200 text-[10px] font-semibold text-slate-600">
                               {calculationModeLabel(table.calculationMode)}
                             </span>
+                            {(table.startDate || table.endDate) && (
+                              <span className="px-2 py-0.5 rounded bg-white border border-slate-200 text-[10px] font-medium text-slate-500">
+                                {table.startDate && table.endDate
+                                  ? `${formatDisplayDate(table.startDate)} a ${formatDisplayDate(table.endDate)}`
+                                  : table.startDate
+                                  ? `Início: ${formatDisplayDate(table.startDate)}`
+                                  : `Fim: ${formatDisplayDate(table.endDate!)}`}
+                              </span>
+                            )}
                           </div>
                           <div className="text-[11px] text-slate-500 mt-0.5">
                             {table.courseName} • {table.className}

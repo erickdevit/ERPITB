@@ -952,7 +952,7 @@ export async function getPublicStudentData(env: Env, rawIdentifier: string): Pro
   // Report Card (Boletim de Notas) for published grade tables in enrolled/graded classes
   const gradeTablesQuery = await env.DB.prepare(
     `SELECT gt.id, gt.class_id, gt.name, gt.calculation_mode, gt.passing_grade, gt.published,
-            gt.sort_order, gt.notes, gt.updated_at,
+            gt.sort_order, gt.start_date, gt.end_date, gt.notes, gt.updated_at,
             c.name AS class_name, co.name AS course_name, co.code AS course_code,
             u.name AS teacher_name
        FROM grade_tables gt
@@ -967,7 +967,8 @@ export async function getPublicStudentData(env: Env, rawIdentifier: string): Pro
       ORDER BY gt.sort_order ASC, gt.created_at ASC`,
   ).bind(student.id, student.id).all<{
     id: string; class_id: string; name: string; calculation_mode: 'simple' | 'weighted' | 'sum';
-    passing_grade: number; published: number; sort_order: number; notes: string | null; updated_at: string;
+    passing_grade: number; published: number; sort_order: number; start_date: string | null; end_date: string | null;
+    notes: string | null; updated_at: string;
     class_name: string; course_name: string; course_code: string | null; teacher_name: string | null;
   }>();
 
@@ -1086,6 +1087,8 @@ export async function getPublicStudentData(env: Env, rawIdentifier: string): Pro
       teacherName: table.teacher_name,
       calculationMode: table.calculation_mode,
       passingGrade,
+      startDate: table.start_date ?? null,
+      endDate: table.end_date ?? null,
       notes: table.notes,
       updatedAt: table.updated_at,
       average,

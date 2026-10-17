@@ -10,6 +10,8 @@ export interface GradeTableInput {
   passingGrade: number;
   published: boolean;
   sortOrder?: number;
+  startDate?: string;
+  endDate?: string;
   notes?: string;
   existing?: LocalRecord;
 }
@@ -43,6 +45,13 @@ export function validateGradeTableInput(input: GradeTableInput): string | undefi
   if (!['simple', 'weighted', 'sum'].includes(input.calculationMode)) return 'Modo de cálculo inválido.';
   if (Number.isNaN(input.passingGrade) || input.passingGrade < 0 || input.passingGrade > 10) {
     return 'A média mínima deve estar entre 0 e 10.';
+  }
+  const sd = input.startDate?.trim() ?? '';
+  const ed = input.endDate?.trim() ?? '';
+  if (sd && !/^\d{4}-\d{2}-\d{2}$/.test(sd)) return 'Data inicial inválida.';
+  if (ed && !/^\d{4}-\d{2}-\d{2}$/.test(ed)) return 'Data final inválida.';
+  if (sd && ed && sd > ed) {
+    return 'A data final da tabela não pode ser anterior à data inicial.';
   }
   return undefined;
 }
@@ -78,6 +87,15 @@ export async function saveGradeTable(
   if (err) throw new Error(err);
 
   const id = input.existing?.id ?? input.id ?? crypto.randomUUID();
+  const startDate =
+    input.startDate !== undefined
+      ? input.startDate.trim() || null
+      : (input.existing?.start_date ? String(input.existing.start_date) : null);
+  const endDate =
+    input.endDate !== undefined
+      ? input.endDate.trim() || null
+      : (input.existing?.end_date ? String(input.existing.end_date) : null);
+
   await store.mutate('grade_tables', {
     ...input.existing,
     id,
@@ -87,11 +105,75 @@ export async function saveGradeTable(
     passing_grade: Number(input.passingGrade),
     published: input.published ? 1 : 0,
     sort_order: Number(input.sortOrder ?? input.existing?.sort_order ?? 0),
+    start_date: startDate,
+    end_date: endDate,
     notes: input.notes?.trim() ? input.notes.trim() : null,
     created_by_user_id: String(input.existing?.created_by_user_id ?? userId),
   });
   await sync();
   return id;
+}
+
+export function moveArrayItem<T>(items: readonly T[], fromIndex: number, toIndex: number): T[] {
+  if (fromIndex < 0 || fromIndex >= items.length || toIndex < 0 || toIndex >= items.length || fromIndex === toIndex) {
+    return [...items];
+  }
+  const next = [...items];
+  const [moved] = next.splice(fromIndex, 1);
+  if (moved !== undefined) {
+    next.splice(toIndex, 0, moved);
+  }
+  return next;
+}
+
+export async function reorderGradeTables(
+  store: { mutateBatch: (mutations: LocalMutation[]) => Promise<void> },
+  sync: () => Promise<unknown>,
+  orderedTables: LocalRecord[],
+): Promise<void> {
+  const mutations: LocalMutation[] = [];
+  orderedTables.forEach((table, idx) => {
+    const nextOrder = idx + 1;
+    if (Number(table.sort_order ?? 0) !== nextOrder) {
+      mutations.push({
+        entity: 'grade_tables',
+        action: 'upsert',
+        data: {
+          ...table,
+          sort_order: nextOrder,
+        },
+      });
+    }
+  });
+  if (mutations.length > 0) {
+    await store.mutateBatch(mutations);
+    await sync();
+  }
+}
+
+export async function reorderGradeItems(
+  store: { mutateBatch: (mutations: LocalMutation[]) => Promise<void> },
+  sync: () => Promise<unknown>,
+  orderedItems: LocalRecord[],
+): Promise<void> {
+  const mutations: LocalMutation[] = [];
+  orderedItems.forEach((item, idx) => {
+    const nextOrder = idx + 1;
+    if (Number(item.sort_order ?? 0) !== nextOrder) {
+      mutations.push({
+        entity: 'grade_items',
+        action: 'upsert',
+        data: {
+          ...item,
+          sort_order: nextOrder,
+        },
+      });
+    }
+  });
+  if (mutations.length > 0) {
+    await store.mutateBatch(mutations);
+    await sync();
+  }
 }
 
 export async function deleteGradeTableCascade(

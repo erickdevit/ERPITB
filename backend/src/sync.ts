@@ -15,7 +15,7 @@ const columns: Record<SyncEntity, readonly string[]> = {
   attendance_records: ['class_id', 'student_id', 'date', 'status', 'notes', 'completed_at', 'recorded_by_user_id', 'sync_status'],
   class_notes: ['class_id', 'date', 'notes', 'recorded_by_user_id'],
   replacements: ['attendance_record_id', 'class_id', 'student_id', 'attendance_date', 'scheduled_date', 'scheduled_time', 'notes', 'completed_at', 'recorded_by_user_id'],
-  grade_tables: ['class_id', 'name', 'calculation_mode', 'passing_grade', 'published', 'sort_order', 'notes', 'created_by_user_id'],
+  grade_tables: ['class_id', 'name', 'calculation_mode', 'passing_grade', 'published', 'sort_order', 'start_date', 'end_date', 'notes', 'created_by_user_id'],
   grade_items: ['class_id', 'grade_table_id', 'name', 'category', 'evaluation_date', 'max_score', 'weight', 'sort_order', 'notes', 'created_by_user_id'],
   student_grades: ['class_id', 'grade_table_id', 'grade_item_id', 'student_id', 'score', 'remarks', 'recorded_by_user_id'],
 };
@@ -204,6 +204,8 @@ async function normalizePayload(env: Env, user: AuthUser, operation: SyncOperati
     data.passing_grade = data.passing_grade !== undefined ? Number(data.passing_grade) : Number(existing?.passing_grade ?? 6.0);
     data.published = data.published !== undefined ? (data.published === false || data.published === 0 ? 0 : 1) : Number(existing?.published ?? 1);
     data.sort_order = data.sort_order !== undefined ? Number(data.sort_order) : Number(existing?.sort_order ?? 0);
+    if (data.start_date === '') data.start_date = null;
+    if (data.end_date === '') data.end_date = null;
   }
   if (operation.entity === 'grade_items') {
     data.created_by_user_id = existing?.created_by_user_id ?? data.created_by_user_id ?? user.id;
@@ -264,6 +266,21 @@ function ensureRequired(entity: SyncEntity, payload: Row): void {
     const passing = Number(payload.passing_grade);
     if (Number.isNaN(passing) || passing < 0 || passing > 10) {
       throw new AppError(400, 'Média mínima de aprovação deve estar entre 0 e 10.', 'VALIDATION_ERROR');
+    }
+    if (payload.start_date != null && payload.start_date !== '') {
+      const sd = String(payload.start_date);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(sd) || Number.isNaN(Date.parse(`${sd}T00:00:00Z`))) {
+        throw new AppError(400, 'Data inicial da tabela inválida.', 'VALIDATION_ERROR');
+      }
+    }
+    if (payload.end_date != null && payload.end_date !== '') {
+      const ed = String(payload.end_date);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(ed) || Number.isNaN(Date.parse(`${ed}T00:00:00Z`))) {
+        throw new AppError(400, 'Data final da tabela inválida.', 'VALIDATION_ERROR');
+      }
+    }
+    if (payload.start_date && payload.end_date && String(payload.start_date) > String(payload.end_date)) {
+      throw new AppError(400, 'A data final da tabela não pode ser anterior à data inicial.', 'VALIDATION_ERROR');
     }
   }
   if (entity === 'grade_items') {

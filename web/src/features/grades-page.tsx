@@ -1,8 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   Award,
   BookOpen,
+  Calendar,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Edit3,
   Eye,
   EyeOff,
@@ -32,13 +38,31 @@ import type { LocalRecord } from '../types';
 import {
   deleteGradeItemCascade,
   deleteGradeTableCascade,
+  moveArrayItem,
   parseScoreText,
+  reorderGradeItems,
+  reorderGradeTables,
   saveGradeItem,
   saveGradeTable,
   saveStudentGradesBatch,
 } from './grades-model';
 
 const text = (record: Record<string, unknown> | undefined, field: string) => String(record?.[field] ?? '');
+
+function formatDatePt(isoDate: string): string {
+  const m = isoDate.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return isoDate;
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+function formatTablePeriod(startDate?: unknown, endDate?: unknown): string {
+  const sd = typeof startDate === 'string' ? startDate.trim() : '';
+  const ed = typeof endDate === 'string' ? endDate.trim() : '';
+  if (sd && ed) return `${formatDatePt(sd)} a ${formatDatePt(ed)}`;
+  if (sd) return `Início: ${formatDatePt(sd)}`;
+  if (ed) return `Fim: ${formatDatePt(ed)}`;
+  return '';
+}
 
 function statusBadgeStyle(status: GradeStatus): string {
   switch (status) {
@@ -62,6 +86,8 @@ interface TableModalState {
   calculationMode: CalculationMode;
   passingGrade: string;
   published: boolean;
+  startDate: string;
+  endDate: string;
   notes: string;
   error?: string;
 }
@@ -84,6 +110,12 @@ interface RemarkModalState {
   studentName: string;
   itemName: string;
   remarks: string;
+}
+
+interface OrganizeModalState {
+  open: boolean;
+  tables: LocalRecord[];
+  items: LocalRecord[];
 }
 
 export function GradesPage() {
@@ -115,6 +147,8 @@ export function GradesPage() {
     calculationMode: 'simple',
     passingGrade: '6,0',
     published: true,
+    startDate: '',
+    endDate: '',
     notes: '',
   });
 
@@ -134,6 +168,12 @@ export function GradesPage() {
     studentName: '',
     itemName: '',
     remarks: '',
+  });
+
+  const [organizeModal, setOrganizeModal] = useState<OrganizeModalState>({
+    open: false,
+    tables: [],
+    items: [],
   });
 
   const activeClasses = useMemo(
@@ -289,6 +329,8 @@ export function GradesPage() {
       calculationMode: 'simple',
       passingGrade: '6,0',
       published: true,
+      startDate: '',
+      endDate: '',
       notes: '',
     });
   };
@@ -303,6 +345,8 @@ export function GradesPage() {
         : 'simple') as CalculationMode,
       passingGrade: String(table.passing_grade ?? 6).replace('.', ','),
       published: table.published !== 0 && table.published !== false,
+      startDate: text(table, 'start_date'),
+      endDate: text(table, 'end_date'),
       notes: text(table, 'notes'),
     });
   };
@@ -317,6 +361,8 @@ export function GradesPage() {
         passingGrade,
         published: tableModal.published,
         sortOrder: tableModal.existing ? Number(tableModal.existing.sort_order ?? 0) : classTables.length + 1,
+        startDate: tableModal.startDate,
+        endDate: tableModal.endDate,
         notes: tableModal.notes,
         existing: tableModal.existing,
       });
@@ -356,6 +402,8 @@ export function GradesPage() {
         passingGrade: Number(table.passing_grade ?? 6),
         published: !currentlyPublished,
         sortOrder: Number(table.sort_order ?? 0),
+        startDate: text(table, 'start_date'),
+        endDate: text(table, 'end_date'),
         notes: text(table, 'notes'),
         existing: table,
       });
@@ -369,6 +417,54 @@ export function GradesPage() {
       setNotice({
         severity: 'error',
         message: err instanceof Error ? err.message : 'Erro ao alterar visibilidade da tabela.',
+      });
+    }
+  };
+
+  const handleMoveTableInline = async (fromIndex: number, toIndex: number) => {
+    const reordered = moveArrayItem(classTables, fromIndex, toIndex);
+    try {
+      await reorderGradeTables(store, sync, reordered);
+      setNotice({ severity: 'success', message: 'Ordem das tabelas atualizada.' });
+    } catch (err) {
+      setNotice({
+        severity: 'error',
+        message: err instanceof Error ? err.message : 'Erro ao reordenar tabelas.',
+      });
+    }
+  };
+
+  const handleMoveItemInline = async (fromIndex: number, toIndex: number) => {
+    const reordered = moveArrayItem(tableItems, fromIndex, toIndex);
+    try {
+      await reorderGradeItems(store, sync, reordered);
+      setNotice({ severity: 'success', message: 'Ordem das colunas de avaliação atualizada.' });
+    } catch (err) {
+      setNotice({
+        severity: 'error',
+        message: err instanceof Error ? err.message : 'Erro ao reordenar colunas de avaliação.',
+      });
+    }
+  };
+
+  const openOrganizeModal = () => {
+    setOrganizeModal({
+      open: true,
+      tables: [...classTables],
+      items: [...tableItems],
+    });
+  };
+
+  const handleSaveOrganization = async () => {
+    try {
+      await reorderGradeTables(store, sync, organizeModal.tables);
+      await reorderGradeItems(store, sync, organizeModal.items);
+      setOrganizeModal((prev) => ({ ...prev, open: false }));
+      setNotice({ severity: 'success', message: 'Organização de tabelas e colunas salva com sucesso.' });
+    } catch (err) {
+      setNotice({
+        severity: 'error',
+        message: err instanceof Error ? err.message : 'Erro ao salvar organização.',
       });
     }
   };
@@ -603,36 +699,82 @@ export function GradesPage() {
           {/* Table Tabs Bar */}
           <div className="px-4 sm:px-5 pt-4 border-b border-slate-200 bg-slate-50/60 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-1.5 overflow-x-auto pb-3">
-              {classTables.map((table) => {
+              {classTables.map((table, tableIdx) => {
                 const active = table.id === currentTable.id;
                 const isPub = table.published !== 0 && table.published !== false;
+                const period = formatTablePeriod(table.start_date, table.end_date);
                 return (
-                  <button
+                  <div
                     key={table.id}
-                    type="button"
-                    onClick={() => setSelectedTableId(table.id)}
-                    className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer shrink-0 ${
+                    className={`inline-flex items-center rounded-xl text-xs font-semibold border transition-all shrink-0 ${
                       active
                         ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
                         : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
                     }`}
                   >
-                    <span>{text(table, 'name')}</span>
-                    {!isPub && (
-                      <span className="px-1.5 py-0.2 rounded text-[10px] bg-amber-500/20 text-amber-300 font-bold">
-                        Rascunho
-                      </span>
+                    {classTables.length > 1 && active && (
+                      <button
+                        type="button"
+                        disabled={tableIdx === 0}
+                        onClick={() => void handleMoveTableInline(tableIdx, tableIdx - 1)}
+                        title="Mover tabela para a esquerda"
+                        className="pl-2 pr-1 py-2 text-slate-300 hover:text-white disabled:opacity-30 cursor-pointer disabled:cursor-default"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                      </button>
                     )}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTableId(table.id)}
+                      className={`inline-flex items-center gap-2 py-2 cursor-pointer ${
+                        classTables.length > 1 && active ? 'px-1.5' : 'px-3.5'
+                      }`}
+                    >
+                      <span>{text(table, 'name')}</span>
+                      {period && (
+                        <span
+                          className={`text-[10px] font-normal ${
+                            active ? 'text-slate-300' : 'text-slate-400'
+                          }`}
+                        >
+                          ({period})
+                        </span>
+                      )}
+                      {!isPub && (
+                        <span className="px-1.5 py-0.2 rounded text-[10px] bg-amber-500/20 text-amber-300 font-bold">
+                          Rascunho
+                        </span>
+                      )}
+                    </button>
+                    {classTables.length > 1 && active && (
+                      <button
+                        type="button"
+                        disabled={tableIdx === classTables.length - 1}
+                        onClick={() => void handleMoveTableInline(tableIdx, tableIdx + 1)}
+                        title="Mover tabela para a direita"
+                        className="pl-1 pr-2 py-2 text-slate-300 hover:text-white disabled:opacity-30 cursor-pointer disabled:cursor-default"
+                      >
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 );
               })}
             </div>
 
             {/* Active Table Controls */}
             <div className="flex flex-wrap items-center gap-2 pb-3">
-              <span className="text-[11px] font-medium text-slate-500 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
-                {calculationModeLabel(text(currentTable, 'calculation_mode'))} • Média mín.:{' '}
-                <strong className="text-slate-800">{formatGrade(Number(currentTable.passing_grade ?? 6))}</strong>
+              <span className="text-[11px] font-medium text-slate-500 bg-white px-2.5 py-1 rounded-lg border border-slate-200 inline-flex items-center gap-1.5">
+                <span>
+                  {calculationModeLabel(text(currentTable, 'calculation_mode'))} • Média mín.:{' '}
+                  <strong className="text-slate-800">{formatGrade(Number(currentTable.passing_grade ?? 6))}</strong>
+                </span>
+                {formatTablePeriod(currentTable.start_date, currentTable.end_date) && (
+                  <span className="inline-flex items-center gap-1 text-slate-600 border-l border-slate-200 pl-1.5">
+                    <Calendar className="w-3 h-3 text-slate-400" />
+                    <span>{formatTablePeriod(currentTable.start_date, currentTable.end_date)}</span>
+                  </span>
+                )}
               </span>
 
               <button
@@ -653,6 +795,18 @@ export function GradesPage() {
                   </>
                 )}
               </button>
+
+              {(classTables.length > 1 || tableItems.length > 1) && (
+                <button
+                  type="button"
+                  onClick={openOrganizeModal}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-medium text-slate-700 cursor-pointer"
+                  title="Organizar ordem das tabelas e colunas de avaliação"
+                >
+                  <ArrowUpDown className="w-3.5 h-3.5" />
+                  <span>Organizar</span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -705,8 +859,8 @@ export function GradesPage() {
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-semibold text-slate-600">
                       <th className="py-3 px-4 min-w-[210px] sticky left-0 bg-slate-50 z-10">Aluno</th>
-                      {tableItems.map((item) => (
-                        <th key={item.id} className="py-2.5 px-3 min-w-[165px] border-l border-slate-200/70">
+                      {tableItems.map((item, itemIdx) => (
+                        <th key={item.id} className="py-2.5 px-3 min-w-[175px] border-l border-slate-200/70">
                           <div className="flex items-start justify-between gap-1">
                             <div>
                               <div className="font-bold text-slate-900 text-xs">{text(item, 'name')}</div>
@@ -723,6 +877,28 @@ export function GradesPage() {
                               </div>
                             </div>
                             <div className="flex items-center gap-0.5 shrink-0">
+                              {tableItems.length > 1 && (
+                                <>
+                                  <button
+                                    type="button"
+                                    disabled={itemIdx === 0}
+                                    onClick={() => void handleMoveItemInline(itemIdx, itemIdx - 1)}
+                                    className="p-1 rounded hover:bg-slate-200/70 text-slate-400 hover:text-slate-800 disabled:opacity-30 cursor-pointer disabled:cursor-default"
+                                    title="Mover coluna para a esquerda"
+                                  >
+                                    <ChevronLeft className="w-3 h-3" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={itemIdx === tableItems.length - 1}
+                                    onClick={() => void handleMoveItemInline(itemIdx, itemIdx + 1)}
+                                    className="p-1 rounded hover:bg-slate-200/70 text-slate-400 hover:text-slate-800 disabled:opacity-30 cursor-pointer disabled:cursor-default"
+                                    title="Mover coluna para a direita"
+                                  >
+                                    <ChevronRight className="w-3 h-3" />
+                                  </button>
+                                </>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => openEditItemModal(item)}
@@ -925,20 +1101,34 @@ export function GradesPage() {
                   Médias por tabela/etapa, média geral acumulada, frequência e situação acadêmica.
                 </p>
               </div>
+              {classTables.length > 1 && (
+                <button
+                  type="button"
+                  onClick={openOrganizeModal}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-medium text-slate-700 cursor-pointer"
+                >
+                  <ArrowUpDown className="w-3.5 h-3.5" />
+                  <span>Organizar Tabelas</span>
+                </button>
+              )}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600">
                     <th className="py-3 px-4">Aluno</th>
-                    {classTables.map((t) => (
-                      <th key={t.id} className="py-3 px-3 text-center border-l border-slate-200/60">
-                        <div>{text(t, 'name')}</div>
-                        <div className="text-[10px] font-normal text-slate-400">
-                          {calculationModeLabel(text(t, 'calculation_mode'))}
-                        </div>
-                      </th>
-                    ))}
+                    {classTables.map((t) => {
+                      const period = formatTablePeriod(t.start_date, t.end_date);
+                      return (
+                        <th key={t.id} className="py-3 px-3 text-center border-l border-slate-200/60">
+                          <div>{text(t, 'name')}</div>
+                          <div className="text-[10px] font-normal text-slate-400">
+                            {calculationModeLabel(text(t, 'calculation_mode'))}
+                          </div>
+                          {period && <div className="text-[10px] font-normal text-slate-400">{period}</div>}
+                        </th>
+                      );
+                    })}
                     <th className="py-3 px-4 text-center border-l border-slate-200/60">Média Geral</th>
                     <th className="py-3 px-3 text-center">Frequência</th>
                     <th className="py-3 px-4 text-center">Situação</th>
@@ -1038,6 +1228,28 @@ export function GradesPage() {
               value={tableModal.passingGrade}
               onChange={(e) => setTableModal((prev) => ({ ...prev, passingGrade: e.target.value }))}
               placeholder="6,0"
+              className="h-9 px-3 rounded-lg border border-slate-200 text-xs text-slate-900"
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-slate-700">Data Inicial da Tabela (opcional)</label>
+            <input
+              type="date"
+              aria-label="Data Inicial da Tabela"
+              value={tableModal.startDate}
+              onChange={(e) => setTableModal((prev) => ({ ...prev, startDate: e.target.value }))}
+              className="h-9 px-3 rounded-lg border border-slate-200 text-xs text-slate-900"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-slate-700">Data Final da Tabela (opcional)</label>
+            <input
+              type="date"
+              aria-label="Data Final da Tabela"
+              value={tableModal.endDate}
+              onChange={(e) => setTableModal((prev) => ({ ...prev, endDate: e.target.value }))}
               className="h-9 px-3 rounded-lg border border-slate-200 text-xs text-slate-900"
             />
           </div>
@@ -1149,6 +1361,122 @@ export function GradesPage() {
               className="h-9 px-3 rounded-lg border border-slate-200 text-xs text-slate-900"
             />
           </div>
+        </div>
+      </PageDialog>
+
+      {/* Modal: Organize Tables and Assessment Columns */}
+      <PageDialog
+        open={organizeModal.open}
+        title="Organizar Tabelas e Colunas de Avaliação"
+        onClose={() => setOrganizeModal((prev) => ({ ...prev, open: false }))}
+        onSave={() => void handleSaveOrganization()}
+        saveText="Salvar Organização"
+      >
+        <div className="space-y-4">
+          {organizeModal.tables.length > 0 && (
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-800 block">
+                Ordem das Tabelas da Turma ({organizeModal.tables.length})
+              </label>
+              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden bg-slate-50/50">
+                {organizeModal.tables.map((t, idx) => {
+                  const period = formatTablePeriod(t.start_date, t.end_date);
+                  return (
+                    <div key={t.id} className="px-3 py-2 flex items-center justify-between gap-2 bg-white">
+                      <div className="min-w-0">
+                        <span className="text-xs font-semibold text-slate-900">
+                          {idx + 1}. {text(t, 'name')}
+                        </span>
+                        {period && <span className="text-[11px] text-slate-400 ml-2">({period})</span>}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          disabled={idx === 0}
+                          onClick={() =>
+                            setOrganizeModal((prev) => ({
+                              ...prev,
+                              tables: moveArrayItem(prev.tables, idx, idx - 1),
+                            }))
+                          }
+                          title="Mover tabela para cima"
+                          className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-30 cursor-pointer disabled:cursor-default"
+                        >
+                          <ArrowUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={idx === organizeModal.tables.length - 1}
+                          onClick={() =>
+                            setOrganizeModal((prev) => ({
+                              ...prev,
+                              tables: moveArrayItem(prev.tables, idx, idx + 1),
+                            }))
+                          }
+                          title="Mover tabela para baixo"
+                          className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-30 cursor-pointer disabled:cursor-default"
+                        >
+                          <ArrowDown className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {currentTable && organizeModal.items.length > 0 && (
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-800 block">
+                Ordem das Colunas em &ldquo;{text(currentTable, 'name')}&rdquo; ({organizeModal.items.length})
+              </label>
+              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden bg-slate-50/50">
+                {organizeModal.items.map((item, idx) => (
+                  <div key={item.id} className="px-3 py-2 flex items-center justify-between gap-2 bg-white">
+                    <div className="min-w-0 flex items-center gap-2">
+                      <span className="text-xs font-semibold text-slate-900">
+                        {idx + 1}. {text(item, 'name')}
+                      </span>
+                      <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-semibold">
+                        {text(item, 'category')}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        disabled={idx === 0}
+                        onClick={() =>
+                          setOrganizeModal((prev) => ({
+                            ...prev,
+                            items: moveArrayItem(prev.items, idx, idx - 1),
+                          }))
+                        }
+                        title="Mover coluna para cima"
+                        className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-30 cursor-pointer disabled:cursor-default"
+                      >
+                        <ArrowUp className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={idx === organizeModal.items.length - 1}
+                        onClick={() =>
+                          setOrganizeModal((prev) => ({
+                            ...prev,
+                            items: moveArrayItem(prev.items, idx, idx + 1),
+                          }))
+                        }
+                        title="Mover coluna para baixo"
+                        className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-30 cursor-pointer disabled:cursor-default"
+                      >
+                        <ArrowDown className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </PageDialog>
 

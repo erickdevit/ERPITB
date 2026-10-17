@@ -149,6 +149,8 @@ CREATE TABLE IF NOT EXISTS grade_tables (
   passing_grade REAL NOT NULL DEFAULT 6.0,
   published INTEGER NOT NULL DEFAULT 1 CHECK (published IN (0, 1)),
   sort_order INTEGER NOT NULL DEFAULT 0,
+  start_date TEXT,
+  end_date TEXT,
   notes TEXT,
   created_by_user_id TEXT NOT NULL REFERENCES users(id),
   sync_version INTEGER NOT NULL DEFAULT 1,
