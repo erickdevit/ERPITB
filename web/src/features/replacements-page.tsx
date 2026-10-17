@@ -189,9 +189,6 @@ export function ReplacementsPage({
                 <tr key={row.id} className="hover:bg-slate-50/75 transition-colors">
                   <td className="py-3 px-4">
                     <p className="font-bold text-slate-900">{row.studentName}</p>
-                    <p className="text-[11px] text-slate-400 font-medium">
-                      Matrícula: {row.registrationNumber || 'não informada'}
-                    </p>
                   </td>
                   <td className="py-3 px-4 text-slate-600 font-semibold">{row.className}</td>
                   <td className="py-3 px-4 text-slate-500 font-semibold">

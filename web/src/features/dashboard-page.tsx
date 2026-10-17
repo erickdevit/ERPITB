@@ -434,11 +434,6 @@ export function DashboardPage() {
                     </span>
                     <div className="min-w-0 text-left">
                       <p className="text-xs sm:text-sm font-bold text-slate-900 truncate">{student.name}</p>
-                      <p className="text-[11px] text-slate-400 font-medium truncate">
-                        {student.registrationNumber
-                          ? `Matrícula ${student.registrationNumber}`
-                          : 'Matrícula não informada'}
-                      </p>
                     </div>
                   </div>
                   <div className="flex flex-col items-end shrink-0">

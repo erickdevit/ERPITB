@@ -30,7 +30,7 @@ describe('ReplacementsPage', () => {
     const user = userEvent.setup();
     render(<ReplacementsPage today="2026-08-15" />);
 
-    expect(screen.getByText(/Matrícula: MAT-1/)).toBeInTheDocument();
+    expect(screen.getByText('Ana Souza')).toBeInTheDocument();
     expect(screen.getByText('Reforço')).toBeInTheDocument();
     expect(screen.getByText(/20\/08\/2026 às 09:30/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Concluir' }));

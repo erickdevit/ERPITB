@@ -90,7 +90,6 @@ export function GradesPage() {
   const { store, sync, session } = useApp();
   const [searchParams, setSearchParams] = useSearchParams();
   const classes = useEntity('classes');
-  const courses = useEntity('courses');
   const students = useEntity('students');
   const enrollments = useEntity('enrollments');
   const attendance = useEntity('attendance_records');
@@ -481,7 +480,6 @@ export function GradesPage() {
   };
 
   const currentClass = activeClasses.find((c) => c.id === classId);
-  const currentCourse = courses.items.find((co) => co.id === currentClass?.course_id);
 
   return (
     <div className="space-y-6 text-left">
@@ -493,13 +491,10 @@ export function GradesPage() {
               label="Turma"
               value={classId}
               onChange={handleClassChange}
-              options={activeClasses.map((c) => {
-                const course = courses.items.find((co) => co.id === c.course_id);
-                return {
-                  value: c.id,
-                  label: `${course ? `${text(course, 'name')} • ` : ''}${text(c, 'name')}`,
-                };
-              })}
+              options={activeClasses.map((c) => ({
+                value: c.id,
+                label: text(c, 'name'),
+              }))}
             />
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-slate-700">Buscar aluno</label>
@@ -557,36 +552,6 @@ export function GradesPage() {
             )}
           </div>
         </div>
-
-        {/* Summary KPI Strip */}
-        {classId && (
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-2 border-t border-slate-100">
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/60">
-              <div className="text-[11px] font-medium text-slate-500">Tabelas na Turma</div>
-              <div className="text-base font-bold text-slate-900 mt-0.5">{classTables.length}</div>
-            </div>
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/60">
-              <div className="text-[11px] font-medium text-slate-500">Média Geral da Turma</div>
-              <div className="text-base font-bold text-slate-900 mt-0.5">
-                {formatGrade(classSummary.classAverage)}
-              </div>
-            </div>
-            <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-200/60">
-              <div className="text-[11px] font-medium text-emerald-700">Aprovados</div>
-              <div className="text-base font-bold text-emerald-800 mt-0.5">{classSummary.approvedCount}</div>
-            </div>
-            <div className="p-3 rounded-xl bg-amber-50/60 border border-amber-200/60">
-              <div className="text-[11px] font-medium text-amber-700">Em Recuperação / Risco</div>
-              <div className="text-base font-bold text-amber-800 mt-0.5">
-                {classSummary.recoveryCount + classSummary.failedCount}
-              </div>
-            </div>
-            <div className="p-3 rounded-xl bg-sky-50/60 border border-sky-200/60 col-span-2 sm:col-span-1">
-              <div className="text-[11px] font-medium text-sky-700">Em Andamento</div>
-              <div className="text-base font-bold text-sky-800 mt-0.5">{classSummary.inProgressCount}</div>
-            </div>
-          </div>
-        )}
       </div>
 
       {notice && (
@@ -814,7 +779,6 @@ export function GradesPage() {
                         <tr key={student.id} className="hover:bg-slate-50/70 transition-colors">
                           <td className="py-2.5 px-4 sticky left-0 bg-white z-10">
                             <div className="font-semibold text-slate-900">{student.name}</div>
-                            <div className="text-[11px] text-slate-500">Mat.: {student.registrationNumber}</div>
                           </td>
                           {tableItems.map((item) => {
                             const cellKey = `${student.id}:${item.id}`;
@@ -955,8 +919,7 @@ export function GradesPage() {
             <div className="px-4 sm:px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold text-slate-900">
-                  Boletim Consolidado — {currentCourse ? `${text(currentCourse, 'name')} • ` : ''}
-                  {currentClass ? text(currentClass, 'name') : ''}
+                  Boletim Consolidado — {currentClass ? text(currentClass, 'name') : ''}
                 </h3>
                 <p className="text-xs text-slate-500">
                   Médias por tabela/etapa, média geral acumulada, frequência e situação acadêmica.
@@ -968,7 +931,6 @@ export function GradesPage() {
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600">
                     <th className="py-3 px-4">Aluno</th>
-                    <th className="py-3 px-3">Matrícula</th>
                     {classTables.map((t) => (
                       <th key={t.id} className="py-3 px-3 text-center border-l border-slate-200/60">
                         <div>{text(t, 'name')}</div>
@@ -997,7 +959,6 @@ export function GradesPage() {
                       return (
                         <tr key={student.studentId} className="hover:bg-slate-50/70">
                           <td className="py-2.5 px-4 font-semibold text-slate-900">{student.studentName}</td>
-                          <td className="py-2.5 px-3 text-slate-500">{student.registrationNumber}</td>
                           {student.tableResults.map((tr) => (
                             <td
                               key={tr.tableId}

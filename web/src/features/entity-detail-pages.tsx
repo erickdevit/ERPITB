@@ -292,9 +292,6 @@ export function ClassDetailPage() {
               <Link to={`/alunos/${st.id}`} className="font-bold text-xs sm:text-sm text-slate-900 hover:text-blue-600 hover:underline">
                 {text(st, 'name')}
               </Link>
-              <span className="text-xs text-slate-400 font-medium">
-                Matrícula {text(st, 'registration_number') || '—'}
-              </span>
             </div>
           ))}
           {!enrolledStudents.length && (

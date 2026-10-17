@@ -357,10 +357,10 @@ function Shell() {
   );
 
   return (
-    <div className="flex min-h-screen bg-slate-50 text-slate-900 font-sans">
+    <div className="flex h-screen overflow-hidden bg-slate-50 text-slate-900 font-sans">
       {/* Desktop Left Sidebar */}
       <aside
-        className={`hidden md:flex flex-col shrink-0 bg-[#090D16] text-slate-200 border-r border-white/5 transition-all duration-200 z-20 ${
+        className={`hidden md:flex flex-col shrink-0 h-screen sticky top-0 bg-[#090D16] text-slate-200 border-r border-white/5 transition-all duration-200 z-20 ${
           collapsed ? 'w-16' : 'w-60'
         }`}
       >
@@ -418,9 +418,9 @@ function Shell() {
       )}
 
       {/* Main Content Area */}
-      <div className="flex-1 min-w-0 flex flex-col">
+      <div className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">
         {/* Top Navigation Bar */}
-        <header className="sticky top-0 z-20 flex items-center justify-between h-14 px-4 sm:px-6 bg-white/90 backdrop-blur-md border-b border-slate-200/80">
+        <header className="sticky top-0 z-20 shrink-0 flex items-center justify-between h-14 px-4 sm:px-6 bg-white/90 backdrop-blur-md border-b border-slate-200/80">
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"

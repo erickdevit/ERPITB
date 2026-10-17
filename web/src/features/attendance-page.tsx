@@ -372,9 +372,6 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                         <p className="text-xs sm:text-sm font-bold text-slate-900 truncate">
                           {text(row.student, 'name')}
                         </p>
-                        <p className="text-[11px] text-slate-400 font-medium truncate">
-                          Matrícula {text(row.student, 'registration_number') || 'não informada'}
-                        </p>
                       </div>
                     </div>
 
