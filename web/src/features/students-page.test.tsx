@@ -72,4 +72,34 @@ describe('StudentsPage', () => {
     expect(mocks.app.store.moveStudent).toHaveBeenCalledWith(expect.any(String), 'class-1');
     expect(mocks.app.sync).toHaveBeenCalled();
   });
+
+  it('cadastra aluno e turma em lote único atômico quando mutateBatch estiver disponível', async () => {
+    mocks.app.session = { id: 'admin-1', name: 'Admin', email: 'admin@itb.test', role: 'admin' };
+    const mutateBatch = vi.fn().mockResolvedValue(undefined);
+    mocks.app.store = { ...mocks.app.store, mutateBatch } as any;
+
+    const user = userEvent.setup();
+    render(<MemoryRouter><StudentsPage /></MemoryRouter>);
+
+    await user.click(screen.getByRole('button', { name: /Novo aluno/i }));
+    await user.type(screen.getByLabelText(/Nome completo/i), 'Aluno em Lote');
+    await user.type(screen.getByLabelText(/^Matrícula/i), 'MAT-LOTE');
+    await user.click(screen.getByRole('button', { name: /^Salvar$/i }));
+
+    expect(mutateBatch).toHaveBeenCalledTimes(1);
+    const mutations = mutateBatch.mock.calls[0][0];
+    expect(mutations).toHaveLength(2);
+    expect(mutations[0]).toMatchObject({
+      entity: 'students',
+      action: 'upsert',
+      data: expect.objectContaining({ name: 'Aluno em Lote', registration_number: 'MAT-LOTE' }),
+    });
+    expect(mutations[1]).toMatchObject({
+      entity: 'enrollments',
+      action: 'upsert',
+      data: expect.objectContaining({ class_id: 'class-1', status: 'ativa' }),
+    });
+    expect(mutations[0].data.id).toBe(mutations[1].data.student_id);
+    expect(mocks.app.sync).toHaveBeenCalled();
+  });
 });

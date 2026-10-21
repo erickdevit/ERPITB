@@ -309,6 +309,32 @@ describe('End-to-End Integration and Real Database Simulation', () => {
     expect(pushRes.status).toBe(200);
     expect(pushRes.data.results[0].status).toBe('applied');
 
+    // 9.1 Sync Engine: Push a new student without an enrollment in the same batch
+    const studentSyncRes = await request(env, '/sync/push', {
+      token: adminToken,
+      body: {
+        deviceId: 'device-test-01',
+        operations: [
+          {
+            operationId: 'op-student-standalone',
+            entity: 'students',
+            action: 'upsert',
+            id: 'student-sync-01',
+            baseVersion: 0,
+            updatedAt: '2026-08-15T10:05:00.000Z',
+            data: {
+              id: 'student-sync-01',
+              name: 'Aluno Sync Isolado',
+              registration_number: 'MAT-SYNC-01',
+              active: 1,
+            },
+          },
+        ],
+      },
+    });
+    expect(studentSyncRes.status).toBe(200);
+    expect(studentSyncRes.data.results[0].status).toBe('applied');
+
     const pullRes = await request(env, '/sync/pull?cursor=0', {
       token: adminToken,
     });

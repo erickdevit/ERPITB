@@ -176,7 +176,7 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
         }
       } else {
         const studentId = identifier();
-        await store.mutate('students', {
+        const studentRecord = {
           id: studentId,
           name: draft.name.trim(),
           registration_number: draft.registrationNumber.trim() || null,
@@ -184,10 +184,27 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
           birth_date: birthDateIso || null,
           contact: draft.contact.trim() || null,
           active: 1,
-        });
+        };
 
-        if (draft.classId && store.moveStudent) {
-          await store.moveStudent(studentId, draft.classId);
+        if (draft.classId && store.mutateBatch) {
+          await store.mutateBatch([
+            { entity: 'students', data: studentRecord, action: 'upsert' },
+            {
+              entity: 'enrollments',
+              data: {
+                id: identifier(),
+                student_id: studentId,
+                class_id: draft.classId,
+                status: 'ativa',
+              },
+              action: 'upsert',
+            },
+          ]);
+        } else {
+          await store.mutate('students', studentRecord);
+          if (draft.classId && store.moveStudent) {
+            await store.moveStudent(studentId, draft.classId);
+          }
         }
       }
 

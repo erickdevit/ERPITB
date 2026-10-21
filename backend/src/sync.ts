@@ -448,11 +448,12 @@ export async function push(request: Request, env: Env, user: AuthUser): Promise<
     if (operation.action !== 'upsert' || operation.baseVersion !== 0) continue;
     if (operation.entity === 'students') {
       const enrollment = operations.find((candidate) => candidate.entity === 'enrollments' && candidate.action === 'upsert' && candidate.data.student_id === operation.id && typeof candidate.data.class_id === 'string');
-      if (!enrollment) throw new AppError(400, 'Todo novo aluno precisa de uma turma no mesmo lote.', 'CLASS_REQUIRED');
-      const classId = String(enrollment.data.class_id);
-      const activeClass = await env.DB.prepare(`SELECT 1 AS valid FROM classes WHERE id = ? AND active = 1 AND deleted_at IS NULL`).bind(classId).first();
-      if (!activeClass) throw new AppError(400, 'Turma inválida para o novo aluno.', 'CLASS_REQUIRED');
-      if (user.role === 'professor' && !await teacherOwnsClass(env, user.id, classId)) throw new AppError(403, 'Turma não atribuída ao professor.', 'FORBIDDEN');
+      if (enrollment) {
+        const classId = String(enrollment.data.class_id);
+        const activeClass = await env.DB.prepare(`SELECT 1 AS valid FROM classes WHERE id = ? AND active = 1 AND deleted_at IS NULL`).bind(classId).first();
+        if (!activeClass) throw new AppError(400, 'Turma inválida para o novo aluno.', 'CLASS_REQUIRED');
+        if (user.role === 'professor' && !await teacherOwnsClass(env, user.id, classId)) throw new AppError(403, 'Turma não atribuída ao professor.', 'FORBIDDEN');
+      }
     }
   }
   const results: Row[] = [];
