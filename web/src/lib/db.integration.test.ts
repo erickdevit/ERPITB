@@ -77,4 +77,56 @@ describe('LocalStore integration', () => {
 
     expect(restored?.session).toMatchObject({ id: accountId, offline: true, accessToken: '', refreshToken: '' });
   });
+
+  it('preserves historical enrollments, attendance and grades when moving a student between classes', async () => {
+    const store = await LocalStore.open(session(`account-${crypto.randomUUID()}`)); opened.push(store);
+    const studentId = 'student-transfer-1';
+
+    await store.mutate('students', { id: studentId, name: 'Lucas Transferido', registration_number: 'TR-100', active: 1 });
+    await store.mutate('classes', { id: 'class-origin', name: 'Turma Origem', course_id: 'c-1', shift: 'manha', active: 1 });
+    await store.mutate('classes', { id: 'class-target', name: 'Turma Destino', course_id: 'c-1', shift: 'tarde', active: 1 });
+
+    // Initial enrollment in Turma Origem
+    await store.moveStudent(studentId, 'class-origin');
+    const initialEnrollments = await store.list('enrollments');
+    expect(initialEnrollments).toHaveLength(1);
+    expect(initialEnrollments[0]).toMatchObject({ class_id: 'class-origin', student_id: studentId, status: 'ativa' });
+
+    // Record attendance and grades in Turma Origem
+    await store.mutate('attendance_records', {
+      id: 'att-origem-1', class_id: 'class-origin', student_id: studentId, date: '2026-08-10', status: 'P',
+    });
+    await store.mutate('student_grades', {
+      id: 'grade-origem-1', grade_table_id: 'gt-1', grade_item_id: 'gi-1', student_id: studentId, score: 8.5,
+    });
+
+    // Move student to Turma Destino
+    await store.moveStudent(studentId, 'class-target');
+
+    // Both enrollments are persisted: origin is 'concluida' (not deleted!), target is 'ativa'
+    const enrollmentsAfter = await store.list('enrollments');
+    expect(enrollmentsAfter).toHaveLength(2);
+
+    const originEnrollment = enrollmentsAfter.find((e) => e.class_id === 'class-origin');
+    const targetEnrollment = enrollmentsAfter.find((e) => e.class_id === 'class-target');
+
+    expect(originEnrollment).toBeDefined();
+    expect(originEnrollment?.status).toBe('concluida');
+    expect(originEnrollment?.deleted_at).toBeNull();
+
+    expect(targetEnrollment).toBeDefined();
+    expect(targetEnrollment?.status).toBe('ativa');
+    expect(targetEnrollment?.deleted_at).toBeNull();
+
+    // Attendance records and grades in Turma Origem remain completely intact
+    const attendanceRecords = await store.list('attendance_records');
+    expect(attendanceRecords.find((a) => a.id === 'att-origem-1')).toMatchObject({
+      class_id: 'class-origin', student_id: studentId, status: 'P', deleted_at: null,
+    });
+
+    const grades = await store.list('student_grades');
+    expect(grades.find((g) => g.id === 'grade-origem-1')).toMatchObject({
+      student_id: studentId, score: 8.5, deleted_at: null,
+    });
+  });
 });

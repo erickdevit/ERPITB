@@ -57,7 +57,7 @@ export function isReplacementCompletion(operation: SyncOperation, existing: Row 
     && typeof completedAt === 'string' && !Number.isNaN(Date.parse(completedAt));
 }
 
-async function authorizeOperation(env: Env, user: AuthUser, operation: SyncOperation, existing: Row | null): Promise<void> {
+async function authorizeOperation(env: Env, user: AuthUser, operation: SyncOperation, existing: Row | null, allOperations?: SyncOperation[]): Promise<void> {
   if (operation.entity === 'class_teachers') {
     if (user.role === 'professor') throw new AppError(403, 'Ação não permitida.', 'FORBIDDEN');
     const classId = String(operation.data.class_id ?? existing?.class_id ?? '');
@@ -141,7 +141,16 @@ async function authorizeOperation(env: Env, user: AuthUser, operation: SyncOpera
       const other = await env.DB.prepare(
         `SELECT id FROM enrollments WHERE student_id = ? AND status = 'ativa' AND deleted_at IS NULL AND id <> ? LIMIT 1`,
       ).bind(studentId, operation.id).first();
-      if (other) throw new AppError(409, 'O aluno já possui outra matrícula ativa. Conclua a transferência da turma anterior.', 'ACTIVE_ENROLLMENT_EXISTS');
+      if (other) {
+        const concludingInBatch = allOperations?.some((candidate) =>
+          candidate.entity === 'enrollments' &&
+          String(candidate.id) === String(other.id) &&
+          (candidate.action === 'delete' || (candidate.action === 'upsert' && candidate.data.status !== 'ativa'))
+        );
+        if (!concludingInBatch) {
+          throw new AppError(409, 'O aluno já possui outra matrícula ativa. Conclua a transferência da turma anterior.', 'ACTIVE_ENROLLMENT_EXISTS');
+        }
+      }
     }
     return;
   }
@@ -388,11 +397,11 @@ async function createConflict(env: Env, user: AuthUser, deviceId: string, operat
   return result;
 }
 
-async function applyOperation(env: Env, user: AuthUser, deviceId: string, operation: SyncOperation): Promise<Row> {
+async function applyOperation(env: Env, user: AuthUser, deviceId: string, operation: SyncOperation, allOperations?: SyncOperation[]): Promise<Row> {
   const cached = await env.DB.prepare(`SELECT result_json FROM sync_operations WHERE operation_id = ?`).bind(operation.operationId).first<{ result_json: string }>();
   if (cached) return JSON.parse(cached.result_json) as Row;
   const existing = await findExisting(env, operation);
-  await authorizeOperation(env, user, operation, existing);
+  await authorizeOperation(env, user, operation, existing, allOperations);
   const remoteVersion = Number(existing?.sync_version ?? 0);
   if (existing && operation.baseVersion !== remoteVersion) {
     return createConflict(env, user, deviceId, operation, existing);
@@ -459,7 +468,7 @@ export async function push(request: Request, env: Env, user: AuthUser): Promise<
   const results: Row[] = [];
   for (const operation of operations) {
     try {
-      results.push(await applyOperation(env, user, deviceId, operation));
+      results.push(await applyOperation(env, user, deviceId, operation, operations));
     } catch (error) {
       const known = error instanceof AppError;
       if (!known) console.error(JSON.stringify({ event: 'sync_operation_failed', userId: user.id, operationId: operation.operationId, entity: operation.entity, error: error instanceof Error ? error.message : String(error) }));

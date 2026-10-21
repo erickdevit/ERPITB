@@ -126,13 +126,16 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
 
   const openEdit = (row: StudentView) => {
     setEditingId(row.id);
+    const activeEnr = (enrollments.items ?? []).find(
+      (e) => !e.deleted_at && e.student_id === row.id && e.status === 'ativa',
+    );
     setDraft({
       name: row.name,
       registrationNumber: row.registrationNumber,
       cpf: row.cpf || '',
       contact: row.contact,
       birthDate: formatDate(row.birthDate),
-      classId: row.classId,
+      classId: activeEnr ? String(activeEnr.class_id) : row.classId,
     });
     setFormError(undefined);
     setDialogOpen(true);

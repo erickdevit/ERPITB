@@ -210,8 +210,10 @@ function studentSheet(input: ReportInput, filters: ReportFilters): ReportView {
   const student = input.students.find((item) => item.id === filters.studentId && active(item));
   if (!student) return missing(filters, 'Ficha detalhada do aluno', 'Selecione um aluno para visualizar sua ficha.');
   const scope = baseScope(input, filters);
-  const enrolled = scope.enrollments.some((item) => item.student_id === student.id);
-  if (!enrolled) return missing(filters, 'Ficha detalhada do aluno', 'O aluno selecionado não possui matrícula ativa nesta turma.');
+  const hasHistoryInClass = scope.enrollments.some((item) => item.student_id === student.id)
+    || input.enrollments.some((item) => !item.deleted_at && item.class_id === classRecord.id && item.student_id === student.id)
+    || scope.attendance.some((item) => item.student_id === student.id);
+  if (!hasHistoryInClass) return missing(filters, 'Ficha detalhada do aluno', 'O aluno selecionado não possui histórico ou matrícula nesta turma.');
   const course = input.courses.find((item) => item.id === classRecord.course_id);
   const records = scope.attendance.filter((item) => item.student_id === student.id).sort((left, right) => text(right, 'date').localeCompare(text(left, 'date')));
   const notesByDate = new Map(input.classNotes.filter((item) => !item.deleted_at && item.class_id === classRecord.id).map((item) => [text(item, 'date'), text(item, 'notes')]));

@@ -227,22 +227,37 @@ export function GradesPage() {
   );
 
   const enrolledStudents = useMemo(() => {
-    const activeEnrollments = enrollments.items.filter(
-      (e) => !e.deleted_at && e.class_id === classId && e.status === 'ativa',
+    const activeStudentIds = new Set(
+      enrollments.items
+        .filter((e) => !e.deleted_at && e.class_id === classId && e.status === 'ativa')
+        .map((e) => String(e.student_id)),
+    );
+    const gradedStudentIds = new Set(
+      studentGrades.items
+        .filter(
+          (g) =>
+            !g.deleted_at &&
+            String(g.grade_table_id) === selectedTableId &&
+            g.score !== null &&
+            g.score !== undefined,
+        )
+        .map((g) => String(g.student_id)),
     );
     const studentMap = new Map(
       students.items.filter((s) => !s.deleted_at && s.active !== 0 && s.active !== false).map((s) => [s.id, s]),
     );
-    return activeEnrollments
-      .map((e) => studentMap.get(String(e.student_id)))
+    const candidateIds = new Set([...activeStudentIds, ...gradedStudentIds]);
+    return Array.from(candidateIds)
+      .map((id) => studentMap.get(id))
       .filter((s): s is LocalRecord => Boolean(s))
       .map((s) => ({
         id: s.id,
         name: text(s, 'name'),
         registrationNumber: text(s, 'registration_number'),
+        isTransferred: !activeStudentIds.has(s.id),
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [enrollments.items, students.items, classId]);
+  }, [enrollments.items, students.items, studentGrades.items, selectedTableId, classId]);
 
   // Existing grades map for current table: key = `${studentId}:${itemId}`
   const existingGradesMap = useMemo(() => {
@@ -954,7 +969,14 @@ export function GradesPage() {
                       return (
                         <tr key={student.id} className="hover:bg-slate-50/70 transition-colors">
                           <td className="py-2.5 px-4 sticky left-0 bg-white z-10">
-                            <div className="font-semibold text-slate-900">{student.name}</div>
+                            <div className="font-semibold text-slate-900 flex items-center gap-1.5">
+                              <span>{student.name}</span>
+                              {student.isTransferred && (
+                                <span className="text-[10px] font-normal px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200">
+                                  Histórico
+                                </span>
+                              )}
+                            </div>
                           </td>
                           {tableItems.map((item) => {
                             const cellKey = `${student.id}:${item.id}`;

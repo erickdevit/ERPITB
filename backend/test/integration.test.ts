@@ -713,6 +713,77 @@ describe('End-to-End Integration and Real Database Simulation', () => {
     expect(publicPortal.data.reportCard.tables[0].items).toHaveLength(2);
     expect(publicPortal.data.reportCard.byCategory).toHaveLength(2);
 
+    // 15.3 Student transfer between classes: preserves attendance and grade history
+    const class2Res = await request(env, '/api/classes', {
+      token: adminToken,
+      body: { courseId, name: 'Turma Destino Transfer', shift: 'manha' },
+    });
+    expect(class2Res.status).toBe(201);
+    const class2Id = class2Res.data.id;
+
+    // Student is currently active in classId (enrolled in step 6)
+    const existingEnrollment = rawDb.prepare('SELECT id FROM enrollments WHERE class_id = ? AND student_id = ?').get(classId, studentId) as { id: string };
+    expect(existingEnrollment).toBeDefined();
+
+    // Move student to class2Id via sync push (conclude classId, activate class2Id)
+    const transferPush = await request(env, '/sync/push', {
+      token: adminToken,
+      body: {
+        deviceId: 'device-test-01',
+        operations: [
+          {
+            operationId: 'op-transfer-conclude',
+            entity: 'enrollments',
+            action: 'upsert',
+            id: existingEnrollment.id,
+            baseVersion: 1,
+            updatedAt: '2026-08-25T10:00:00.000Z',
+            data: {
+              id: existingEnrollment.id,
+              class_id: classId,
+              student_id: studentId,
+              status: 'concluida',
+            },
+          },
+          {
+            operationId: 'op-transfer-activate',
+            entity: 'enrollments',
+            action: 'upsert',
+            id: 'enr-target-new',
+            baseVersion: 0,
+            updatedAt: '2026-08-25T10:01:00.000Z',
+            data: {
+              id: 'enr-target-new',
+              class_id: class2Id,
+              student_id: studentId,
+              status: 'ativa',
+            },
+          },
+        ],
+      },
+    });
+    expect(transferPush.status).toBe(200);
+    expect(transferPush.data.results.every((r: { status: string }) => r.status === 'applied')).toBe(true);
+
+    // Verify database state: both enrollments exist, origin is 'concluida' and not soft-deleted
+    const rawOrigin = rawDb.prepare('SELECT * FROM enrollments WHERE id = ?').get(existingEnrollment.id) as any;
+    expect(rawOrigin.status).toBe('concluida');
+    expect(rawOrigin.deleted_at).toBeNull();
+
+    const rawTarget = rawDb.prepare('SELECT * FROM enrollments WHERE id = ?').get('enr-target-new') as any;
+    expect(rawTarget.status).toBe('ativa');
+    expect(rawTarget.deleted_at).toBeNull();
+
+    // Public portal after transfer returns both classes, historical attendance and report card
+    const portalAfterTransfer = await request(env, `/api/matricula/${profStudents.data.items[0].registration_number}`);
+    expect(portalAfterTransfer.status).toBe(200);
+    expect(portalAfterTransfer.data.classes).toHaveLength(2);
+    expect(portalAfterTransfer.data.classes.some((c: { className: string; status: string }) => c.className === 'Turma DG-01' && c.status === 'concluida')).toBe(true);
+    expect(portalAfterTransfer.data.classes.some((c: { className: string; status: string }) => c.className === 'Turma Destino Transfer' && c.status === 'ativa')).toBe(true);
+    expect(portalAfterTransfer.data.history.length).toBeGreaterThanOrEqual(1);
+    expect(portalAfterTransfer.data.metrics.totalLessons).toBeGreaterThanOrEqual(1);
+    expect(portalAfterTransfer.data.reportCard.overallAverage).toBe(8.0);
+
     // 16. Legacy password migration and trailing-slash route normalization
     const { argon2id } = await import('@noble/hashes/argon2');
     const { base64 } = await import('../src/crypto');

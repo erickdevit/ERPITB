@@ -86,7 +86,7 @@ export function buildAttendanceDraftRows(input: {
     .map((item) => [String(item.attendance_record_id), item]));
 
   return safeStudents
-    .filter((student) => isActive(student) && activeStudentIds.has(student.id))
+    .filter((student) => isActive(student) && (activeStudentIds.has(student.id) || recordByStudent.has(student.id)))
     .sort((left, right) => text(left, 'name').localeCompare(text(right, 'name'), 'pt-BR'))
     .map((student) => {
       const existingAttendance = recordByStudent.get(student.id);

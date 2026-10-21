@@ -568,6 +568,12 @@ async function enrollStudent(request: Request, env: Env, user: AuthUser, classId
   const studentId = requireString(body.studentId, 'studentId', { max: 36 });
   const status = oneOf(body.status ?? 'ativa', 'status', ['ativa', 'trancada', 'concluida'] as const);
   const timestamp = nowIso();
+  if (status === 'ativa') {
+    await env.DB.prepare(
+      `UPDATE enrollments SET status = 'concluida', sync_version = sync_version + 1, updated_at = ?
+        WHERE student_id = ? AND class_id <> ? AND status = 'ativa' AND deleted_at IS NULL`,
+    ).bind(timestamp, studentId, classId).run();
+  }
   const existing = await env.DB.prepare(`SELECT id FROM enrollments WHERE class_id = ? AND student_id = ?`).bind(classId, studentId).first<{ id: string }>();
   const id = existing?.id ?? uuid();
   await env.DB.prepare(

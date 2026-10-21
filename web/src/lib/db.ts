@@ -321,14 +321,31 @@ export class LocalStore {
     await this.serial(`enrollment:${studentId}`, async () => {
       const plan = planEnrollmentMove(await this.list('enrollments', true), studentId, classId);
       if (plan.unchanged) return;
-      for (const enrollment of plan.remove) await this.mutate('enrollments', enrollment, 'delete');
-      await this.mutate('enrollments', {
-        ...plan.target,
-        id: plan.target?.id ?? crypto.randomUUID(),
-        student_id: studentId,
-        class_id: classId,
-        status: 'ativa',
+      const mutations: LocalMutation[] = [];
+      for (const enrollment of plan.remove) {
+        mutations.push({
+          entity: 'enrollments',
+          data: {
+            ...enrollment,
+            status: 'concluida',
+            deleted_at: null,
+          },
+          action: 'upsert',
+        });
+      }
+      mutations.push({
+        entity: 'enrollments',
+        data: {
+          ...plan.target,
+          id: plan.target?.id ?? crypto.randomUUID(),
+          student_id: studentId,
+          class_id: classId,
+          status: 'ativa',
+          deleted_at: null,
+        },
+        action: 'upsert',
       });
+      await this.mutateBatch(mutations);
     });
   }
   async complete(operationId: string, version: number): Promise<void> {
