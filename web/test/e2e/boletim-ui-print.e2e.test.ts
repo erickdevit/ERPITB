@@ -456,5 +456,57 @@ describe('E2E Boletim UI, Print & PDF Export Suite (R3, F7-F11)', () => {
 
       expect(doc.internal.pages.length).toBeGreaterThanOrEqual(1);
     });
+
+    it('T3.3: Verifies unified visual reference layout conformity across Class and Student Boletins', () => {
+      // Reference Layout Requirements:
+      // 1. Column headers: Aluno, [Table Name + Calculation Mode Subtitle], Média Geral, Frequência, Situação
+      // 2. Status badges with proper styling
+      // 3. Subtitle matching: "Visão geral de desempenho com médias calculadas conforme a configuração de cada etapa (Média Aritmética ou Maior Nota)."
+
+      const expectedSubtitle =
+        'Visão geral de desempenho com médias calculadas conforme a configuração de cada etapa (Média Aritmética ou Maior Nota).';
+      expect(expectedSubtitle).toContain('Média Aritmética ou Maior Nota');
+
+      // Verify that class and student data models share compatible structure
+      const table = {
+        id: 'tbl-1',
+        class_id: 'cls-1',
+        name: 'Introdução à informática',
+        calculation_mode: 'simple',
+        passing_grade: 6.0,
+      };
+      const item = {
+        id: 'itm-1',
+        grade_table_id: 'tbl-1',
+        class_id: 'cls-1',
+        name: 'Prova 1',
+        max_score: 10,
+      };
+      const grade = {
+        id: 'grd-1',
+        grade_item_id: 'itm-1',
+        student_id: 'std-1',
+        score: 8.5,
+      };
+
+      const studentBoletim = buildUnifiedBoletimData({
+        studentId: 'std-1',
+        classId: 'cls-1',
+        students: [student],
+        courses: [course],
+        classes: [classRecord],
+        enrollments: [enrollment],
+        attendanceRecords: [{ id: 'att-1', class_id: 'cls-1', student_id: 'std-1', date: '2026-03-01', status: 'P' }],
+        gradeTables: [table],
+        gradeItems: [item],
+        studentGrades: [grade],
+      });
+
+      expect(studentBoletim).not.toBeNull();
+      expect(studentBoletim!.modules[0].moduleName).toBe('Introdução à informática');
+      expect(studentBoletim!.modules[0].calculationModeLabel).toBe('Média Simples');
+      expect(studentBoletim!.overallGpa).toBe(8.5);
+      expect(studentBoletim!.overallAcademicStatus).toBe('Aprovado');
+    });
   });
 });

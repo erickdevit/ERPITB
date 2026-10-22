@@ -138,7 +138,7 @@ export function ClassBoletimView({
               Boletim Consolidado — {data.className}
             </h3>
             <p className="text-xs text-slate-500">
-              Médias por tabela/etapa, média geral acumulada, frequência e situação acadêmica.
+              Visão geral de desempenho com médias calculadas conforme a configuração de cada etapa (Média Aritmética ou Maior Nota).
             </p>
           </div>
 

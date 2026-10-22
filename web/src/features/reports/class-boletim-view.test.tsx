@@ -91,7 +91,7 @@ describe('ClassBoletimView Component', () => {
 
     expect(screen.getByText('Boletim Consolidado — 04 - SÁBADO 07-10 LAB1')).toBeDefined();
     expect(
-      screen.getByText('Médias por tabela/etapa, média geral acumulada, frequência e situação acadêmica.')
+      screen.getByText('Visão geral de desempenho com médias calculadas conforme a configuração de cada etapa (Média Aritmética ou Maior Nota).')
     ).toBeDefined();
   });
 

@@ -15,6 +15,7 @@ import {
   FileSpreadsheet,
   MessageSquare,
   Plus,
+  Printer,
   Save,
   Search,
   Trash2,
@@ -662,9 +663,9 @@ export function GradesPage() {
   }, [selectedStudentForBoletim, classId, students.items, enrollments.items, classes.items, courses.items, attendance.items, gradeTables.items, gradeItems.items, studentGrades.items]);
 
   return (
-    <div className="space-y-6 text-left">
+    <div className={`space-y-6 text-left ${selectedStudentForBoletim ? 'print:hidden' : ''}`}>
       {/* Top Filter & View Switcher Bar */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-4">
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-4 print:hidden">
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1 max-w-2xl">
             <SelectField
@@ -720,6 +721,18 @@ export function GradesPage() {
               </button>
             </div>
 
+            {viewMode === 'reportCard' && classBoletimData && (
+              <button
+                type="button"
+                onClick={() => window.print()}
+                aria-label="Imprimir Boletim"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+              >
+                <Printer className="w-3.5 h-3.5 text-slate-600" />
+                <span>Imprimir</span>
+              </button>
+            )}
+
             {classId && (
               <button
                 type="button"
@@ -737,7 +750,7 @@ export function GradesPage() {
       {notice && (
         <div
           role="status"
-          className={`p-3.5 rounded-xl border text-xs font-semibold flex items-center justify-between ${
+          className={`p-3.5 rounded-xl border text-xs font-semibold flex items-center justify-between print:hidden ${
             notice.severity === 'success'
               ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
               : 'bg-rose-50 border-rose-200 text-rose-800'
@@ -1155,7 +1168,7 @@ export function GradesPage() {
         <div className="space-y-6">
           {/* Category Breakdown Cards */}
           {classSummary.categoryBreakdown.length > 0 && (
-            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs">
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs print:hidden">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
                 Desempenho da Turma por Tipo de Avaliação
               </h3>
@@ -1519,16 +1532,31 @@ export function GradesPage() {
 
       {/* Modal: Student Individual Boletim */}
       {selectedStudentForBoletim && studentBoletimData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 shadow-xl relative text-left">
-            <button
-              type="button"
-              onClick={() => setSelectedStudentForBoletim(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-2 rounded-lg cursor-pointer"
-              aria-label="Fechar"
-            >
-              ✕
-            </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 print:p-0">
+          <div
+            className="fixed inset-0 bg-slate-950/50 backdrop-blur-xs transition-opacity print:hidden"
+            onClick={() => setSelectedStudentForBoletim(null)}
+            aria-hidden="true"
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Boletim Escolar de ${studentBoletimData.student.name}`}
+            className="relative w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-2xl p-4 sm:p-6 z-10 transition-all text-left print:max-w-none print:max-h-none print:overflow-visible print:p-0 print:border-none print:shadow-none"
+          >
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 print:hidden">
+              <span className="text-xs font-bold text-slate-900">
+                Boletim Individual — {studentBoletimData.student.name}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedStudentForBoletim(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                aria-label="Fechar"
+              >
+                ✕
+              </button>
+            </div>
             <StudentReportCardView data={studentBoletimData} />
           </div>
         </div>

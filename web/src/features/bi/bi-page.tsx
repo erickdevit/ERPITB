@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Download, FileText, FileSpreadsheet, FileJson } from 'lucide-react';
+import { Download, FileText, FileSpreadsheet, FileJson, Printer } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Section } from '../../components';
 import { exportBiJson, exportExcelCsv, exportExcelXlsx, exportSimplePdf, type ExportValue } from '../../lib/exports';
@@ -9,13 +9,13 @@ import { useBiData } from './use-bi-data';
 import { BiFilterBar } from './bi-filter-bar';
 import { buildBiView, type BiChart, type BiViewKey } from './views';
 
-function initialFilters(today: string): BiFilters {
+export function initialFilters(today: string): BiFilters {
   const from = new Date(`${today}T12:00:00Z`);
   from.setUTCDate(from.getUTCDate() - 29);
   return { from: from.toISOString().slice(0, 10), to: today };
 }
 
-const safeFilename = (value: string) =>
+export const safeFilename = (value: string) =>
   value
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -26,13 +26,14 @@ const safeFilename = (value: string) =>
 const spreadsheetSafe = (value: ExportValue): ExportValue =>
   typeof value === 'string' && /^[=+\-@]/.test(value.trimStart()) ? `'${value}` : value;
 
-function ExportActions({
+export function ExportActions({
   title,
   context,
   headers,
   rows,
   payload,
   metrics,
+  onPrint,
 }: {
   title: string;
   context: string[];
@@ -40,6 +41,7 @@ function ExportActions({
   rows: ExportValue[][];
   payload: unknown;
   metrics: Array<{ label: string; value: string }>;
+  onPrint?: () => void;
 }) {
   const filename = safeFilename(title);
   const safeHeaders = headers ?? [];
@@ -49,6 +51,18 @@ function ExportActions({
 
   return (
     <div className="flex items-center gap-2 flex-wrap" aria-label="Opções de exportação">
+      <button
+        type="button"
+        onClick={() => {
+          if (onPrint) onPrint();
+          else window.print();
+        }}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
+        aria-label="Imprimir"
+      >
+        <Printer className="w-3.5 h-3.5 text-slate-700" />
+        <span>Imprimir</span>
+      </button>
       <button
         type="button"
         onClick={() =>
@@ -99,7 +113,7 @@ function ExportActions({
   );
 }
 
-function AnalyticsChart({ chart }: { chart: BiChart }) {
+export function AnalyticsChart({ chart }: { chart: BiChart }) {
   const chartData = chart.data ?? [];
   const content =
     chart.type === 'line' ? (
