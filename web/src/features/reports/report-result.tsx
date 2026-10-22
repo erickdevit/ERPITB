@@ -1,10 +1,15 @@
 import React from 'react';
 import type { ReportView } from './model';
 import { StudentReportCardView } from './student-report-card-view';
+import { ClassBoletimView } from './class-boletim-view';
 
 export function ReportResult({ view }: { view: ReportView }) {
   if (view.type === 'studentBoletim' && view.boletimData) {
     return <StudentReportCardView data={view.boletimData} />;
+  }
+
+  if (view.type === 'classGrades' && view.classBoletimData) {
+    return <ClassBoletimView data={view.classBoletimData} />;
   }
 
   const displayTitle = view.tableTitle || view.title;

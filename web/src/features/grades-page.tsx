@@ -23,6 +23,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useApp } from '../app-context';
 import { PageDialog, SelectField } from '../components';
 import { latestAttendance } from '../lib/attendance';
+import { buildUnifiedBoletimData, type ClassBoletimData } from '../lib/boletim';
 import {
   buildClassGradeSummary,
   calculationModeLabel,
@@ -35,6 +36,8 @@ import {
 } from '../lib/grades';
 import { useEntity } from '../lib/use-entity';
 import type { LocalRecord } from '../types';
+import { ClassBoletimView } from './reports/class-boletim-view';
+import { StudentReportCardView } from './reports/student-report-card-view';
 import {
   deleteGradeItemCascade,
   deleteGradeTableCascade,
@@ -122,6 +125,7 @@ export function GradesPage() {
   const { store, sync, session } = useApp();
   const [searchParams, setSearchParams] = useSearchParams();
   const classes = useEntity('classes');
+  const courses = useEntity('courses');
   const students = useEntity('students');
   const enrollments = useEntity('enrollments');
   const attendance = useEntity('attendance_records');
@@ -135,6 +139,7 @@ export function GradesPage() {
   const [selectedTableId, setSelectedTableId] = useState('');
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
+  const [selectedStudentForBoletim, setSelectedStudentForBoletim] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ severity: 'success' | 'error'; message: string }>();
 
   // Draft cells: key = `${studentId}:${itemId}` -> { scoreText, remarks }
@@ -591,6 +596,70 @@ export function GradesPage() {
   };
 
   const currentClass = activeClasses.find((c) => c.id === classId);
+  const currentCourse = courses.items.find((c) => c.id === currentClass?.course_id);
+
+  const classBoletimData = useMemo<ClassBoletimData | null>(() => {
+    if (!currentClass) return null;
+    return {
+      classId: currentClass.id,
+      className: text(currentClass, 'name'),
+      courseName: currentCourse ? text(currentCourse, 'name') : undefined,
+      tables: classTables.map((t) => {
+        const mode = (['simple', 'weighted', 'sum'].includes(text(t, 'calculation_mode'))
+          ? text(t, 'calculation_mode')
+          : 'simple') as CalculationMode;
+        return {
+          id: t.id,
+          name: text(t, 'name'),
+          calculationMode: mode,
+          calculationModeLabel: calculationModeLabel(mode),
+          startDate: text(t, 'start_date') || null,
+          endDate: text(t, 'end_date') || null,
+          periodLabel: formatTablePeriod(t.start_date, t.end_date) || null,
+          passingGrade: Number(t.passing_grade ?? 6) || 6,
+        };
+      }),
+      students: classSummary.studentSummaries
+        .filter((s) => {
+          const q = search.trim().toLowerCase();
+          return !q || s.studentName.toLowerCase().includes(q) || s.registrationNumber.toLowerCase().includes(q);
+        })
+        .map((s) => {
+          const attRate = studentAttendanceRate.get(s.studentId);
+          return {
+            studentId: s.studentId,
+            studentName: s.studentName,
+            registrationNumber: s.registrationNumber,
+            tableResults: s.tableResults,
+            overallAverage: s.overallAverage,
+            attendanceRate: attRate ?? null,
+            attendanceRateLabel: attRate !== null && attRate !== undefined ? `${attRate.toFixed(1).replace('.', ',')}%` : '—',
+            overallStatus: s.overallStatus,
+            overallStatusLabel: s.overallStatusLabel,
+          };
+        }),
+      classAverage: classSummary.classAverage,
+      approvedCount: classSummary.approvedCount,
+      totalStudents: classSummary.studentSummaries.length,
+      issueDate: new Date().toISOString(),
+    };
+  }, [classSummary, classTables, currentClass, currentCourse, search, studentAttendanceRate]);
+
+  const studentBoletimData = useMemo(() => {
+    if (!selectedStudentForBoletim || !classId) return null;
+    return buildUnifiedBoletimData({
+      studentId: selectedStudentForBoletim,
+      classId,
+      students: students.items ?? [],
+      enrollments: enrollments.items ?? [],
+      classes: classes.items ?? [],
+      courses: courses.items ?? [],
+      attendanceRecords: attendance.items ?? [],
+      gradeTables: gradeTables.items ?? [],
+      gradeItems: gradeItems.items ?? [],
+      studentGrades: studentGrades.items ?? [],
+    });
+  }, [selectedStudentForBoletim, classId, students.items, enrollments.items, classes.items, courses.items, attendance.items, gradeTables.items, gradeItems.items, studentGrades.items]);
 
   return (
     <div className="space-y-6 text-left">
@@ -1113,98 +1182,14 @@ export function GradesPage() {
           )}
 
           {/* Consolidated Class Boletim Table */}
-          <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xs overflow-hidden">
-            <div className="px-4 sm:px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900">
-                  Boletim Consolidado — {currentClass ? text(currentClass, 'name') : ''}
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Médias por tabela/etapa, média geral acumulada, frequência e situação acadêmica.
-                </p>
-              </div>
-              {classTables.length > 1 && (
-                <button
-                  type="button"
-                  onClick={openOrganizeModal}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-medium text-slate-700 cursor-pointer"
-                >
-                  <ArrowUpDown className="w-3.5 h-3.5" />
-                  <span>Organizar Tabelas</span>
-                </button>
-              )}
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600">
-                    <th className="py-3 px-4">Aluno</th>
-                    {classTables.map((t) => {
-                      const period = formatTablePeriod(t.start_date, t.end_date);
-                      return (
-                        <th key={t.id} className="py-3 px-3 text-center border-l border-slate-200/60">
-                          <div>{text(t, 'name')}</div>
-                          <div className="text-[10px] font-normal text-slate-400">
-                            {calculationModeLabel(text(t, 'calculation_mode'))}
-                          </div>
-                          {period && <div className="text-[10px] font-normal text-slate-400">{period}</div>}
-                        </th>
-                      );
-                    })}
-                    <th className="py-3 px-4 text-center border-l border-slate-200/60">Média Geral</th>
-                    <th className="py-3 px-3 text-center">Frequência</th>
-                    <th className="py-3 px-4 text-center">Situação</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-xs">
-                  {classSummary.studentSummaries
-                    .filter((s) => {
-                      const q = search.trim().toLowerCase();
-                      return (
-                        !q ||
-                        s.studentName.toLowerCase().includes(q) ||
-                        s.registrationNumber.toLowerCase().includes(q)
-                      );
-                    })
-                    .map((student) => {
-                      const attRate = studentAttendanceRate.get(student.studentId);
-                      return (
-                        <tr key={student.studentId} className="hover:bg-slate-50/70">
-                          <td className="py-2.5 px-4 font-semibold text-slate-900">{student.studentName}</td>
-                          {student.tableResults.map((tr) => (
-                            <td
-                              key={tr.tableId}
-                              className="py-2.5 px-3 text-center border-l border-slate-100 font-semibold text-slate-800"
-                            >
-                              <div>{formatGrade(tr.average)}</div>
-                              <div className="text-[10px] text-slate-400 font-normal">
-                                {tr.evaluatedCount}/{tr.totalItems} aval.
-                              </div>
-                            </td>
-                          ))}
-                          <td className="py-2.5 px-4 text-center border-l border-slate-100 font-black text-slate-950">
-                            {formatGrade(student.overallAverage)}
-                          </td>
-                          <td className="py-2.5 px-3 text-center font-medium text-slate-700">
-                            {attRate !== null && attRate !== undefined ? `${attRate.toFixed(1).replace('.', ',')}%` : '—'}
-                          </td>
-                          <td className="py-2.5 px-4 text-center">
-                            <span
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${statusBadgeStyle(
-                                student.overallStatus,
-                              )}`}
-                            >
-                              {student.overallStatus === 'aprovado' && <CheckCircle2 className="w-3 h-3" />}
-                              <span>{student.overallStatusLabel}</span>
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          {classBoletimData && (
+            <ClassBoletimView
+              data={classBoletimData}
+              onOrganizeTables={classTables.length > 1 ? openOrganizeModal : undefined}
+              onSelectStudent={(studentId) => setSelectedStudentForBoletim(studentId)}
+              showSearch={false}
+            />
+          )}
         </div>
       )}
 
@@ -1531,6 +1516,23 @@ export function GradesPage() {
           className="w-full p-2.5 rounded-lg border border-slate-200 text-xs text-slate-900"
         />
       </PageDialog>
+
+      {/* Modal: Student Individual Boletim */}
+      {selectedStudentForBoletim && studentBoletimData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 shadow-xl relative text-left">
+            <button
+              type="button"
+              onClick={() => setSelectedStudentForBoletim(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-2 rounded-lg cursor-pointer"
+              aria-label="Fechar"
+            >
+              ✕
+            </button>
+            <StudentReportCardView data={studentBoletimData} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,9 +1,31 @@
 import type { LocalRecord } from '../types';
 import { latestAttendance } from './attendance';
-import { computeTableAverage, roundGrade, type CalculationMode } from './grades';
+import {
+  buildClassGradeSummary,
+  calculationModeLabel,
+  computeTableAverage,
+  roundGrade,
+  type CalculationMode,
+  type GradeStatus,
+} from './grades';
 
 export const MIN_ATTENDANCE_RATE = 75.0;
 export const MIN_PASSING_GRADE = 6.0;
+
+export function formatDatePt(isoDate: string): string {
+  const m = isoDate.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return isoDate;
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+export function formatTablePeriod(startDate?: unknown, endDate?: unknown): string {
+  const sd = typeof startDate === 'string' ? startDate.trim() : '';
+  const ed = typeof endDate === 'string' ? endDate.trim() : '';
+  if (sd && ed) return `${formatDatePt(sd)} a ${formatDatePt(ed)}`;
+  if (sd) return `Início: ${formatDatePt(sd)}`;
+  if (ed) return `Fim: ${formatDatePt(ed)}`;
+  return '';
+}
 
 export interface BoletimStudentInfo {
   id: string;
@@ -31,7 +53,9 @@ export interface BoletimModuleRow {
   absences: number;
   justified: number;
   attendanceRate: number; // 0 to 100
-  grades: { name: string; score: number | null; maxScore: number; weight?: number }[];
+  calculationMode?: CalculationMode;
+  calculationModeLabel?: string;
+  grades: { name: string; score: number | null; maxScore: number; weight?: number; category?: string }[];
   finalGrade: number | null; // 0 to 10 scale
   academicStatus: AcademicStatus;
 }
@@ -47,6 +71,48 @@ export interface UnifiedBoletimData {
     minAttendanceRate: number; // 75%
     minPassingGrade: number; // 6.0
   };
+}
+
+export interface ClassBoletimTableCol {
+  id: string;
+  name: string;
+  calculationMode: CalculationMode;
+  calculationModeLabel: string;
+  startDate?: string | null;
+  endDate?: string | null;
+  periodLabel?: string | null;
+  passingGrade: number;
+}
+
+export interface ClassBoletimStudentRow {
+  studentId: string;
+  studentName: string;
+  registrationNumber: string;
+  tableResults: Array<{
+    tableId: string;
+    average: number | null;
+    evaluatedCount: number;
+    totalItems: number;
+    status: GradeStatus;
+    statusLabel: string;
+  }>;
+  overallAverage: number | null;
+  attendanceRate: number | null;
+  attendanceRateLabel: string;
+  overallStatus: GradeStatus;
+  overallStatusLabel: string;
+}
+
+export interface ClassBoletimData {
+  classId: string;
+  className: string;
+  courseName?: string;
+  tables: ClassBoletimTableCol[];
+  students: ClassBoletimStudentRow[];
+  classAverage: number | null;
+  approvedCount: number;
+  totalStudents: number;
+  issueDate?: string;
 }
 
 export function buildUnifiedBoletimData(params: {
@@ -255,6 +321,8 @@ export function buildUnifiedBoletimData(params: {
         absences,
         justified,
         attendanceRate,
+        calculationMode,
+        calculationModeLabel: calculationModeLabel(calculationMode),
         grades,
         finalGrade,
         academicStatus,
@@ -309,5 +377,105 @@ export function buildUnifiedBoletimData(params: {
       minAttendanceRate: MIN_ATTENDANCE_RATE,
       minPassingGrade: MIN_PASSING_GRADE,
     },
+  };
+}
+
+export function buildClassBoletimData(params: {
+  classId: string;
+  classes: LocalRecord[];
+  courses?: LocalRecord[];
+  gradeTables: LocalRecord[];
+  gradeItems: LocalRecord[];
+  studentGrades: LocalRecord[];
+  students: LocalRecord[];
+  enrollments: LocalRecord[];
+  attendanceRecords: LocalRecord[];
+}): ClassBoletimData | null {
+  if (!params || !params.classId) return null;
+  const classRecord = (params.classes ?? []).find(
+    (c) => c.id === params.classId && !c.deleted_at && c.active !== 0 && c.active !== false
+  );
+  if (!classRecord) return null;
+
+  const courses = params.courses ?? [];
+  const course = courses.find((c) => c.id === classRecord.course_id && !c.deleted_at);
+  const courseName = course ? String(course.name ?? '') : 'Curso não informado';
+
+  const enrollments = (params.enrollments ?? []).filter(
+    (e) => !e.deleted_at && e.status === 'ativa' && e.class_id === classRecord.id
+  );
+  const studentIds = new Set(enrollments.map((e) => String(e.student_id)));
+
+  const activeStudents = (params.students ?? [])
+    .filter((s) => !s.deleted_at && s.active !== 0 && s.active !== false && studentIds.has(s.id))
+    .map((s) => ({
+      id: s.id,
+      name: String(s.name ?? s.encrypted_name ?? 'Aluno não informado'),
+      registrationNumber: String(s.registration_number ?? s.registrationNumber ?? '—'),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const summary = buildClassGradeSummary({
+    classId: classRecord.id,
+    tables: params.gradeTables ?? [],
+    items: params.gradeItems ?? [],
+    studentGrades: params.studentGrades ?? [],
+    students: activeStudents,
+  });
+
+  const dedupedAttendance = latestAttendance(params.attendanceRecords ?? []);
+  const classAttendance = dedupedAttendance.filter((a) => !a.deleted_at && a.class_id === classRecord.id);
+
+  const studentAttendanceRate = new Map<string, number>();
+  for (const s of activeStudents) {
+    const studentRecords = classAttendance.filter((a) => a.student_id === s.id);
+    const present = studentRecords.filter((a) => a.status === 'P' || a.status === 'RC').length;
+    if (studentRecords.length > 0) {
+      const rate = Math.round((present / studentRecords.length) * 1000) / 10;
+      studentAttendanceRate.set(s.id, rate);
+    }
+  }
+
+  const tables: ClassBoletimTableCol[] = summary.tables.map((t) => {
+    const mode = (['simple', 'weighted', 'sum'].includes(String(t.calculation_mode))
+      ? String(t.calculation_mode)
+      : 'simple') as CalculationMode;
+    return {
+      id: t.id,
+      name: String(t.name ?? 'Etapa'),
+      calculationMode: mode,
+      calculationModeLabel: calculationModeLabel(mode),
+      startDate: t.start_date ? String(t.start_date) : null,
+      endDate: t.end_date ? String(t.end_date) : null,
+      periodLabel: formatTablePeriod(t.start_date, t.end_date) || null,
+      passingGrade: Number(t.passing_grade ?? 6) || 6,
+    };
+  });
+
+  const students: ClassBoletimStudentRow[] = summary.studentSummaries.map((s) => {
+    const attRate = studentAttendanceRate.get(s.studentId);
+    return {
+      studentId: s.studentId,
+      studentName: s.studentName,
+      registrationNumber: s.registrationNumber,
+      tableResults: s.tableResults,
+      overallAverage: s.overallAverage,
+      attendanceRate: attRate ?? null,
+      attendanceRateLabel: attRate !== null && attRate !== undefined ? `${attRate.toFixed(1).replace('.', ',')}%` : '—',
+      overallStatus: s.overallStatus,
+      overallStatusLabel: s.overallStatusLabel,
+    };
+  });
+
+  return {
+    classId: classRecord.id,
+    className: String(classRecord.name ?? ''),
+    courseName,
+    tables,
+    students,
+    classAverage: summary.classAverage,
+    approvedCount: summary.approvedCount,
+    totalStudents: activeStudents.length,
+    issueDate: new Date().toISOString(),
   };
 }

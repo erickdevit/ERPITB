@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { jsPDF } from 'jspdf';
-import { buildBoletimPdf, exportBoletimPdf, getBoletimPdfFilename } from './boletim-pdf';
-import type { UnifiedBoletimData } from './boletim';
+import {
+  buildBoletimPdf,
+  buildClassBoletimPdf,
+  exportBoletimPdf,
+  exportClassBoletimPdf,
+  getBoletimPdfFilename,
+} from './boletim-pdf';
+import type { ClassBoletimData, UnifiedBoletimData } from './boletim';
 
 describe('Boletim PDF Generator — Native Vector jsPDF', () => {
   const mockBoletimData: UnifiedBoletimData = {
@@ -157,5 +163,47 @@ describe('Boletim PDF Generator — Native Vector jsPDF', () => {
 
     await exportBoletimPdf(mockBoletimData, 'Meu_Boletim_Customizado.pdf', mockDoc);
     expect(saveMock).toHaveBeenCalledWith('Meu_Boletim_Customizado.pdf');
+  });
+
+  it('buildClassBoletimPdf builds valid jsPDF for class boletim and exportClassBoletimPdf saves it', async () => {
+    const classData: ClassBoletimData = {
+      classId: 'c1',
+      className: '04 - SÁBADO 07-10 LAB1',
+      courseName: 'Informática',
+      tables: [
+        { id: 't1', name: 'Windows 11', calculationMode: 'simple', calculationModeLabel: 'Média Simples', passingGrade: 6 },
+        { id: 't2', name: 'PowerPoint', calculationMode: 'simple', calculationModeLabel: 'Média Simples', passingGrade: 6 },
+      ],
+      students: [
+        {
+          studentId: 's1',
+          studentName: 'AYLLA VITORIA',
+          registrationNumber: 'ITB-001',
+          tableResults: [
+            { tableId: 't1', average: 9.5, evaluatedCount: 2, totalItems: 3, status: 'aprovado', statusLabel: 'Aprovado' },
+            { tableId: 't2', average: 8.0, evaluatedCount: 1, totalItems: 1, status: 'aprovado', statusLabel: 'Aprovado' },
+          ],
+          overallAverage: 8.8,
+          attendanceRate: 100,
+          attendanceRateLabel: '100,0%',
+          overallStatus: 'aprovado',
+          overallStatusLabel: 'Aprovado',
+        },
+      ],
+      classAverage: 8.8,
+      approvedCount: 1,
+      totalStudents: 1,
+      issueDate: '2026-10-22T12:00:00Z',
+    };
+
+    const doc = buildClassBoletimPdf(classData);
+    expect(doc).toBeDefined();
+    expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(1);
+
+    const saveMock = vi.fn();
+    const mockDoc = { save: saveMock } as unknown as jsPDF;
+    await exportClassBoletimPdf(classData, undefined, mockDoc);
+    expect(saveMock).toHaveBeenCalledTimes(1);
+    expect(saveMock).toHaveBeenCalledWith('Boletim_Consolidado_04_-_SABADO_07-10_LAB1.pdf');
   });
 });

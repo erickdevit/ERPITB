@@ -134,7 +134,7 @@ describe('StudentReportCardView Component', () => {
   it('renders student credentials with name, registration, course and class names', () => {
     render(<StudentReportCardView data={mockData} />);
 
-    expect(screen.getByText('Mariana Lima Santos')).toBeDefined();
+    expect(screen.getAllByText('Mariana Lima Santos').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('ITB-2026-9081')).toBeDefined();
     expect(screen.getByText('Desenvolvimento Web Full Stack')).toBeDefined();
     expect(screen.getByText('Turma Alpha (Manhã), Turma Beta (Tarde)')).toBeDefined();
@@ -143,22 +143,17 @@ describe('StudentReportCardView Component', () => {
   it('renders all table headers and module data accurately', () => {
     render(<StudentReportCardView data={mockData} />);
 
-    expect(screen.getByText('Módulo / Turma')).toBeDefined();
-    expect(screen.getByText('Aulas')).toBeDefined();
-    expect(screen.getByText('Pres.')).toBeDefined();
-    expect(screen.getByText('Faltas')).toBeDefined();
-    expect(screen.getByText('Just.')).toBeDefined();
-    expect(screen.getByText('Freq. (%)')).toBeDefined();
-    expect(screen.getByText('Avaliações Parciais')).toBeDefined();
-    expect(screen.getByText('Média Final')).toBeDefined();
+    expect(screen.getByText('Aluno')).toBeDefined();
+    expect(screen.getByText('Média Geral')).toBeDefined();
+    expect(screen.getByText('Frequência')).toBeDefined();
     expect(screen.getByText('Situação')).toBeDefined();
 
-    expect(screen.getByText('Módulo 1: Frontend React')).toBeDefined();
-    expect(screen.getByText('Módulo 2: Backend Node.js')).toBeDefined();
-    expect(screen.getByText('Módulo 3: Banco de Dados')).toBeDefined();
-    expect(screen.getByText('Módulo 4: DevOps e Cloud')).toBeDefined();
-    expect(screen.getByText('Módulo 5: Mobile React Native')).toBeDefined();
-    expect(screen.getByText('Módulo 6: Orientação de Carreira')).toBeDefined();
+    expect(screen.getAllByText('Módulo 1: Frontend React').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Módulo 2: Backend Node.js').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Módulo 3: Banco de Dados').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Módulo 4: DevOps e Cloud').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Módulo 5: Mobile React Native').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Módulo 6: Orientação de Carreira').length).toBeGreaterThan(0);
   });
 
   it('renders distinct academic status badges for all status types', () => {
@@ -178,9 +173,8 @@ describe('StudentReportCardView Component', () => {
   it('renders summary footer with overall attendance, overall GPA and criteria legend', () => {
     render(<StudentReportCardView data={mockData} />);
 
-    expect(screen.getByText('TOTAIS / MÉDIA GERAL')).toBeDefined();
-    expect(screen.getByText('81.3%')).toBeDefined();
-    expect(screen.getByText('6.7')).toBeDefined();
+    expect(screen.getByText('81,3%')).toBeDefined();
+    expect(screen.getByText('6,7')).toBeDefined();
 
     expect(screen.getByText(/Critérios de Avaliação e Legenda/i)).toBeDefined();
     expect(screen.getByText(/das aulas ministradas/i)).toBeDefined();

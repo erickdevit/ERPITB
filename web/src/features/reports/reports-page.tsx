@@ -3,7 +3,7 @@ import { Download, FileText, FileSpreadsheet, RotateCcw } from 'lucide-react';
 import { useApp } from '../../app-context';
 import { Section } from '../../components';
 import { exportExcelCsv, exportExcelXlsx, exportSimplePdf } from '../../lib/exports';
-import { exportBoletimPdf } from '../../lib/boletim-pdf';
+import { exportBoletimPdf, exportClassBoletimPdf } from '../../lib/boletim-pdf';
 import { todayInSaoPaulo } from '../../lib/date';
 import type { ReportFilters } from './model';
 import { ReportFiltersBar } from './report-filters';
@@ -76,6 +76,8 @@ export function ReportsCenterPage() {
             onClick={() => {
               if (view.type === 'studentBoletim' && view.boletimData) {
                 void exportBoletimPdf(view.boletimData);
+              } else if (view.type === 'classGrades' && view.classBoletimData) {
+                void exportClassBoletimPdf(view.classBoletimData);
               } else {
                 void exportSimplePdf(filename, view.title, view.context, view.headers, view.rows);
               }

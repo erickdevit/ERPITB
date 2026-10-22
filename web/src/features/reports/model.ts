@@ -1,5 +1,5 @@
 import { latestAttendance } from '../../lib/attendance';
-import { buildUnifiedBoletimData, type UnifiedBoletimData } from '../../lib/boletim';
+import { buildClassBoletimData, buildUnifiedBoletimData, type ClassBoletimData, type UnifiedBoletimData } from '../../lib/boletim';
 import type { ExportValue } from '../../lib/exports';
 import { buildClassGradeSummary, formatGrade, normalizeScoreToTen, roundGrade } from '../../lib/grades';
 import type { LocalRecord } from '../../types';
@@ -57,6 +57,7 @@ export interface ReportView {
   requiredMessage?: string;
   matrix: boolean;
   boletimData?: UnifiedBoletimData | null;
+  classBoletimData?: ClassBoletimData | null;
 }
 
 export const reportTypeOptions: Array<{ value: ReportType; label: string }> = [
@@ -322,6 +323,18 @@ function classGradesReport(input: ReportInput, filters: ReportFilters): ReportVi
     ];
   });
 
+  const classBoletimData = buildClassBoletimData({
+    classId: classRecord.id,
+    classes: input.classes,
+    courses: input.courses,
+    gradeTables: input.gradeTables ?? [],
+    gradeItems: input.gradeItems ?? [],
+    studentGrades: input.studentGrades ?? [],
+    students: input.students,
+    enrollments: input.enrollments,
+    attendanceRecords: scope.attendance,
+  });
+
   return {
     type: filters.type,
     title: `Boletim da turma — ${text(classRecord, 'name')}`,
@@ -351,6 +364,7 @@ function classGradesReport(input: ReportInput, filters: ReportFilters): ReportVi
     ],
     ready: true,
     matrix: summary.tables.length > 3,
+    classBoletimData,
   };
 }
 
