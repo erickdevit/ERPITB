@@ -1,4 +1,5 @@
 import { buildAnalytics, type AnalyticsInput } from '../../lib/analytics';
+import { latestAttendance } from '../../lib/attendance';
 import { buildClassGradeSummary, normalizeScoreToTen, roundGrade } from '../../lib/grades';
 import type { LocalRecord } from '../../types';
 
@@ -166,14 +167,6 @@ export interface BiDataset {
 
 const current = (record: LocalRecord) => !record.deleted_at;
 const text = (record: LocalRecord | undefined, field: string) => String(record?.[field] ?? '');
-
-function latestAttendance(records: LocalRecord[]) {
-  const map = new Map<string, LocalRecord>();
-  for (const record of records) {
-    if (current(record)) map.set(record.id, record);
-  }
-  return [...map.values()];
-}
 
 function counts() {
   return { present: 0, absent: 0, justified: 0, delayed: 0, replacements: 0, records: 0 };
@@ -403,6 +396,9 @@ export function buildBiDataset(rawInput: BiInput, filters: BiFilters, today: str
     laboratories: rawInput.laboratories ?? [],
     replacements: rawInput.replacements ?? [],
     directory: rawInput.directory ?? [],
+    gradeTables: rawInput.gradeTables ?? [],
+    gradeItems: rawInput.gradeItems ?? [],
+    studentGrades: rawInput.studentGrades ?? [],
   };
 
   const classes = scopedClasses(input, filters);

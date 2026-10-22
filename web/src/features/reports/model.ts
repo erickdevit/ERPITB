@@ -1,4 +1,5 @@
 import { latestAttendance } from '../../lib/attendance';
+import { buildUnifiedBoletimData, type UnifiedBoletimData } from '../../lib/boletim';
 import type { ExportValue } from '../../lib/exports';
 import { buildClassGradeSummary, formatGrade, normalizeScoreToTen, roundGrade } from '../../lib/grades';
 import type { LocalRecord } from '../../types';
@@ -10,6 +11,7 @@ export type ReportType =
   | 'classGrades'
   | 'assessmentTypes'
   | 'student'
+  | 'studentBoletim'
   | 'dropoutRisk';
 
 export interface ReportFilters {
@@ -54,6 +56,7 @@ export interface ReportView {
   ready: boolean;
   requiredMessage?: string;
   matrix: boolean;
+  boletimData?: UnifiedBoletimData | null;
 }
 
 export const reportTypeOptions: Array<{ value: ReportType; label: string }> = [
@@ -63,6 +66,7 @@ export const reportTypeOptions: Array<{ value: ReportType; label: string }> = [
   { value: 'classGrades', label: 'Boletim / Mapa de notas da turma' },
   { value: 'assessmentTypes', label: 'Desempenho por tipo de avaliação' },
   { value: 'student', label: 'Ficha detalhada do aluno' },
+  { value: 'studentBoletim', label: 'Boletim Escolar do Aluno' },
   { value: 'dropoutRisk', label: 'Risco de evasão' },
 ];
 
@@ -437,6 +441,90 @@ function assessmentTypesReport(input: ReportInput, filters: ReportFilters): Repo
   };
 }
 
+function studentBoletimReport(input: ReportInput, filters: ReportFilters): ReportView {
+  if (!filters.studentId) {
+    return missing(
+      filters,
+      'Boletim Escolar do Aluno',
+      'Selecione uma turma e um aluno para visualizar o boletim escolar individual.'
+    );
+  }
+
+  const boletim = buildUnifiedBoletimData({
+    studentId: filters.studentId,
+    classId: filters.classId,
+    students: input.students,
+    enrollments: input.enrollments,
+    classes: input.classes,
+    courses: input.courses,
+    attendanceRecords: input.attendance,
+    gradeTables: input.gradeTables ?? [],
+    gradeItems: input.gradeItems ?? [],
+    studentGrades: input.studentGrades ?? [],
+  });
+
+  if (!boletim) {
+    return missing(
+      filters,
+      'Boletim Escolar do Aluno',
+      'Nenhum registro encontrado para o aluno selecionado no período ou turma.'
+    );
+  }
+
+  const headers = [
+    'Módulo / Turma',
+    'Aulas Ministradas',
+    'Presenças',
+    'Faltas',
+    'Justificativas',
+    'Frequência (%)',
+    'Avaliações',
+    'Média Final',
+    'Situação Acadêmica',
+  ];
+
+  const rows: ExportValue[][] = boletim.modules.map((mod) => [
+    mod.moduleName,
+    mod.classesHeld,
+    mod.presences,
+    mod.absences,
+    mod.justified,
+    percent(mod.attendanceRate),
+    mod.grades.map((g) => `${g.name}: ${g.score !== null ? g.score.toFixed(1) : '—'}`).join(' | ') || '—',
+    mod.finalGrade !== null ? mod.finalGrade.toFixed(1) : '—',
+    mod.academicStatus,
+  ]);
+
+  const metrics: ReportMetric[] = [
+    { label: 'Frequência Geral', value: percent(boletim.overallAttendanceRate) },
+    { label: 'Média Geral', value: boletim.overallGpa !== null ? boletim.overallGpa.toFixed(1) : '—' },
+    { label: 'Situação Final', value: boletim.overallAcademicStatus },
+  ];
+
+  return {
+    type: 'studentBoletim',
+    title: `Boletim Escolar — ${boletim.student.name}`,
+    description: 'Boletim escolar individual unificado com frequência e desempenho acadêmico.',
+    tableTitle: `Boletim Escolar Individual — ${boletim.student.name}`,
+    metrics,
+    headers,
+    rows,
+    context: [
+      `Aluno: ${boletim.student.name}`,
+      `Matrícula: ${boletim.student.registrationNumber || '—'}`,
+      `Curso: ${boletim.student.courseName || '—'}`,
+      `Turma(s): ${boletim.student.classNames.join(', ') || '—'}`,
+      ...context(input, filters),
+    ],
+    notices: [
+      `Critérios ITB: Frequência mínima exigida de ${boletim.criteria.minAttendanceRate.toFixed(1)}% e média mínima para aprovação de ${boletim.criteria.minPassingGrade.toFixed(1)}.`,
+    ],
+    ready: true,
+    matrix: false,
+    boletimData: boletim,
+  };
+}
+
 function missing(filters: ReportFilters, title: string, message: string): ReportView {
   return { type: filters.type, title, description: '', tableTitle: '', metrics: [], headers: [], rows: [], context: [], notices: [], ready: false, requiredMessage: message, matrix: false };
 }
@@ -463,6 +551,7 @@ export function buildReportView(rawInput: ReportInput, filters: ReportFilters): 
     case 'classGrades': return classGradesReport(input, filters);
     case 'assessmentTypes': return assessmentTypesReport(input, filters);
     case 'student': return studentSheet(input, filters);
+    case 'studentBoletim': return studentBoletimReport(input, filters);
     case 'dropoutRisk': return dropoutRisk(input, filters);
   }
 }

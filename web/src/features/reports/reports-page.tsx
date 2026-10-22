@@ -3,6 +3,7 @@ import { Download, FileText, FileSpreadsheet, RotateCcw } from 'lucide-react';
 import { useApp } from '../../app-context';
 import { Section } from '../../components';
 import { exportExcelCsv, exportExcelXlsx, exportSimplePdf } from '../../lib/exports';
+import { exportBoletimPdf } from '../../lib/boletim-pdf';
 import { todayInSaoPaulo } from '../../lib/date';
 import type { ReportFilters } from './model';
 import { ReportFiltersBar } from './report-filters';
@@ -72,7 +73,13 @@ export function ReportsCenterPage() {
           <button
             type="button"
             disabled={!view.ready}
-            onClick={() => void exportSimplePdf(filename, view.title, view.context, view.headers, view.rows)}
+            onClick={() => {
+              if (view.type === 'studentBoletim' && view.boletimData) {
+                void exportBoletimPdf(view.boletimData);
+              } else {
+                void exportSimplePdf(filename, view.title, view.context, view.headers, view.rows);
+              }
+            }}
             className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
           >
             <FileText className="w-3.5 h-3.5 text-rose-600" />

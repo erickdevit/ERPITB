@@ -53,11 +53,11 @@ export function ReportFiltersBar({
   const availableClasses = teacherClasses.filter((item) => !filters.courseId || item.course_id === filters.courseId);
   const studentIds = new Set(
     safeEnrollments
-      .filter((item) => !item.deleted_at && item.status === 'ativa' && item.class_id === filters.classId)
+      .filter((item) => !item.deleted_at && item.status === 'ativa' && (!filters.classId || item.class_id === filters.classId))
       .map((item) => item.student_id),
   );
   const availableStudents = safeStudents
-    .filter((item) => active(item) && studentIds.has(item.id))
+    .filter((item) => active(item) && (filters.classId ? studentIds.has(item.id) : (filters.type === 'studentBoletim' ? true : studentIds.has(item.id))))
     .sort((left, right) => text(left, 'name').localeCompare(text(right, 'name')));
 
   const showCourse =
@@ -70,6 +70,7 @@ export function ReportFiltersBar({
     filters.type === 'classGrades' ||
     filters.type === 'assessmentTypes' ||
     filters.type === 'student' ||
+    filters.type === 'studentBoletim' ||
     filters.type === 'dropoutRisk';
 
   const changeType = (type: string) =>
@@ -188,7 +189,7 @@ export function ReportFiltersBar({
           </div>
         )}
 
-        {filters.type === 'student' && filters.classId && (
+        {((filters.type === 'student' && filters.classId) || filters.type === 'studentBoletim') && (
           <div>
             <SelectField
               label="Aluno"

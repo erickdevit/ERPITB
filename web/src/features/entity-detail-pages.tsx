@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ArrowLeft,
   Calendar,
@@ -10,8 +10,12 @@ import {
   UserCheck,
   TrendingUp,
   AlertCircle,
+  FileText,
+  X,
 } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { buildUnifiedBoletimData } from '../lib/boletim';
+import { StudentReportCardView } from './reports/student-report-card-view';
 import {
   CartesianGrid,
   Cell,
@@ -323,12 +327,39 @@ export function StudentDetailPage() {
   const gradeTables = useEntity('grade_tables');
   const gradeItems = useEntity('grade_items');
   const studentGrades = useEntity('student_grades');
+  const courses = useEntity('courses');
+  const [boletimOpen, setBoletimOpen] = useState(false);
 
   const student = (students.items ?? []).find((s) => s.id === studentId);
   const ownEnrollments = useMemo(
     () => (enrollments.items ?? []).filter((e) => !e.deleted_at && e.student_id === studentId),
     [enrollments.items, studentId],
   );
+
+  const boletimData = useMemo(() => {
+    if (!studentId) return null;
+    return buildUnifiedBoletimData({
+      studentId,
+      students: students.items ?? [],
+      enrollments: enrollments.items ?? [],
+      classes: classes.items ?? [],
+      courses: courses.items ?? [],
+      attendanceRecords: attendance.items ?? [],
+      gradeTables: gradeTables.items ?? [],
+      gradeItems: gradeItems.items ?? [],
+      studentGrades: studentGrades.items ?? [],
+    });
+  }, [
+    studentId,
+    students.items,
+    enrollments.items,
+    classes.items,
+    courses.items,
+    attendance.items,
+    gradeTables.items,
+    gradeItems.items,
+    studentGrades.items,
+  ]);
 
   const studentGradeRows = useMemo(() => {
     const grades = (studentGrades.items ?? []).filter((g) => !g.deleted_at && g.student_id === studentId);
@@ -384,14 +415,25 @@ export function StudentDetailPage() {
           </div>
         </div>
 
-        {regNumber && (
-          <Link
-            to={`/matricula/${encodeURIComponent(regNumber)}`}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-950 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors"
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setBoletimOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-950 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer"
           >
-            <span>Abrir Boletim Público</span>
-          </Link>
-        )}
+            <FileText className="w-4 h-4 text-sky-400" />
+            <span>Emitir Boletim</span>
+          </button>
+
+          {regNumber && (
+            <Link
+              to={`/matricula/${encodeURIComponent(regNumber)}`}
+              className="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold rounded-lg shadow-2xs transition-colors"
+            >
+              <span>Abrir Boletim Público</span>
+            </Link>
+          )}
+        </div>
       </div>
 
       <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs">
@@ -469,6 +511,41 @@ export function StudentDetailPage() {
         classTeachers={classTeachers.items ?? []}
         filter={{ studentId }}
       />
+
+      {boletimOpen && boletimData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 print:p-0">
+          <div
+            className="fixed inset-0 bg-slate-950/50 backdrop-blur-xs transition-opacity print:hidden"
+            onClick={() => setBoletimOpen(false)}
+            aria-hidden="true"
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Boletim Escolar de ${boletimData.student.name}`}
+            className="relative w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-2xl p-4 sm:p-6 z-10 transition-all text-left print:max-w-none print:max-h-none print:overflow-visible print:p-0 print:border-none print:shadow-none"
+          >
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 print:hidden">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-sky-600" />
+                <h2 className="text-sm font-bold text-slate-900 tracking-tight">
+                  Emissão de Boletim Escolar
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBoletimOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                aria-label="Fechar"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <StudentReportCardView data={boletimData} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

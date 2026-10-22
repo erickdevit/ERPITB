@@ -13,11 +13,15 @@ import {
   Share2,
   ExternalLink,
   Check,
+  FileText,
+  X,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../app-context';
 import { DateField, PageDialog, Section, SelectField } from '../components';
 import { formatDate, parseBrazilDate, todayInSaoPaulo } from '../lib/date';
+import { buildUnifiedBoletimData } from '../lib/boletim';
+import { StudentReportCardView } from './reports/student-report-card-view';
 import { useEntity } from '../lib/use-entity';
 import type { LocalRecord } from '../types';
 import {
@@ -73,6 +77,10 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
   const classes = useEntity('classes');
   const classTeachers = useEntity('class_teachers');
   const attendance = useEntity('attendance_records');
+  const courses = useEntity('courses');
+  const gradeTables = useEntity('grade_tables');
+  const gradeItems = useEntity('grade_items');
+  const studentGrades = useEntity('student_grades');
 
   const [search, setSearch] = useState('');
   const [filterClassId, setFilterClassId] = useState('');
@@ -83,6 +91,34 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
   const [draft, setDraft] = useState<StudentDraft>(() => emptyDraft());
   const [formError, setFormError] = useState<string>();
   const [copiedId, setCopiedId] = useState<string>();
+  const [selectedBoletimStudentId, setSelectedBoletimStudentId] = useState<string | null>(null);
+
+  const boletimData = useMemo(() => {
+    if (!selectedBoletimStudentId) return null;
+    return buildUnifiedBoletimData({
+      studentId: selectedBoletimStudentId,
+      classId: filterClassId || undefined,
+      students: students.items ?? [],
+      enrollments: enrollments.items ?? [],
+      classes: classes.items ?? [],
+      courses: courses.items ?? [],
+      attendanceRecords: attendance.items ?? [],
+      gradeTables: gradeTables.items ?? [],
+      gradeItems: gradeItems.items ?? [],
+      studentGrades: studentGrades.items ?? [],
+    });
+  }, [
+    selectedBoletimStudentId,
+    filterClassId,
+    students.items,
+    enrollments.items,
+    classes.items,
+    courses.items,
+    attendance.items,
+    gradeTables.items,
+    gradeItems.items,
+    studentGrades.items,
+  ]);
 
   const permissions = permissionsForStudents(session.role);
 
@@ -391,6 +427,17 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
                         <ExternalLink className="w-3.5 h-3.5" />
                       </a>
 
+                      {/* Emitir Boletim Escolar */}
+                      <button
+                        type="button"
+                        aria-label={`Emitir Boletim de ${row.name}`}
+                        onClick={() => setSelectedBoletimStudentId(row.id)}
+                        title="Emitir Boletim Escolar"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-colors cursor-pointer"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                      </button>
+
                       {permissions.canEdit && (
                         <button
                           type="button"
@@ -511,6 +558,41 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
           </div>
         </div>
       </PageDialog>
+
+      {selectedBoletimStudentId && boletimData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 print:p-0">
+          <div
+            className="fixed inset-0 bg-slate-950/50 backdrop-blur-xs transition-opacity print:hidden"
+            onClick={() => setSelectedBoletimStudentId(null)}
+            aria-hidden="true"
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Boletim Escolar de ${boletimData.student.name}`}
+            className="relative w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-2xl p-4 sm:p-6 z-10 transition-all text-left print:max-w-none print:max-h-none print:overflow-visible print:p-0 print:border-none print:shadow-none"
+          >
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 print:hidden">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-sky-600" />
+                <h2 className="text-sm font-bold text-slate-900 tracking-tight">
+                  Emissão de Boletim Escolar
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedBoletimStudentId(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                aria-label="Fechar"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <StudentReportCardView data={boletimData} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,7 +1,12 @@
 import React from 'react';
 import type { ReportView } from './model';
+import { StudentReportCardView } from './student-report-card-view';
 
 export function ReportResult({ view }: { view: ReportView }) {
+  if (view.type === 'studentBoletim' && view.boletimData) {
+    return <StudentReportCardView data={view.boletimData} />;
+  }
+
   const displayTitle = view.tableTitle || view.title;
   return (
     <div className="flex flex-col gap-3 text-left">

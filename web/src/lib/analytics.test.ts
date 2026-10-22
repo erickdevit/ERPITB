@@ -70,4 +70,41 @@ describe('buildAnalytics', () => {
 
     expect(result).toMatchObject({ records: 1, replacements: 1, attendanceRate: 0, distinctCalls: 1 });
   });
+
+  it('evaluates dropout risk per class (student_id|class_id) without interleaving attendance across classes', () => {
+    const result = buildAnalytics({
+      classes: [
+        { id: 'c1', name: 'Turma de Matemática', course_id: 'course-1', active: 1 },
+        { id: 'c2', name: 'Turma de História', course_id: 'course-1', active: 1 },
+      ],
+      students: [{ id: 's1', name: 'Carlos', registration_number: '123', active: 1 }],
+      enrollments: [
+        { id: 'e1', class_id: 'c1', student_id: 's1', status: 'ativa' },
+        { id: 'e2', class_id: 'c2', student_id: 's1', status: 'ativa' },
+      ],
+      classTeachers: [],
+      // Interleaved dates: c1 has 3 consecutive absences, while c2 has presences on alternate days
+      attendance: [
+        { id: 'a1', class_id: 'c1', student_id: 's1', date: '2026-08-01', status: 'F' },
+        { id: 'a2', class_id: 'c2', student_id: 's1', date: '2026-08-02', status: 'P' },
+        { id: 'a3', class_id: 'c1', student_id: 's1', date: '2026-08-03', status: 'F' },
+        { id: 'a4', class_id: 'c2', student_id: 's1', date: '2026-08-04', status: 'P' },
+        { id: 'a5', class_id: 'c1', student_id: 's1', date: '2026-08-05', status: 'F' },
+      ],
+    }, { from: '2026-08-01', to: '2026-08-31' });
+
+    // In c1, s1 has 3 consecutive absences -> at risk in c1
+    // In c2, s1 has 2 presences (100%) -> not at risk in c2
+    expect(result.riskStudents).toBe(1);
+    expect(result.topAbsentees).toHaveLength(1);
+    expect(result.topAbsentees[0]).toEqual({
+      studentId: 's1',
+      name: 'Carlos',
+      registrationNumber: '123',
+      classId: 'c1',
+      className: 'Turma de Matemática',
+      absences: 3,
+      rate: 0,
+    });
+  });
 });

@@ -33,11 +33,19 @@ export interface AnalyticsResult extends StatusCounts {
   riskStudents: number;
   evolution: Array<{ date: string; rate: number; records: number }>;
   byClass: Array<StatusCounts & { id: string; name: string; courseId: string; rate: number }>;
-  topAbsentees: Array<{ studentId: string; name: string; registrationNumber: string; absences: number; rate: number }>;
+  topAbsentees: Array<{
+    studentId: string;
+    name: string;
+    registrationNumber: string;
+    classId?: string;
+    className: string;
+    absences: number;
+    rate: number;
+  }>;
   teacherWorkload: Array<{ teacherId: string; classes: number; students: number }>;
 }
 
-const text = (record: LocalRecord, field: string) => String(record[field] ?? '');
+const text = (record: LocalRecord | undefined, field: string) => String(record?.[field] ?? '');
 const current = (record: LocalRecord) => !record.deleted_at && record.active !== 0 && record.active !== false;
 const emptyCounts = (): StatusCounts => ({ present: 0, absent: 0, justified: 0, delayed: 0, replacements: 0, records: 0 });
 
@@ -75,31 +83,44 @@ export function buildAnalytics(rawInput: AnalyticsInput, filters: AnalyticsFilte
   const totals = emptyCounts();
   const classTotals = new Map<string, StatusCounts>();
   const daily = new Map<string, StatusCounts>();
-  const studentRows = new Map<string, LocalRecord[]>();
+  const studentClassRows = new Map<string, LocalRecord[]>();
   for (const record of attendance) {
     addStatus(totals, text(record, 'status'));
-    const ownClass = classTotals.get(text(record, 'class_id')) ?? emptyCounts();
-    addStatus(ownClass, text(record, 'status')); classTotals.set(text(record, 'class_id'), ownClass);
+    const classId = text(record, 'class_id');
+    const ownClass = classTotals.get(classId) ?? emptyCounts();
+    addStatus(ownClass, text(record, 'status')); classTotals.set(classId, ownClass);
     const ownDay = daily.get(text(record, 'date')) ?? emptyCounts();
     addStatus(ownDay, text(record, 'status')); daily.set(text(record, 'date'), ownDay);
-    const ownStudent = studentRows.get(text(record, 'student_id')) ?? [];
-    ownStudent.push(record); studentRows.set(text(record, 'student_id'), ownStudent);
+    const key = `${text(record, 'student_id')}|${classId}`;
+    const ownStudent = studentClassRows.get(key) ?? [];
+    ownStudent.push(record); studentClassRows.set(key, ownStudent);
   }
 
+  const classById = new Map(input.classes.map((item) => [item.id, item]));
   const risk = new Set<string>();
   const absentees: AnalyticsResult['topAbsentees'] = [];
-  for (const [studentId, records] of studentRows) {
-    const counts = emptyCounts(); let streak = 0;
+  for (const [key, records] of studentClassRows) {
+    const [studentId, classId] = key.split('|');
+    const counts = emptyCounts(); let streak = 0; let maximum = 0;
     for (const record of [...records].sort((left, right) => text(left, 'date').localeCompare(text(right, 'date')))) {
       const status = text(record, 'status'); addStatus(counts, status);
       streak = status === 'F' ? streak + 1 : 0;
-      if (streak >= 3) risk.add(studentId);
+      maximum = Math.max(maximum, streak);
     }
     const studentRate = rate(counts);
-    if (studentRate < 75) risk.add(studentId);
+    if (studentRate < 75 || maximum >= 3) risk.add(key);
     if (counts.absent > 0) {
       const student = input.students.find((item) => item.id === studentId);
-      absentees.push({ studentId, name: text(student ?? { id: studentId }, 'name') || 'Aluno não informado', registrationNumber: text(student ?? { id: studentId }, 'registration_number'), absences: counts.absent, rate: studentRate });
+      const classRecord = classById.get(classId);
+      absentees.push({
+        studentId,
+        name: text(student ?? { id: studentId }, 'name') || 'Aluno não informado',
+        registrationNumber: text(student ?? { id: studentId }, 'registration_number'),
+        classId,
+        className: text(classRecord, 'name') || 'Turma não informada',
+        absences: counts.absent,
+        rate: studentRate,
+      });
     }
   }
 

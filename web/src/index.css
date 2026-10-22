@@ -16,3 +16,72 @@
     font-family: inherit;
   }
 }
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  /* Reset global containers with scroll and fixed heights to allow natural multi-page flow */
+  html, body, #root,
+  div[class*="h-screen"],
+  div[class*="overflow-hidden"],
+  div[class*="overflow-y-auto"],
+  main {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    position: static !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide app navigation chrome, sidebars, headers and interactive buttons */
+  aside,
+  header,
+  nav,
+  button,
+  .print\:hidden,
+  [data-testid="print-hidden"],
+  [role="dialog"] > div:first-child {
+    display: none !important;
+  }
+
+  /* Adapt modal containers for full-page print when triggered from inside dialogs */
+  [role="dialog"] {
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: transparent !important;
+  }
+
+  /* Preserve table borders and colors */
+  table, th, td {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Protect rows and cards against page-break severance */
+  tr,
+  .print-avoid-break,
+  .break-inside-avoid {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Repeat table headers cleanly on page boundary breaks */
+  thead {
+    display: table-header-group !important;
+  }
+}

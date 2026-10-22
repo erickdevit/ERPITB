@@ -35,3 +35,4 @@ Thumbs.db
 *.db-wal
 *.pdf
 /artifacts/
+.agents/teamwork/
