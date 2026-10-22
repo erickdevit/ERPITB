@@ -191,8 +191,8 @@ export function ClassBoletimView({
         </div>
 
         {/* TABLE */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse" aria-label={`Boletim Consolidado — ${data.className}`}>
+        <div className="overflow-x-auto print:overflow-visible">
+          <table className="w-full text-left border-collapse print:w-full" aria-label={`Boletim Consolidado — ${data.className}`}>
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600">
                 <th className="py-3 px-4 whitespace-nowrap">Aluno</th>
@@ -211,7 +211,7 @@ export function ClassBoletimView({
                   Média Geral
                 </th>
                 <th className="py-3 px-3 text-center whitespace-nowrap">Frequência</th>
-                <th className="py-3 px-4 text-center whitespace-nowrap">Situação</th>
+                <th className="py-3 px-4 text-center whitespace-nowrap print:hidden">Situação</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
@@ -259,7 +259,7 @@ export function ClassBoletimView({
                       {student.attendanceRateLabel}
                     </td>
 
-                    <td className="py-2.5 px-4 text-center whitespace-nowrap">
+                    <td className="py-2.5 px-4 text-center whitespace-nowrap print:hidden">
                       <span
                         data-testid="status-badge"
                         className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${statusBadgeStyle(

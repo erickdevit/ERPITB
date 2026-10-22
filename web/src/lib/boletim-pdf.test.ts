@@ -78,12 +78,12 @@ describe('Boletim PDF Generator — Native Vector jsPDF', () => {
     },
   };
 
-  it('buildBoletimPdf builds a valid A4 portrait jsPDF instance', () => {
+  it('buildBoletimPdf builds a valid A4 landscape jsPDF instance without Situação column', () => {
     const doc = buildBoletimPdf(mockBoletimData);
 
     expect(doc).toBeDefined();
-    expect(doc.internal.pageSize.getWidth()).toBeCloseTo(210, 0);
-    expect(doc.internal.pageSize.getHeight()).toBeCloseTo(297, 0);
+    expect(doc.internal.pageSize.getWidth()).toBeCloseTo(297, 0);
+    expect(doc.internal.pageSize.getHeight()).toBeCloseTo(210, 0);
     expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(1);
 
     // Verify binary output buffer

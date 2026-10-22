@@ -105,7 +105,22 @@ describe('ClassBoletimView Component', () => {
     expect(screen.getAllByText('Média Simples').length).toBe(3);
     expect(screen.getByText('Média Geral')).toBeDefined();
     expect(screen.getByText('Frequência')).toBeDefined();
-    expect(screen.getByText('Situação')).toBeDefined();
+    const situacaoHeader = screen.getByText('Situação');
+    expect(situacaoHeader).toBeDefined();
+    expect(situacaoHeader.closest('th')?.classList.contains('print:hidden')).toBe(true);
+  });
+
+  it('hides Situação column and badges in print media', () => {
+    const { container } = render(<ClassBoletimView data={mockClassData} />);
+
+    const situacaoTh = screen.getByText('Situação').closest('th');
+    expect(situacaoTh?.classList.contains('print:hidden')).toBe(true);
+
+    const statusBadges = container.querySelectorAll('[data-testid="status-badge"]');
+    for (const badge of statusBadges) {
+      const td = badge.closest('td');
+      expect(td?.classList.contains('print:hidden')).toBe(true);
+    }
   });
 
   it('renders student rows, evaluations count and status badges', () => {

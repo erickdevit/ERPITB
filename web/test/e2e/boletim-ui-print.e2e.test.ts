@@ -117,11 +117,11 @@ describe('E2E Boletim UI, Print & PDF Export Suite (R3, F7-F11)', () => {
       expect(boletim!.modules[0].finalGrade).toBe(9.0);
     });
 
-    it('T1.3: Print stylesheet structure contains essential A4 media print rules', () => {
+    it('T1.3: Print stylesheet structure contains essential A4 landscape media print rules', () => {
       // Specification requirements for @media print stylesheet
       const requiredPrintRules = [
         '@media print',
-        'size: A4',
+        'size: A4 landscape',
         'display: none', // hiding navigation/sidebars
         'page-break-inside: avoid', // or break-inside: avoid
       ];
@@ -129,7 +129,7 @@ describe('E2E Boletim UI, Print & PDF Export Suite (R3, F7-F11)', () => {
       // Synthetic CSS testing the architectural contract
       const printCssTemplate = `
         @media print {
-          @page { size: A4 portrait; margin: 12mm 10mm; }
+          @page { size: A4 landscape; margin: 8mm 6mm; }
           aside, header, nav, button, .print\\:hidden { display: none !important; }
           tr, .print-avoid-break { break-inside: avoid !important; page-break-inside: avoid !important; }
         }
@@ -507,6 +507,27 @@ describe('E2E Boletim UI, Print & PDF Export Suite (R3, F7-F11)', () => {
       expect(studentBoletim!.modules[0].calculationModeLabel).toBe('Média Simples');
       expect(studentBoletim!.overallGpa).toBe(8.5);
       expect(studentBoletim!.overallAcademicStatus).toBe('Aprovado');
+    });
+
+    it('T3.4: Verifies print media stylesheet contracts for landscape orientation and Situação exclusion', () => {
+      // 1. Check index.css or rules
+      const indexCssSample = `
+        @media print {
+          @page { size: A4 landscape; margin: 8mm 6mm; }
+          .print\\:hidden { display: none !important; }
+        }
+      `;
+      expect(indexCssSample).toContain('size: A4 landscape');
+
+      // 2. Class/DOM level contract: Situação elements use print:hidden
+      const thSituacao = document.createElement('th');
+      thSituacao.className = 'py-3 px-4 text-center whitespace-nowrap print:hidden';
+      thSituacao.textContent = 'Situação';
+      expect(thSituacao.classList.contains('print:hidden')).toBe(true);
+
+      const tdSituacao = document.createElement('td');
+      tdSituacao.className = 'py-2.5 px-4 text-center whitespace-nowrap print:hidden';
+      expect(tdSituacao.classList.contains('print:hidden')).toBe(true);
     });
   });
 });

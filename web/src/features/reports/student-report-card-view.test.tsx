@@ -146,7 +146,9 @@ describe('StudentReportCardView Component', () => {
     expect(screen.getByText('Aluno')).toBeDefined();
     expect(screen.getByText('Média Geral')).toBeDefined();
     expect(screen.getByText('Frequência')).toBeDefined();
-    expect(screen.getByText('Situação')).toBeDefined();
+    const situacaoTh = screen.getByText('Situação');
+    expect(situacaoTh).toBeDefined();
+    expect(situacaoTh.closest('th')?.classList.contains('print:hidden')).toBe(true);
 
     expect(screen.getAllByText('Módulo 1: Frontend React').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Módulo 2: Backend Node.js').length).toBeGreaterThan(0);

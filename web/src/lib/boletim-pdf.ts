@@ -35,126 +35,130 @@ function safeFilename(value: string): string {
  */
 export function buildBoletimPdf(data: UnifiedBoletimData): jsPDF {
   const doc = new jsPDF({
-    orientation: 'portrait',
+    orientation: 'landscape',
     unit: 'mm',
     format: 'a4',
   });
 
-  const pageWidth = 210;
-  const pageHeight = 297;
-  const marginX = 12;
-  const contentWidth = pageWidth - marginX * 2; // 186mm
+  const pageWidth = 297;
+  const pageHeight = 210;
+  const marginX = 10;
+  const contentWidth = pageWidth - marginX * 2; // 277mm
 
-  let currentY = 12;
+  let currentY = 10;
 
   // ==========================================
   // 1. INSTITUTIONAL HEADER
   // ==========================================
   doc.setFillColor(15, 23, 42); // slate-900
-  doc.rect(marginX, currentY, contentWidth, 24, 'F');
+  doc.rect(marginX, currentY, contentWidth, 20, 'F');
 
   // Sky blue accent line at top
   doc.setFillColor(2, 132, 199); // sky-600
-  doc.rect(marginX, currentY, contentWidth, 1.5, 'F');
+  doc.rect(marginX, currentY, contentWidth, 1.2, 'F');
 
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.text('INSTITUTO TRANSFORMA BRASIL', marginX + 6, currentY + 8);
+  doc.setFontSize(12);
+  doc.text('INSTITUTO TRANSFORMA BRASIL', marginX + 6, currentY + 7);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
+  doc.setFontSize(7);
   doc.setTextColor(203, 213, 225); // slate-300
-  doc.text('SISTEMA DE CONTROLE DE FREQUÊNCIA E DESEMPENHO ACADÊMICO', marginX + 6, currentY + 13);
+  doc.text('SISTEMA DE CONTROLE DE FREQUÊNCIA E DESEMPENHO ACADÊMICO', marginX + 6, currentY + 11.5);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
+  doc.setFontSize(9);
   doc.setTextColor(255, 255, 255);
-  doc.text('BOLETIM ESCOLAR INDIVIDUAL', marginX + 6, currentY + 19.5);
+  doc.text('BOLETIM ESCOLAR INDIVIDUAL', marginX + 6, currentY + 16.5);
 
   const emissionStr = `Emissão: ${formatEmissionDate(data.issueDate)}`;
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
+  doc.setFontSize(7);
   doc.setTextColor(203, 213, 225);
-  doc.text(emissionStr, marginX + contentWidth - 6, currentY + 19.5, { align: 'right' });
+  doc.text(emissionStr, marginX + contentWidth - 6, currentY + 16.5, { align: 'right' });
 
-  currentY += 28;
+  currentY += 23;
 
   // ==========================================
   // 2. STUDENT METADATA BOX
   // ==========================================
-  const infoBoxHeight = 22;
+  const infoBoxHeight = 12;
   doc.setFillColor(248, 250, 252); // slate-50
   doc.setDrawColor(226, 232, 240); // slate-200
   doc.setLineWidth(0.3);
   doc.roundedRect(marginX, currentY, contentWidth, infoBoxHeight, 2, 2, 'FD');
 
+  const classStr = data.student.classNames.length ? data.student.classNames.join(', ') : '—';
+
   doc.setTextColor(71, 85, 105);
   doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.text('Aluno:', marginX + 4, currentY + 7.5);
+  doc.setTextColor(15, 23, 42);
+  doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
-  doc.text('Aluno:', marginX + 5, currentY + 6.5);
+  doc.text(data.student.name, marginX + 16, currentY + 7.5);
+
+  const col2X = marginX + 90;
+  doc.setTextColor(71, 85, 105);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.text('Matrícula:', col2X, currentY + 7.5);
+  doc.setTextColor(15, 23, 42);
+  doc.setFont('helvetica', 'normal');
+  doc.text(data.student.registrationNumber || '—', col2X + 16, currentY + 7.5);
+
+  const col3X = marginX + 150;
+  doc.setTextColor(71, 85, 105);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.text('Curso:', col3X, currentY + 7.5);
+  doc.setTextColor(15, 23, 42);
+  doc.setFont('helvetica', 'normal');
+  const courseLines = doc.splitTextToSize(data.student.courseName || '—', 55);
+  doc.text(courseLines[0] ?? (data.student.courseName || '—'), col3X + 12, currentY + 7.5);
+
+  const col4X = marginX + 220;
+  doc.setTextColor(71, 85, 105);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.text('Turma(s):', col4X, currentY + 7.5);
+  doc.setTextColor(15, 23, 42);
+  doc.setFont('helvetica', 'normal');
+  const classLines = doc.splitTextToSize(classStr, 40);
+  doc.text(classLines[0] ?? classStr, col4X + 15, currentY + 7.5);
+
+  currentY += infoBoxHeight + 5;
+
+  // ==========================================
+  // 3. CONSOLIDATED BOLETIM TABLE (WITHOUT SITUAÇÃO)
+  // ==========================================
   doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
-  const studentNameLines = doc.splitTextToSize(data.student.name, 90);
-  doc.text(studentNameLines[0] ?? data.student.name, marginX + 20, currentY + 6.5);
-
-  doc.setTextColor(71, 85, 105);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.text('Curso:', marginX + 5, currentY + 15.5);
-  doc.setTextColor(15, 23, 42);
-  doc.setFont('helvetica', 'normal');
-  const courseLines = doc.splitTextToSize(data.student.courseName || '—', 90);
-  doc.text(courseLines[0] ?? (data.student.courseName || '—'), marginX + 20, currentY + 15.5);
-
-  // Right column: Matrícula and Turma
-  const rightColX = marginX + 115;
-  doc.setTextColor(71, 85, 105);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.text('Matrícula:', rightColX, currentY + 6.5);
-  doc.setTextColor(15, 23, 42);
-  doc.setFont('helvetica', 'normal');
-  doc.text(data.student.registrationNumber || '—', rightColX + 20, currentY + 6.5);
-
-  doc.setTextColor(71, 85, 105);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.text('Turma(s):', rightColX, currentY + 15.5);
-  doc.setTextColor(15, 23, 42);
-  doc.setFont('helvetica', 'normal');
-  const classStr = data.student.classNames.length ? data.student.classNames.join(', ') : '—';
-  const classLines = doc.splitTextToSize(classStr, 48);
-  doc.text(classLines[0] ?? classStr, rightColX + 20, currentY + 15.5);
-
-  currentY += infoBoxHeight + 6;
-
-  // ==========================================
-  // 3. CONSOLIDATED BOLETIM TABLE (MATCHING SCREENSHOT)
-  // ==========================================
-  doc.setTextColor(15, 23, 42);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
   doc.text(`Boletim Consolidado — ${classStr}`, marginX, currentY);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
+  doc.setFontSize(6.5);
   doc.setTextColor(100, 116, 139);
-  doc.text('Médias por tabela/etapa, média geral acumulada, frequência e situação acadêmica.', marginX, currentY + 4);
+  doc.text('Visão geral de desempenho com médias calculadas conforme a configuração de cada etapa (Média Aritmética ou Maior Nota).', marginX, currentY + 3.5);
 
-  currentY += 7;
+  currentY += 6;
 
-  // Compute column widths
-  // Aluno: 45mm, Média Geral: 22mm, Freq: 20mm, Situação: 26mm
+  // Compute column widths without Situação
+  // Aluno: 65mm, Média Geral: 24mm, Freq: 24mm
   // Remaining space divided among modules
-  const fixedColsWidth = 45 + 22 + 20 + 26; // 113mm
-  const remainingWidth = contentWidth - fixedColsWidth; // 73mm
+  const studentColWidth = 65;
+  const gpaColWidth = 24;
+  const freqColWidth = 24;
+  const fixedColsWidth = studentColWidth + gpaColWidth + freqColWidth; // 113mm
+  const remainingWidth = contentWidth - fixedColsWidth; // 164mm
   const modCount = Math.max(1, data.modules.length);
   const modColWidth = remainingWidth / modCount;
 
   // Table header background (light slate-50)
-  const headerHeight = 11;
+  const headerHeight = 10;
   doc.setFillColor(248, 250, 252);
   doc.rect(marginX, currentY, contentWidth, headerHeight, 'F');
   doc.setDrawColor(226, 232, 240);
@@ -167,8 +171,8 @@ export function buildBoletimPdf(data: UnifiedBoletimData): jsPDF {
   doc.setTextColor(71, 85, 105);
 
   let curX = marginX;
-  doc.text('Aluno', curX + 3, currentY + 7);
-  curX += 45;
+  doc.text('Aluno', curX + 3, currentY + 6.5);
+  curX += studentColWidth;
 
   for (const mod of data.modules) {
     doc.line(curX, currentY, curX, currentY + headerHeight);
@@ -176,11 +180,11 @@ export function buildBoletimPdf(data: UnifiedBoletimData): jsPDF {
     doc.setFontSize(7);
     doc.setTextColor(30, 41, 59);
     const modTitle = doc.splitTextToSize(mod.moduleName, modColWidth - 2);
-    doc.text(modTitle[0] ?? mod.moduleName, curX + modColWidth / 2, currentY + 4.5, { align: 'center' });
+    doc.text(modTitle[0] ?? mod.moduleName, curX + modColWidth / 2, currentY + 4, { align: 'center' });
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6);
+    doc.setFontSize(5.5);
     doc.setTextColor(148, 163, 184);
-    doc.text(mod.calculationModeLabel || 'Média Simples', curX + modColWidth / 2, currentY + 8.5, { align: 'center' });
+    doc.text(mod.calculationModeLabel || 'Média Simples', curX + modColWidth / 2, currentY + 8, { align: 'center' });
     curX += modColWidth;
   }
 
@@ -188,18 +192,16 @@ export function buildBoletimPdf(data: UnifiedBoletimData): jsPDF {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7);
   doc.setTextColor(71, 85, 105);
-  doc.text('Média Geral', curX + 11, currentY + 7, { align: 'center' });
-  curX += 22;
+  doc.text('Média Geral', curX + gpaColWidth / 2, currentY + 6.5, { align: 'center' });
+  curX += gpaColWidth;
 
-  doc.text('Frequência', curX + 10, currentY + 7, { align: 'center' });
-  curX += 20;
-
-  doc.text('Situação', curX + 13, currentY + 7, { align: 'center' });
+  doc.text('Frequência', curX + freqColWidth / 2, currentY + 6.5, { align: 'center' });
+  curX += freqColWidth;
 
   currentY += headerHeight;
 
   // Student row
-  const rowHeight = 12;
+  const rowHeight = 10;
   doc.setFillColor(255, 255, 255);
   doc.rect(marginX, currentY, contentWidth, rowHeight, 'F');
   doc.line(marginX, currentY + rowHeight, marginX + contentWidth, currentY + rowHeight);
@@ -208,9 +210,9 @@ export function buildBoletimPdf(data: UnifiedBoletimData): jsPDF {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(15, 23, 42);
-  const nameLines = doc.splitTextToSize(data.student.name, 42);
-  doc.text(nameLines[0] ?? data.student.name, curX + 3, currentY + 7);
-  curX += 45;
+  const nameLines = doc.splitTextToSize(data.student.name, studentColWidth - 4);
+  doc.text(nameLines[0] ?? data.student.name, curX + 3, currentY + 6);
+  curX += studentColWidth;
 
   for (const mod of data.modules) {
     doc.setDrawColor(241, 245, 249);
@@ -220,13 +222,13 @@ export function buildBoletimPdf(data: UnifiedBoletimData): jsPDF {
     doc.setFontSize(7.5);
     doc.setTextColor(30, 41, 59);
     const gradeStr = formatGrade(mod.finalGrade);
-    doc.text(gradeStr, curX + modColWidth / 2, currentY + 5, { align: 'center' });
+    doc.text(gradeStr, curX + modColWidth / 2, currentY + 4.5, { align: 'center' });
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6);
+    doc.setFontSize(5.5);
     doc.setTextColor(148, 163, 184);
     const evalCount = mod.grades.filter((g) => g.score !== null).length;
-    doc.text(`${evalCount}/${mod.grades.length} aval.`, curX + modColWidth / 2, currentY + 9, { align: 'center' });
+    doc.text(`${evalCount}/${mod.grades.length} aval.`, curX + modColWidth / 2, currentY + 8.5, { align: 'center' });
 
     curX += modColWidth;
   }
@@ -236,29 +238,15 @@ export function buildBoletimPdf(data: UnifiedBoletimData): jsPDF {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(15, 23, 42);
-  doc.text(formatGrade(data.overallGpa), curX + 11, currentY + 7, { align: 'center' });
-  curX += 22;
+  doc.text(formatGrade(data.overallGpa), curX + gpaColWidth / 2, currentY + 6.5, { align: 'center' });
+  curX += gpaColWidth;
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(51, 65, 85);
-  doc.text(`${data.overallAttendanceRate.toFixed(1).replace('.', ',')}%`, curX + 10, currentY + 7, { align: 'center' });
-  curX += 20;
+  doc.text(`${data.overallAttendanceRate.toFixed(1).replace('.', ',')}%`, curX + freqColWidth / 2, currentY + 6.5, { align: 'center' });
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.5);
-  if (data.overallAcademicStatus === 'Aprovado') {
-    doc.setTextColor(5, 150, 105);
-  } else if (data.overallAcademicStatus === 'Em Andamento') {
-    doc.setTextColor(2, 132, 199);
-  } else if (data.overallAcademicStatus === 'Sem Notas') {
-    doc.setTextColor(100, 116, 139);
-  } else {
-    doc.setTextColor(225, 29, 72);
-  }
-  doc.text(data.overallAcademicStatus, curX + 13, currentY + 7, { align: 'center' });
-
-  currentY += rowHeight + 8;
+  currentY += rowHeight + 6;
 
   // ==========================================
   // 4. DETAILED EVALUATIONS BREAKDOWN
@@ -387,15 +375,14 @@ export function buildBoletimPdf(data: UnifiedBoletimData): jsPDF {
  * matching the exact table in the screenshot.
  */
 export function buildClassBoletimPdf(data: ClassBoletimData): jsPDF {
-  const isLandscape = data.tables.length > 3;
   const doc = new jsPDF({
-    orientation: isLandscape ? 'landscape' : 'portrait',
+    orientation: 'landscape',
     unit: 'mm',
     format: 'a4',
   });
 
-  const pageWidth = isLandscape ? 297 : 210;
-  const pageHeight = isLandscape ? 210 : 297;
+  const pageWidth = 297;
+  const pageHeight = 210;
   const marginX = 10;
   const contentWidth = pageWidth - marginX * 2;
 
@@ -450,12 +437,11 @@ export function buildClassBoletimPdf(data: ClassBoletimData): jsPDF {
 
   currentY += metaHeight + 4;
 
-  // Calculate table column widths
-  const studentColWidth = isLandscape ? 60 : 45;
-  const gpaColWidth = 20;
-  const freqColWidth = 20;
-  const statusColWidth = 26;
-  const fixedWidth = studentColWidth + gpaColWidth + freqColWidth + statusColWidth;
+  // Calculate table column widths (without Situação)
+  const studentColWidth = 65;
+  const gpaColWidth = 24;
+  const freqColWidth = 24;
+  const fixedWidth = studentColWidth + gpaColWidth + freqColWidth;
   const tableColWidth = (contentWidth - fixedWidth) / Math.max(1, data.tables.length);
 
   // Table Header
@@ -498,8 +484,6 @@ export function buildClassBoletimPdf(data: ClassBoletimData): jsPDF {
 
   doc.text('Frequência', curX + freqColWidth / 2, currentY + 7, { align: 'center' });
   curX += freqColWidth;
-
-  doc.text('Situação', curX + statusColWidth / 2, currentY + 7, { align: 'center' });
 
   currentY += headerHeight;
 
@@ -554,17 +538,6 @@ export function buildClassBoletimPdf(data: ClassBoletimData): jsPDF {
     doc.setTextColor(51, 65, 85);
     doc.text(student.attendanceRateLabel, curX + freqColWidth / 2, currentY + 6, { align: 'center' });
     curX += freqColWidth;
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.5);
-    if (student.overallStatus === 'aprovado') {
-      doc.setTextColor(5, 150, 105);
-    } else if (student.overallStatus === 'em_andamento') {
-      doc.setTextColor(2, 132, 199);
-    } else {
-      doc.setTextColor(225, 29, 72);
-    }
-    doc.text(student.overallStatusLabel, curX + statusColWidth / 2, currentY + 6, { align: 'center' });
 
     currentY += rowHeight;
   }

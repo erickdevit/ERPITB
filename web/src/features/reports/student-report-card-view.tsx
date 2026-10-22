@@ -112,7 +112,7 @@ export function StudentReportCardView({
   const classTitle = data.student.classNames.length > 0 ? data.student.classNames.join(', ') : 'Turma';
 
   return (
-    <div className="flex flex-col gap-4 text-left w-full max-w-5xl mx-auto">
+    <div className="flex flex-col gap-4 text-left w-full max-w-5xl mx-auto print:max-w-none print:w-full print:mx-0">
       {/* ACTION BAR (Hidden in print) */}
       <div
         data-testid="print-hidden"
@@ -156,7 +156,7 @@ export function StudentReportCardView({
       </div>
 
       {/* PRINTABLE BOLETIM SHEET */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-2xs print:border-none print:p-0 print:shadow-none flex flex-col gap-6">
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-2xs print:border-none print:p-0 print:shadow-none print:w-full flex flex-col gap-6">
         {/* 1. INSTITUTIONAL ITB HEADER */}
         <div className="border-b border-slate-200 pb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
@@ -225,7 +225,7 @@ export function StudentReportCardView({
         </div>
 
         {/* 3. CONSOLIDATED CLASS-STYLE TABLE (MATCHING SCREENSHOT) */}
-        <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xs overflow-hidden print:border print:border-slate-300 print:shadow-none">
+        <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xs overflow-hidden print:border print:border-slate-300 print:shadow-none print:w-full">
           <div className="px-4 sm:px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
             <div>
               <h3 className="text-sm font-bold text-slate-900">
@@ -237,8 +237,8 @@ export function StudentReportCardView({
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse" aria-label={`Boletim Consolidado — ${classTitle}`}>
+          <div className="overflow-x-auto print:overflow-visible">
+            <table className="w-full text-left border-collapse print:w-full" aria-label={`Boletim Consolidado — ${classTitle}`}>
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600">
                   <th className="py-3 px-4 whitespace-nowrap">Aluno</th>
@@ -254,7 +254,7 @@ export function StudentReportCardView({
                     Média Geral
                   </th>
                   <th className="py-3 px-3 text-center whitespace-nowrap">Frequência</th>
-                  <th className="py-3 px-4 text-center whitespace-nowrap">Situação</th>
+                  <th className="py-3 px-4 text-center whitespace-nowrap print:hidden">Situação</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs">
@@ -282,7 +282,7 @@ export function StudentReportCardView({
                   <td className="py-2.5 px-3 text-center font-medium text-slate-700 whitespace-nowrap">
                     {data.overallAttendanceRate.toFixed(1).replace('.', ',')}%
                   </td>
-                  <td className="py-2.5 px-4 text-center whitespace-nowrap">
+                  <td className="py-2.5 px-4 text-center whitespace-nowrap print:hidden">
                     <span
                       data-testid="status-badge"
                       className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${statusBadgeStyle(
@@ -301,12 +301,12 @@ export function StudentReportCardView({
 
         {/* 4. DETAILED EVALUATIONS BREAKDOWN BY TABLE/MODULE */}
         {data.modules.length > 0 && (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3 print:w-full">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
               Detalhamento das Avaliações por Etapa
             </h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-4">
               {data.modules.map((m) => (
                 <div
                   key={m.moduleId}
@@ -318,7 +318,9 @@ export function StudentReportCardView({
                       <div className="text-[10px] text-slate-500">{m.calculationModeLabel || 'Média Simples'}</div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <AcademicStatusBadge status={m.academicStatus} />
+                      <span className="print:hidden">
+                        <AcademicStatusBadge status={m.academicStatus} />
+                      </span>
                       <div className="text-right">
                         <div className="text-sm font-extrabold text-slate-900">{formatGrade(m.finalGrade)}</div>
                         <div className="text-[10px] text-slate-400">média da etapa</div>
@@ -353,7 +355,7 @@ export function StudentReportCardView({
         )}
 
         {/* 5. SUMMARY FOOTER & CRITERIA */}
-        <div className="bg-slate-50/60 border border-slate-200/90 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:bg-white print:border-slate-300">
+        <div className="bg-slate-50/60 border border-slate-200/90 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:bg-white print:border-slate-300 print:w-full">
           <div className="space-y-1">
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
               Critérios de Avaliação e Legenda
