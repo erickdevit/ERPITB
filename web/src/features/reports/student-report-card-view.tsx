@@ -173,7 +173,7 @@ export function StudentReportCardView({
                 BOLETIM ESCOLAR INDIVIDUAL
               </h1>
               <p className="text-xs text-slate-500 font-medium">
-                Sistema de Controle de Frequência e Desempenho Acadêmico
+                ERPITB — Relatório Acadêmico
               </p>
             </div>
           </div>

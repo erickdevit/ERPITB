@@ -24,13 +24,13 @@ describe('PWA API prefix', () => {
 
   it('reflects request Origin header in CORS response when ALLOWED_ORIGIN is wildcard or specific', async () => {
     const reqWithOrigin = new Request('https://example.test/health', {
-      headers: { origin: 'https://freq.itbcursos.com' },
+      headers: { origin: 'https://erp.itbcursos.com' },
     });
     const res = await worker.fetch(reqWithOrigin, env);
-    expect(res.headers.get('access-control-allow-origin')).toBe('https://freq.itbcursos.com');
+    expect(res.headers.get('access-control-allow-origin')).toBe('https://erp.itbcursos.com');
 
-    const specificEnv = { ALLOWED_ORIGIN: 'https://freq.itbcursos.com' } as never;
+    const specificEnv = { ALLOWED_ORIGIN: 'https://erp.itbcursos.com' } as never;
     const resSpecific = await worker.fetch(reqWithOrigin, specificEnv);
-    expect(resSpecific.headers.get('access-control-allow-origin')).toBe('https://freq.itbcursos.com');
+    expect(resSpecific.headers.get('access-control-allow-origin')).toBe('https://erp.itbcursos.com');
   });
 });

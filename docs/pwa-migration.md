@@ -1,6 +1,6 @@
 # Arquitetura PWA 100% Online
 
-O cliente oficial da aplicação é `web/`, um Progressive Web App (PWA) em React 19 / TypeScript integrado e publicado diretamente pelo Cloudflare Worker em `https://freq.itbcursos.com`. O PWA é totalmente instalável via Web App Manifest e Service Worker, operando de modo 100% online.
+O ERPITB é entregue pelo cliente `web/`, um Progressive Web App (PWA) em React 19 / TypeScript integrado e publicado diretamente pelo Cloudflare Worker em `https://erp.itbcursos.com`. O PWA é totalmente instalável via Web App Manifest e Service Worker, operando de modo 100% online.
 
 ## Operação 100% Online e Persistência Direta
 

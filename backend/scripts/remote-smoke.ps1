@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-  [string]$ApiBase = 'https://frequencia-itb-api.wx-f24.workers.dev',
+  [string]$ApiBase = 'https://erp.itbcursos.com',
   [Parameter(Mandatory = $true)]
   [string]$AdminEmail,
   [Parameter(Mandatory = $true)]

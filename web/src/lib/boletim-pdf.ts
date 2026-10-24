@@ -65,7 +65,7 @@ export function buildBoletimPdf(data: UnifiedBoletimData): jsPDF {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(203, 213, 225); // slate-300
-  doc.text('SISTEMA DE CONTROLE DE FREQUÊNCIA E DESEMPENHO ACADÊMICO', marginX + 6, currentY + 11.5);
+  doc.text('ERPITB — RELATÓRIO ACADÊMICO', marginX + 6, currentY + 11.5);
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
@@ -403,7 +403,7 @@ export function buildClassBoletimPdf(data: ClassBoletimData): jsPDF {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(203, 213, 225);
-  doc.text('SISTEMA DE CONTROLE DE FREQUÊNCIA E DESEMPENHO ACADÊMICO', marginX + 5, currentY + 11.5);
+  doc.text('ERPITB — RELATÓRIO ACADÊMICO', marginX + 5, currentY + 11.5);
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
@@ -548,7 +548,7 @@ export function buildClassBoletimPdf(data: ClassBoletimData): jsPDF {
   doc.setFontSize(6);
   doc.setTextColor(148, 163, 184);
   doc.text(
-    'Critérios: Frequência mínima de 75,0% e média mínima 6,0. Documento gerado eletronicamente pelo Sistema Frequência ITB.',
+    'Critérios: Frequência mínima de 75,0% e média mínima 6,0. Documento gerado eletronicamente pelo Sistema ERPITB.',
     marginX,
     sigY
   );

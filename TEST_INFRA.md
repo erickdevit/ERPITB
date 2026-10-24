@@ -1,14 +1,14 @@
 # TEST_INFRA.md — Dual-Track Test Architecture & 4-Tier Test Methodology
 
-**Project**: Frequência ITB — Sistema de Controle de Frequência & Boletim Escolar Unificado  
-**Version**: 1.0.0  
-**Scope**: End-to-End (E2E), Integration, and Component Verification Architecture  
+**Project**: ERPITB — ERP institucional (frequência e boletim escolar)
+**Version**: 1.0.0
+**Scope**: End-to-End (E2E), Integration, and Component Verification Architecture
 
 ---
 
 ## 1. Dual-Track Test Architecture
 
-The test architecture for Frequência ITB employs a strict **Dual-Track** strategy ensuring comprehensive verification across both implementation and specification levels:
+The test architecture for ERPITB employs a strict **Dual-Track** strategy ensuring comprehensive verification across both implementation and specification levels:
 
 ```
 +----------------------------------------------------------------------------------------------------+

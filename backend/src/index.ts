@@ -42,7 +42,7 @@ export default {
         url.pathname = url.pathname.slice(0, -1);
       }
       if (url.pathname === '/health' && request.method === 'GET') {
-        return withHeaders(json({ status: 'ok', service: 'frequencia-itb-api' }), commonHeaders, requestId);
+        return withHeaders(json({ status: 'ok', service: 'ERPITB API' }), commonHeaders, requestId);
       }
       if (url.pathname === '/auth/bootstrap' && request.method === 'POST') {
         return withHeaders(json(await bootstrap(request, env), 201), commonHeaders, requestId);

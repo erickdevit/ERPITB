@@ -6,7 +6,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const useProductionApi = mode === 'production-api';
-  const targetApi = env.VITE_API_PROXY_TARGET ?? (useProductionApi ? 'https://freq.itbcursos.com' : 'http://127.0.0.1:8787');
+  const targetApi = env.VITE_API_PROXY_TARGET ?? (useProductionApi ? 'https://erp.itbcursos.com' : 'http://127.0.0.1:8787');
 
   return {
     plugins: [
@@ -16,9 +16,9 @@ export default defineConfig(({ mode }) => {
         registerType: 'autoUpdate',
         includeAssets: ['favicon.svg'],
         manifest: {
-          name: 'Frequência ITB',
-          short_name: 'Frequência ITB',
-          description: 'Controle de frequência do Instituto Transforma Brasil.',
+          name: 'ERPITB',
+          short_name: 'ERPITB',
+          description: 'Plataforma de gestão integrada do Instituto Transforma Brasil.',
           theme_color: '#102A43',
           background_color: '#F4F7FA',
           display: 'standalone',

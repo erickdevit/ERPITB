@@ -105,7 +105,7 @@ function context(input: ReportInput, filters: ReportFilters, extra: string[] = [
     `Período: ${dateLabel(filters.from)} a ${dateLabel(filters.to)}`,
     `Professor: ${professor ? text(professor, 'name') : 'Todos os professores'}`,
     ...extra,
-    'Fonte: base local sincronizada do Frequência ITB',
+    'Fonte: base local sincronizada do ERPITB',
   ];
 }
 

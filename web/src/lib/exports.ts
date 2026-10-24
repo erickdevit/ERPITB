@@ -22,7 +22,7 @@ export function exportExcelCsv(filename: string, headers: string[], rows: Export
 export async function buildExcelXlsx(summary: Array<[string, ExportValue]>, headers: string[], rows: ExportValue[][], metadata: Array<[string, ExportValue]>): Promise<Uint8Array> {
   const { Workbook } = await import('exceljs');
   const workbook = new Workbook();
-  workbook.creator = 'Frequência ITB'; workbook.created = new Date();
+  workbook.creator = 'ERPITB'; workbook.created = new Date();
   const addSheet = (name: string, values: ExportValue[][]) => {
     const sheet = workbook.addWorksheet(name, { views: [{ state: 'frozen', ySplit: 1 }] });
     values.forEach((row) => sheet.addRow(row.map(spreadsheetSafe)));

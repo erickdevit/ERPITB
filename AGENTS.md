@@ -1,6 +1,6 @@
 # AGENTS.md - Guide for AI Coding Agents
 
-Welcome to **Frequência ITB**, an offline-first attendance control system developed for Instituto Transforma Brasil. This document serves as the authoritative guide for AI coding agents (Antigravity, Claude, Copilot, etc.) working on this codebase.
+Welcome to **ERPITB**, an ERP platform developed for Instituto Transforma Brasil. This document serves as the authoritative guide for AI coding agents (Antigravity, Claude, Copilot, etc.) working on this codebase.
 
 ---
 
@@ -82,7 +82,7 @@ npm test
 npm run dev
 
 # Execute D1 schema locally
-npx wrangler d1 execute frequencia-itb --local --file=src/schema.sql
+npx wrangler d1 execute erpitb --local --file=src/schema.sql
 
 # Deploy Worker and Web Assets
 npm run deploy

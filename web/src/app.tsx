@@ -28,6 +28,7 @@ import {
   Award,
 } from 'lucide-react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { getMigratedLocalStorageItem } from './lib/storage';
 import { ApplicationProvider, useApp, useBoot } from './app-context';
 import { ErrorBoundary } from './components';
 import { Login } from './login';
@@ -236,7 +237,7 @@ function Shell() {
   const location = useLocation();
   const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('frequencia-itb-menu-collapsed') === 'true');
+  const [collapsed, setCollapsed] = useState(() => getMigratedLocalStorageItem('erpitb-menu-collapsed', 'frequencia-itb-menu-collapsed') === 'true');
   const [replacementsOpen, setReplacementsOpen] = useState(location.pathname.startsWith('/reposicoes'));
   const [biOpen, setBiOpen] = useState(location.pathname.startsWith('/bi'));
 
@@ -249,7 +250,7 @@ function Shell() {
     ? 'Detalhes da turma'
     : location.pathname.match(/^\/alunos\//)
     ? 'Detalhes do aluno'
-    : exact?.label ?? section?.label ?? 'Frequência ITB';
+    : exact?.label ?? section?.label ?? 'ERPITB';
 
   const isSelected = (item: Destination) =>
     location.pathname === item.path ||
@@ -262,7 +263,7 @@ function Shell() {
 
   const toggleCollapsed = () =>
     setCollapsed((value) => {
-      localStorage.setItem('frequencia-itb-menu-collapsed', String(!value));
+      localStorage.setItem('erpitb-menu-collapsed', String(!value));
       return !value;
     });
 
@@ -372,7 +373,7 @@ function Shell() {
                 ITB
               </div>
               <span className="font-bold text-sm tracking-tight text-white truncate">
-                Frequência ITB
+                ERPITB
               </span>
             </div>
           )}
@@ -403,7 +404,7 @@ function Shell() {
             <div className="p-4 border-b border-white/10 flex items-center justify-between">
               <div>
                 <h2 className="font-extrabold text-sm tracking-tight text-white">
-                  Frequência ITB
+                  ERPITB
                 </h2>
                 <p className="text-[11px] text-slate-400 mt-0.5">
                   {session.name} • {roleLabel[session.role]}

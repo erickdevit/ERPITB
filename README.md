@@ -1,11 +1,11 @@
-# Frequência ITB
+# ERPITB
 
-Sistema de controle de frequência do Instituto Transforma Brasil, composto por aplicação Web PWA (React 19 + TypeScript) 100% online e API serverless em Cloudflare Workers + D1.
+ERP do Instituto Transforma Brasil, composto por aplicação Web PWA (React 19 + TypeScript) 100% online e API serverless em Cloudflare Workers + D1. A plataforma reúne módulos operacionais, acadêmicos, administrativos e analíticos, incluindo frequência e boletim escolar.
 
-## Produção
+## Ambiente atual
 
-- **Aplicação & API**: `https://freq.itbcursos.com`
-- **Banco D1**: `frequencia-itb` (`be668f55-5a2c-40a2-9cdc-25248be7e65e`)
+- **Aplicação & API**: `https://erp.itbcursos.com`
+- **Banco D1 vinculado à API** (UUID): `be668f55-5a2c-40a2-9cdc-25248be7e65e`
 - **Autenticação**: Web Crypto PBKDF2-HMAC-SHA256 (100.000 iterações, nativo V8 < 1ms) com fallback legado para Argon2id
 
 ## Estrutura do Repositório
@@ -41,7 +41,7 @@ npm run dev        # Inicia o servidor local do Cloudflare Worker (Wrangler)
 Para aplicar o schema no banco D1 local:
 
 ```bash
-npx wrangler d1 execute frequencia-itb --local --file=src/schema.sql
+npx wrangler d1 execute erpitb --local --file=src/schema.sql
 ```
 
 ### 3. Build & Deploy Completo

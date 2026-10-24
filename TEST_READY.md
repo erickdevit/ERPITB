@@ -1,9 +1,9 @@
 # TEST_READY.md — E2E Test Suite Readiness Report
 
-**Project**: Frequência ITB — Sistema de Controle de Frequência & Boletim Escolar Unificado  
-**Date**: 2026-10-22  
-**Status**: 100% READY & PASSING  
-**Author**: E2E Test Suite Creator (`test_writer_e2e`)  
+**Project**: ERPITB — ERP institucional (frequência e boletim escolar)
+**Date**: 2026-10-22
+**Status**: 100% READY & PASSING
+**Author**: E2E Test Suite Creator (`test_writer_e2e`)
 
 ---
 

@@ -51,7 +51,7 @@ export function Login({
         <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xl shadow-slate-200/40 p-6 sm:p-8">
           {/* Only Title */}
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 text-center mb-6">
-            Frequência ITB
+            ERPITB
           </h1>
 
           <form onSubmit={submit} className="flex flex-col gap-4">

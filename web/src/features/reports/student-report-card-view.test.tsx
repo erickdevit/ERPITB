@@ -126,7 +126,7 @@ describe('StudentReportCardView Component', () => {
     expect(screen.getAllByText(/Instituto Transforma Brasil/i).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('BOLETIM ESCOLAR INDIVIDUAL')).toBeDefined();
     expect(
-      screen.getByText('Sistema de Controle de Frequência e Desempenho Acadêmico')
+      screen.getByText('ERPITB — Relatório Acadêmico')
     ).toBeDefined();
     expect(screen.getByText(/Data de Emissão/i)).toBeDefined();
   });

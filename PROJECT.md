@@ -1,6 +1,7 @@
-# Project: Frequência ITB — Analytics & Boletim Escolar Unificado
+# Project: ERPITB — ERP institucional integrado
 
 ## Architecture
+ERP institucional em evolução, com módulos acadêmicos e administrativos; frequência, boletim e BI são capacidades atuais dentro de uma plataforma mais ampla.
 - **Client**: React 19 + TypeScript PWA (`web/`) with Dexie.js (AES-256 encrypted IndexedDB) and Lucide React + Tailwind CSS.
 - **Backend**: Cloudflare Workers + D1 Serverless SQLite (`backend/`) with REST APIs and sync engine.
 - **Data Flow**: Offline-first Dexie caching + 100% online direct sync. Analytics and Boletim calculations run client-side on decrypted Dexie records (`classes`, `courses`, `students`, `enrollments`, `attendance_records`, `grade_tables`, `grade_items`, `student_grades`).

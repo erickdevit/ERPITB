@@ -4,7 +4,7 @@
 
 Data da auditoria: 20/07/2026  
 Versão auditada: `0.2.6+8`
-API: `https://frequencia-itb-api.wx-f24.workers.dev`
+API: `https://erp.itbcursos.com`
 
 Este documento registra as evidências manuais e automatizadas usadas para validar os 12 itens do EPIC. Os dados usados nos testes são fictícios.
 
@@ -51,9 +51,9 @@ Comandos principais:
 cd mobile_desktop
 flutter analyze
 flutter test
-flutter build windows --release --dart-define=API_URL=https://frequencia-itb-api.wx-f24.workers.dev
-flutter build apk --release --dart-define=API_URL=https://frequencia-itb-api.wx-f24.workers.dev
-flutter build apk --debug --dart-define=API_URL=https://frequencia-itb-api.wx-f24.workers.dev
+flutter build windows --release --dart-define=API_URL=https://erp.itbcursos.com
+flutter build apk --release --dart-define=API_URL=https://erp.itbcursos.com
+flutter build apk --debug --dart-define=API_URL=https://erp.itbcursos.com
 
 cd ..\backend
 npm run typecheck
@@ -85,9 +85,9 @@ O login remoto usa Argon2id e pode receber Cloudflare `1102` se o Worker estiver
 
 ## Entregáveis
 
-- `artifacts/FrequenciaITB-Windows-0.2.6+8.zip`
-- `artifacts/FrequenciaITB-Android-0.2.6+8-debug.apk` — instalável para teste
-- `artifacts/FrequenciaITB-Android-0.2.6+8-release-unsigned.apk` — requer assinatura oficial
+- `artifacts/ERPITB-Windows-0.2.6+8.zip`
+- `artifacts/ERPITB-Android-0.2.6+8-debug.apk` — instalável para teste
+- `artifacts/ERPITB-Android-0.2.6+8-release-unsigned.apk` — requer assinatura oficial
 - `artifacts/SHA256SUMS.txt`
 - `artifacts/LEIA-ME-TESTE.txt`
 

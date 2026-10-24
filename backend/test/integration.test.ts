@@ -80,7 +80,7 @@ function createTestEnvironment(): { env: Env; rawDb: DatabaseSync } {
 
   const env: Env = {
     DB: new D1DatabaseImpl(rawDb) as unknown as D1Database,
-    JWT_SECRET: 'frequencia-itb-local-jwt-secret-min-32-chars-key-2026',
+    JWT_SECRET: 'erpitb-local-jwt-secret-min-32-chars-key-2026',
     DATA_ENCRYPTION_KEY: 'MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=',
     BOOTSTRAP_SECRET: 'bootstrap-secret-local-32-bytes-min-key',
     ALLOWED_ORIGIN: '*',
@@ -136,7 +136,7 @@ describe('End-to-End Integration and Real Database Simulation', () => {
     // 1. Health and CORS
     const health = await request(env, '/health');
     expect(health.status).toBe(200);
-    expect(health.data).toEqual({ status: 'ok', service: 'frequencia-itb-api' });
+    expect(health.data).toEqual({ status: 'ok', service: 'ERPITB API' });
 
     const optionsRes = await request(env, '/api/students', { method: 'OPTIONS' });
     expect(optionsRes.status).toBe(204);

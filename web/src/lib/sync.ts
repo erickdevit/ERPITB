@@ -1,5 +1,6 @@
 import { ApiClient, OfflineError } from './api';
 import { LocalStore } from './db';
+import { getDeviceId } from './storage';
 import type { LocalRecord } from '../types';
 import type { SyncOperation } from '../types';
 
@@ -80,7 +81,6 @@ export class Synchronizer {
     } catch (error) { if (error instanceof OfflineError) return { synced: 0, rejected: 0, offline: true }; throw error; }
   }
   private deviceId(): string {
-    const key = 'frequencia-itb-device-id'; const existing = localStorage.getItem(key);
-    if (existing) return existing; const value = `web-${crypto.randomUUID()}`; localStorage.setItem(key, value); return value;
+    return getDeviceId();
   }
 }

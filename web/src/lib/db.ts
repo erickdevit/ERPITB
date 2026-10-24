@@ -1,8 +1,9 @@
-import Dexie, { type EntityTable } from 'dexie';
+import Dexie, { type EntityTable, type Table } from 'dexie';
 import { createAccountKey, decrypt, encrypt, type CipherText, type StoredKey } from './crypto';
 import { planEnrollmentMove } from './enrollment';
 import { classRevocationTargets, type EntitySnapshot } from './revocation';
 import { emailLookupHash, passwordVerifier, verifierMatches } from './offline-auth';
+import { getDeviceId } from './storage';
 import type { Action, Entity, LocalRecord, SyncOperation, UserSession } from '../types';
 
 interface KeyRow { accountId: string; key: StoredKey }
@@ -12,15 +13,17 @@ interface MetaRow { id: string; accountId: string; cursor: number }
 interface VerifierRow extends CipherText { emailHash: string; accountId: string; salt: Uint8Array; verifier: ArrayBuffer; updatedAt: string }
 export interface LocalMutation { entity: Entity; data: LocalRecord; action?: Action }
 
-class FrequenciaDb extends Dexie {
+const LEGACY_DATABASE_NAME = 'frequencia-itb-pwa';
+
+class ErpitbDb extends Dexie {
   keys!: EntityTable<KeyRow, 'accountId'>;
   records!: EntityTable<CipherRow, 'id'>;
   sessions!: EntityTable<CipherRow, 'id'>;
   queue!: EntityTable<QueueRow, 'operationId'>;
   meta!: EntityTable<MetaRow, 'id'>;
   verifiers!: EntityTable<VerifierRow, 'emailHash'>;
-  constructor() {
-    super('frequencia-itb-pwa');
+  constructor(name = 'erpitb-pwa') {
+    super(name);
     this.version(1).stores({
       keys: 'accountId', records: 'id, [accountId+entity], [accountId+entityId]', sessions: 'id, accountId',
       queue: 'operationId, accountId', meta: 'id, accountId',
@@ -32,7 +35,50 @@ class FrequenciaDb extends Dexie {
   }
 }
 
-const database = new FrequenciaDb();
+const database = new ErpitbDb();
+
+async function copyMissingRows(rows: unknown[], target: Table): Promise<void> {
+  const existingKeys = new Set(await target.toCollection().primaryKeys());
+  const primaryKey = target.schema.primKey.keyPath;
+  if (typeof primaryKey !== 'string') throw new Error(`Não foi possível migrar a tabela ${target.name}: chave primária inesperada.`);
+  const missingRows = rows.filter((row) => !existingKeys.has((row as Record<string, unknown>)[primaryKey] as never));
+  if (missingRows.length) await target.bulkPut(missingRows);
+}
+
+async function migrateLegacyDatabase(): Promise<void> {
+  if (!(await Dexie.exists(LEGACY_DATABASE_NAME))) {
+    await database.open();
+    return;
+  }
+
+  const legacyDatabase = new ErpitbDb(LEGACY_DATABASE_NAME);
+  await Promise.all([database.open(), legacyDatabase.open()]);
+  const [keys, records, sessions, queue, meta, verifiers] = await Promise.all([
+    legacyDatabase.keys.toArray(),
+    legacyDatabase.records.toArray(),
+    legacyDatabase.sessions.toArray(),
+    legacyDatabase.queue.toArray(),
+    legacyDatabase.meta.toArray(),
+    legacyDatabase.verifiers.toArray(),
+  ]);
+
+  try {
+    await database.transaction('rw', [database.keys, database.records, database.sessions, database.queue, database.meta, database.verifiers], async () => {
+      await copyMissingRows(keys, database.keys);
+      await copyMissingRows(records, database.records);
+      await copyMissingRows(sessions, database.sessions);
+      await copyMissingRows(queue, database.queue);
+      await copyMissingRows(meta, database.meta);
+      await copyMissingRows(verifiers, database.verifiers);
+    });
+  } finally {
+    legacyDatabase.close();
+  }
+
+  await Dexie.delete(LEGACY_DATABASE_NAME);
+}
+
+await migrateLegacyDatabase();
 const sessionId = (accountId: string) => `session:${accountId}`;
 const recordId = (accountId: string, entity: string, id: string) => `${accountId}:${entity}:${id}`;
 const metaId = (accountId: string) => `meta:${accountId}`;
@@ -207,10 +253,7 @@ export class LocalStore {
 
       // When API is available (live online application), persist directly to the server immediately:
       if (this.api) {
-        const deviceId = typeof localStorage !== 'undefined'
-          ? (localStorage.getItem('frequencia-itb-device-id') || `web-${crypto.randomUUID()}`)
-          : `web-${crypto.randomUUID()}`;
-        if (typeof localStorage !== 'undefined') localStorage.setItem('frequencia-itb-device-id', deviceId);
+        const deviceId = getDeviceId();
 
         const result = await this.api.post<{
           results: Array<{
