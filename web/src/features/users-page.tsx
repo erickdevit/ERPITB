@@ -24,6 +24,7 @@ const active = (record: LocalRecord) => !record.deleted_at && record.active !== 
 const roleOptions: Array<{ value: Role; label: string }> = [
   { value: 'professor', label: 'Professor' },
   { value: 'pedagogico', label: 'Pedagógico' },
+  { value: 'financeiro', label: 'Financeiro' },
   { value: 'admin', label: 'Administrador' },
 ];
 

@@ -184,3 +184,42 @@ cd web && npx tsc -b
 | `boletim-engine.e2e.test.ts` | R2: Boletim Escolar Unificado do Aluno | F6 | Attendance rate %, simple/weighted/sum grades, GPA, 6 academic status branches, boundaries |
 | `boletim-ui-print.e2e.test.ts` | R3: Pontos de Acesso, Impressão e PDF | F7, F8, F9, F10, F11 | `studentBoletim` filters, modal triggers, `@media print` CSS rules, `exportBoletimPdf` contract |
 | `real-world-scenarios.e2e.test.ts` | R1, R2, R3, R4: Integridade de Ponta a Ponta | F12 | 5 End-to-end semester trajectories (Approved, Repr. Freq, Repr. Nota, Em Andamento, Transfer) |
+
+---
+
+## 6. Round 2 (R1 - R5) 4-Tier Test Architecture
+
+Round 2 incorporates an opaque-box, in-memory Node.js 22 SQLite (`DatabaseSync`) + Cloudflare D1 test harness (`web/test/e2e/r2-test-harness.ts`) executing canonical serverless worker handlers against production `schema.sql`.
+
+### Test Suites Structure
+
+```
+web/test/e2e/
+├── r2-test-harness.ts               # In-memory D1 SQLite mock, PBKDF2 WebCrypto, JWT auth & request runner
+├── r2-tier1-features.e2e.test.ts    # Tier 1: 27 happy path feature tests (R1 - R5)
+├── r2-tier2-boundaries.e2e.test.ts  # Tier 2: 28 boundary & corner case tests (R1 - R5)
+├── r2-tier3-interactions.e2e.test.ts# Tier 3: 6 pairwise cross-feature interaction tests
+└── r2-tier4-real-world.e2e.test.ts  # Tier 4: 5 comprehensive real-world end-to-end workflow scenarios
+```
+
+### Round 2 Requirement Traceability Matrix (R1 - R5)
+
+| Tier | File | Target Scope | Test Count | Key Invariants Verified |
+|:---|:---|:---|:---|:---|
+| **Tier 1: Feature Coverage** | `r2-tier1-features.e2e.test.ts` | R1 - R5 Primary Behavior | 27 | • Migration drain persists legacy Dexie items and purges local queue.<br>• Idempotency key engine avoids double-execution.<br>• Concurrency versioning (ETag & If-Match) on mutation routes.<br>• Fee generation with competence month/year and status lifecycle (`aberto`, `parcial`, `paga`, `atrasada`).<br>• Integer cents cash flow calculations & category assignments.<br>• Distinct lesson counting & class session consolidation.<br>• Student enrollment locking (`status: 'trancada'`) preserving historical records.<br>• Server-side BI pre-computation (`/v1/analytics`).<br>• Admin branding custom accent color & print watermark.<br>• W3C WCAG 2.1 AA contrast ratio validation algorithm.<br>• M2M API keys with granular scopes and SHA-256 storage.<br>• Complete OpenAPI 3.0 specification (`/v1/openapi.json`).<br>• Real-time SSE event publishing (`/v1/events`). |
+| **Tier 2: Boundary & Corner Cases** | `r2-tier2-boundaries.e2e.test.ts` | Edge Cases & Limit Handling | 28 | • Stale `If-Match` version returns HTTP 409 `CONCURRENCY_CONFLICT` with `serverVersion`.<br>• Offline client error handling (`ApiClient` throws `OfflineError`).<br>• Empty legacy queue handling (`count: 0`).<br>• Overdue fee due date threshold evaluation (`todayStr`).<br>• Payment rejection on cancelled fees (409) and invalid methods (400).<br>• Non-positive amount rejection (zero and negative cents).<br>• Double reversal prevention (HTTP 409 `ALREADY_REVERSED`).<br>• Invalid competence month/year boundary rejections.<br>• Role `professor` financial contact info denial (HTTP 403).<br>• Multiple calls on same date map to single canonical session.<br>• Zero-session lesson count returns 0 without division by zero.<br>• Inactive / deleted class isolation from BI analytics.<br>• Low contrast rejection (luminance > 0.95 fails WCAG AA).<br>• Revoked and expired API keys return 401 `INVALID_API_KEY`.<br>• Base64 branding image payload size limits.<br>• Rapid double-action submission idempotency protection. |
+| **Tier 3: Cross-Feature Combinations** | `r2-tier3-interactions.e2e.test.ts` | Pairwise Feature Coupling | 6 | • **T3.1**: Tuition payment atomically creates cash inflow & enforces idempotency replay.<br>• **T3.2**: Locked student excluded from active class roster while debt is preserved in ledger and BI.<br>• **T3.3**: Role `financeiro` least privilege isolation (full finance access, 403 on academic mutations).<br>• **T3.4**: Branding update dynamically updates WCAG AA tokens and printable document watermarks.<br>• **T3.5**: M2M API key without `students:pii` redacts CPF/contact while enforcing scope boundaries.<br>• **T3.6**: Manual cash entry reversal creates balancing counter-entry and reconciles closing balance. |
+| **Tier 4: Real-World Scenarios** | `r2-tier4-real-world.e2e.test.ts` | Complete User Journeys | 5 | • **Scenario 1**: Complete Student Financial & Academic Lifecycle (Enrollment -> 6 Fees -> Partial/Full Pay -> 10 Lessons -> Progress).<br>• **Scenario 2**: Mid-Semester Lock preserves historical attendance, excludes from future rosters, and maintains overdue debt.<br>• **Scenario 3**: Legacy IndexedDB queue drain + concurrency conflict recovery (`If-Match: W/"2"` merge).<br>• **Scenario 4**: Cash Flow creation, audit logging, reversal offset, and role least privilege enforcement.<br>• **Scenario 5**: Branding rollout with contrast enforcement + M2M partner integration lifecycle. |
+
+---
+
+## 7. Execution & Verification Commands
+
+```bash
+# Run all Round 2 E2E test suites (66 tests)
+cd web && npx vitest run test/e2e/r2-tier1-features.e2e.test.ts test/e2e/r2-tier2-boundaries.e2e.test.ts test/e2e/r2-tier3-interactions.e2e.test.ts test/e2e/r2-tier4-real-world.e2e.test.ts
+
+# Run the complete web test suite (296 tests total: 230 pre-existing + 66 Round 2 E2E)
+cd web && npm test
+```
+

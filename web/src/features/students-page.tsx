@@ -357,21 +357,21 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/75 text-slate-500 uppercase tracking-wider font-semibold text-[11px]">
-                <th className="py-3 px-4">Matrícula</th>
+                <th className="py-3 px-4 hidden sm:table-cell">Matrícula</th>
                 <th className="py-3 px-4">Nome</th>
                 <th className="py-3 px-4">Turma</th>
-                <th className="py-3 px-4">Nascimento</th>
-                <th className="py-3 px-4">Cadastro</th>
-                <th className="py-3 px-4">Contato</th>
+                <th className="py-3 px-4 hidden md:table-cell">Nascimento</th>
+                <th className="py-3 px-4 hidden lg:table-cell">Cadastro</th>
+                <th className="py-3 px-4 hidden md:table-cell">Contato</th>
                 <th className="py-3 px-4">Situação</th>
-                <th className="py-3 px-4">Taxa</th>
+                <th className="py-3 px-4 hidden sm:table-cell">Taxa</th>
                 <th className="py-3 px-4 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
               {rows.map((row) => (
                 <tr key={row.key} className="hover:bg-slate-50/75 transition-colors">
-                  <td className="py-3 px-4 font-semibold text-slate-500">{row.registrationNumber || '—'}</td>
+                  <td className="py-3 px-4 font-semibold text-slate-500 hidden sm:table-cell">{row.registrationNumber || '—'}</td>
                   <td className="py-3 px-4">
                     <Link
                       to={`/alunos/${row.id}`}
@@ -379,11 +379,16 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
                     >
                       {row.name}
                     </Link>
+                    {row.registrationNumber && (
+                      <span className="block sm:hidden text-[10px] text-slate-400 font-mono">
+                        RA: {row.registrationNumber}
+                      </span>
+                    )}
                   </td>
                   <td className="py-3 px-4 text-slate-600 font-semibold">{row.className}</td>
-                  <td className="py-3 px-4 text-slate-500">{formatDate(row.birthDate) || '—'}</td>
-                  <td className="py-3 px-4 text-slate-500">{formatDate(row.registrationDate) || '—'}</td>
-                  <td className="py-3 px-4 text-slate-500">{row.contact || '—'}</td>
+                  <td className="py-3 px-4 text-slate-500 hidden md:table-cell">{formatDate(row.birthDate) || '—'}</td>
+                  <td className="py-3 px-4 text-slate-500 hidden lg:table-cell">{formatDate(row.registrationDate) || '—'}</td>
+                  <td className="py-3 px-4 text-slate-500 hidden md:table-cell">{row.contact || '—'}</td>
                   <td className="py-3 px-4">
                     <span
                       className={`px-2 py-0.5 text-[10px] font-bold rounded-md border ${
@@ -395,7 +400,7 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
                       {enrollmentStatusLabel(row.enrollmentStatus)}
                     </span>
                   </td>
-                  <td className="py-3 px-4">
+                  <td className="py-3 px-4 hidden sm:table-cell">
                     <RateChip row={row} />
                   </td>
                   <td className="py-3 px-4 text-right">
@@ -406,7 +411,7 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
                         aria-label={`Copiar link público de ${row.name}`}
                         onClick={() => copyPublicLink(row)}
                         title={copiedId === row.id ? 'Link público copiado!' : 'Copiar link público do aluno'}
-                        className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                        className={`p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg transition-colors cursor-pointer ${
                           copiedId === row.id
                             ? 'text-emerald-600 bg-emerald-50'
                             : 'text-slate-400 hover:text-slate-900 hover:bg-slate-100'
@@ -422,7 +427,7 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
                         rel="noopener noreferrer"
                         aria-label={`Abrir portal público de ${row.name}`}
                         title="Abrir portal público em nova aba"
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                        className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
                       </a>
@@ -433,7 +438,7 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
                         aria-label={`Emitir Boletim de ${row.name}`}
                         onClick={() => setSelectedBoletimStudentId(row.id)}
                         title="Emitir Boletim Escolar"
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-colors cursor-pointer"
+                        className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-colors cursor-pointer"
                       >
                         <FileText className="w-3.5 h-3.5" />
                       </button>
@@ -444,7 +449,7 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
                           aria-label={`Editar ${row.name}`}
                           onClick={() => openEdit(row)}
                           title="Editar aluno"
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                          className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
@@ -455,7 +460,7 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
                           aria-label={`Inativar ${row.name}`}
                           onClick={() => inactivateStudent(row)}
                           title="Inativar aluno"
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
+                          className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
                         >
                           <UserX className="w-3.5 h-3.5" />
                         </button>
@@ -466,7 +471,7 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
                           aria-label={`Excluir ${row.name}`}
                           onClick={() => deleteStudent(row)}
                           title="Excluir cadastro"
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                          className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

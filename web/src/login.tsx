@@ -1,21 +1,44 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Eye, EyeOff, Loader2, AlertCircle, Info } from 'lucide-react';
 import { ApiClient, OfflineError } from './lib/api';
 import { LocalStore } from './lib/db';
-import type { UserSession } from './types';
+import { applyBrandDesignTokens } from './lib/design-tokens';
+import type { BrandingSettings, UserSession } from './types';
 
 export function Login({
   onLogin,
   notice,
+  initialBranding,
 }: {
   onLogin: (session: UserSession, store: LocalStore) => void;
   notice?: string;
+  initialBranding?: BrandingSettings;
 }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [branding, setBranding] = useState<BrandingSettings | undefined>(initialBranding);
+
+  useEffect(() => {
+    try {
+      const api = new ApiClient(() => null, async () => {});
+      if (typeof api.getBranding === 'function') {
+        void api
+          .getBranding()
+          .then((b) => {
+            if (b) {
+              setBranding(b);
+              applyBrandDesignTokens(b.accentColor || '#0284c7', b.appName || 'ERPITB');
+            }
+          })
+          .catch(() => {});
+      }
+    } catch {
+      // Ignore in test environments where ApiClient is mocked without getBranding
+    }
+  }, []);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -46,12 +69,24 @@ export function Login({
   }
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4 bg-slate-50">
+    <div
+      className="min-h-screen w-full flex items-center justify-center p-4 bg-slate-50 bg-cover bg-center"
+      style={branding?.loginBgUrl ? { backgroundImage: `url(${branding.loginBgUrl})` } : undefined}
+    >
       <div className="w-full max-w-sm">
         <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xl shadow-slate-200/40 p-6 sm:p-8">
-          {/* Only Title */}
+          {branding?.loginLogoUrl && (
+            <div className="flex justify-center mb-3">
+              <img
+                src={branding.loginLogoUrl}
+                alt={branding.appName || 'ERPITB'}
+                className="max-h-14 w-auto object-contain"
+              />
+            </div>
+          )}
+          {/* Title */}
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 text-center mb-6">
-            ERPITB
+            {branding?.appName || 'ERPITB'}
           </h1>
 
           <form onSubmit={submit} className="flex flex-col gap-4">

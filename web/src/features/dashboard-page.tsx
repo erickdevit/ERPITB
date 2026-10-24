@@ -304,13 +304,13 @@ export function DashboardPage() {
             </div>
           </div>
 
-          <div className="inline-flex p-0.5 bg-slate-100 rounded-lg gap-0.5 border border-slate-200 self-start md:self-auto">
+          <div className="inline-flex flex-wrap p-0.5 bg-slate-100 rounded-lg gap-0.5 border border-slate-200 self-start md:self-auto">
             {([7, 30, 90] as const).map((days) => (
               <button
                 key={days}
                 type="button"
                 onClick={() => applyPreset(days)}
-                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 min-h-[36px] rounded-md text-xs font-semibold transition-all cursor-pointer ${
                   preset === days
                     ? 'bg-slate-950 text-white shadow-xs'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
@@ -322,7 +322,7 @@ export function DashboardPage() {
             <button
               type="button"
               onClick={() => setPreset('custom')}
-              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+              className={`px-3 py-1.5 min-h-[36px] rounded-md text-xs font-semibold transition-all cursor-pointer ${
                 preset === 'custom'
                   ? 'bg-slate-950 text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
@@ -381,7 +381,7 @@ export function DashboardPage() {
         <KpiCard
           label="Presenças"
           value={numberFormatter.format(analytics.present)}
-          detail="Situação P"
+          detail={`Presenças (P): ${numberFormatter.format(analytics.present)}`}
           icon={CheckCircle2}
           colorClass="bg-emerald-50 text-emerald-600"
           loading={loading}
@@ -389,7 +389,7 @@ export function DashboardPage() {
         <KpiCard
           label="Faltas"
           value={numberFormatter.format(analytics.absent)}
-          detail="Situação F"
+          detail={`Faltas (F): ${numberFormatter.format(analytics.absent)}`}
           icon={CalendarX}
           colorClass="bg-rose-50 text-rose-600"
           loading={loading}
@@ -397,7 +397,7 @@ export function DashboardPage() {
         <KpiCard
           label="Atrasos"
           value={numberFormatter.format(analytics.delayed)}
-          detail="Situação A"
+          detail={`Atrasos (A): ${numberFormatter.format(analytics.delayed)}`}
           icon={Clock}
           colorClass="bg-amber-50 text-amber-600"
           loading={loading}
@@ -420,36 +420,21 @@ export function DashboardPage() {
         />
       </div>
 
-      {/* Summary Status Breakdown with Justificativas and Reposições */}
+      {/* Complementary Status Breakdown (Justificativas and Reposições without duplicating KPI cards) */}
       <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-3 sm:p-3.5 flex flex-wrap items-center justify-between gap-2.5 text-left">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-slate-700">Resumo de Marcações</span>
+          <span className="text-xs font-semibold text-slate-700">Situações Complementares</span>
           <span className="text-[11px] text-slate-400 font-medium">
-            ({loading ? '…' : `${numberFormatter.format(analytics.records)} no total`})
+            ({loading ? '…' : `${numberFormatter.format(analytics.records)} marcações no total`})
           </span>
         </div>
         {loading ? (
           <div className="flex flex-wrap items-center gap-1.5 animate-pulse" aria-busy="true" aria-label="Carregando resumo de marcações">
-            <div className="h-6 w-28 bg-slate-200/70 rounded-lg" />
-            <div className="h-6 w-24 bg-slate-200/70 rounded-lg" />
-            <div className="h-6 w-24 bg-slate-200/70 rounded-lg" />
             <div className="h-6 w-32 bg-slate-200/70 rounded-lg" />
             <div className="h-6 w-32 bg-slate-200/70 rounded-lg" />
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-              Presenças (P): {numberFormatter.format(analytics.present)}
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold">
-              <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
-              Faltas (F): {numberFormatter.format(analytics.absent)}
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold">
-              <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-              Atrasos (A): {numberFormatter.format(analytics.delayed)}
-            </span>
             <span
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-50 border border-sky-200 text-sky-800 text-xs font-semibold"
               data-testid="badge-justified"

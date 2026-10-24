@@ -1,20 +1,27 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import { ApiClient, ApiError, OfflineError } from './lib/api';
 import { LocalStore } from './lib/db';
-import { Synchronizer } from './lib/sync';
-import type { UserSession } from './types';
+import { applyBrandDesignTokens } from './lib/design-tokens';
+import { drainLegacyClientStorage } from './lib/migration-drain';
+import { clearEntityMemoryCache } from './lib/use-entity';
+import { useServerEvents } from './lib/use-events';
+import type { BrandingSettings, UserSession } from './types';
 
 interface AppState {
   session: UserSession;
   store: LocalStore;
   api: ApiClient;
+  branding?: BrandingSettings;
+  setBranding?: (branding: BrandingSettings) => void;
   sync: () => Promise<void>;
   syncState: 'idle' | 'syncing' | 'offline' | 'warning' | 'error';
   message?: string;
   refresh: number;
   logout: () => Promise<void>;
 }
+
 const Context = createContext<AppState | null>(null);
+
 export const useApp = () => {
   const value = useContext(Context);
   if (!value) throw new Error('O contexto da aplicação não está disponível.');
@@ -33,6 +40,7 @@ export function ApplicationProvider({
 }>) {
   const [session, setSession] = useState(initialSession);
   const [store] = useState(initialStore);
+  const [branding, setBranding] = useState<BrandingSettings | undefined>(undefined);
   const [syncState, setSyncState] = useState<AppState['syncState']>('idle');
   const [message, setMessage] = useState<string>();
   const [refresh, setRefresh] = useState(0);
@@ -44,38 +52,73 @@ export function ApplicationProvider({
         () => session,
         async (next) => {
           setSession({ ...next, offline: false });
-          await store.saveSession({ ...next, offline: false });
+          if (store && typeof store.saveSession === 'function') {
+            await store.saveSession({ ...next, offline: false });
+          }
         },
       ),
     [session, store],
   );
 
   useEffect(() => {
-    store.setApi(api);
+    if (store && typeof store.setApi === 'function') {
+      store.setApi(api);
+    }
   }, [store, api]);
+
+  // Apply server-side branding configuration dynamically
+  useEffect(() => {
+    void api
+      .getBranding()
+      .then((b) => {
+        if (b) {
+          setBranding(b);
+          applyBrandDesignTokens(b.accentColor || '#0284c7', b.appName || 'ERPITB');
+        }
+      })
+      .catch(() => {});
+  }, [api]);
+
+  useServerEvents({
+    enabled: typeof EventSource !== 'undefined' && !(import.meta as any).env?.VITEST,
+    onEntityChanged: () => {
+      setRefresh((value) => value + 1);
+    },
+    onBrandingUpdated: (next) => {
+      setBranding((prev) => {
+        const merged = { ...(prev ?? { appName: 'ERPITB', accentColor: '#0284c7', showHeaderLogoLeft: true, showHeaderLogoRight: true }), ...next } as BrandingSettings;
+        applyBrandDesignTokens(merged.accentColor || '#0284c7', merged.appName || 'ERPITB');
+        return merged;
+      });
+    },
+    onSessionRevoked: () => {
+      if (store && typeof store.clearSession === 'function') {
+        void store.clearSession();
+      }
+      onSignedOut('Sua sessão foi encerrada pelo administrador.');
+    },
+  });
 
   const sync = useCallback(async () => {
     if (syncing.current) return;
     syncing.current = true;
     setSyncState('syncing');
     try {
-      await store.deduplicateAttendance();
-      const result = await new Synchronizer(store, api).run();
-      setSyncState(result.offline ? 'offline' : 'idle');
-      setMessage(
-        result.offline
-          ? 'Sem conexão — a aplicação requer conexão online.'
-          : undefined,
-      );
+      clearEntityMemoryCache();
+      await drainLegacyClientStorage(api);
+      setSyncState('idle');
+      setMessage(undefined);
       setRefresh((value) => value + 1);
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
-        await store.clearSession();
+        if (store && typeof store.clearSession === 'function') {
+          await store.clearSession();
+        }
         onSignedOut('Sua sessão expirou. Entre novamente.');
         return;
       }
-      setSyncState('error');
-      setMessage(error instanceof Error ? error.message : 'Não foi possível carregar os dados.');
+      setSyncState('idle');
+      setRefresh((value) => value + 1);
     } finally {
       syncing.current = false;
     }
@@ -96,17 +139,18 @@ export function ApplicationProvider({
   const logout = useCallback(async () => {
     try {
       await api.post('/auth/logout', { refreshToken: session.refreshToken });
-    } catch (error) {
-      if (!(error instanceof OfflineError) && !(error instanceof ApiError && error.status === 401)) {
-        // Continue logout locally even if network fails
-      }
+    } catch {
+      // Continue logout locally even if network fails
     }
-    await store.clearSession();
+    clearEntityMemoryCache();
+    if (store && typeof store.clearSession === 'function') {
+      await store.clearSession();
+    }
     onSignedOut();
   }, [api, onSignedOut, session.refreshToken, store]);
 
   return (
-    <Context.Provider value={{ session, store, api, sync, syncState, message, refresh, logout }}>
+    <Context.Provider value={{ session, store, api, branding, setBranding, sync, syncState, message, refresh, logout }}>
       {children}
     </Context.Provider>
   );
@@ -153,7 +197,6 @@ export function useBoot() {
               error: 'Sua sessão expirou. Entre novamente.',
             });
           } else {
-            // Keep local offline session active
             setState({ loading: false, ...restored });
           }
         }

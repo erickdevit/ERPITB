@@ -1,11 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  BookOpen,
   Calendar,
   Edit3,
   Lock,
   MessageSquare,
+  Plus,
   Save,
   Search,
+  UserCog,
+  UserMinus,
 } from 'lucide-react';
 import { useApp } from '../app-context';
 import { DateField, PageDialog, SelectField } from '../components';
@@ -73,8 +77,25 @@ interface ReplacementDialogState {
   error?: string;
 }
 
+interface QuickEditStudentState {
+  studentId: string;
+  name: string;
+  registrationNumber: string;
+  contact: string;
+  error?: string;
+}
+
+interface QuickAddStudentState {
+  mode: 'existing' | 'new';
+  existingStudentId: string;
+  name: string;
+  registrationNumber: string;
+  contact: string;
+  error?: string;
+}
+
 export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }) {
-  const { store, sync, session } = useApp();
+  const { store, api, sync, session } = useApp();
   const classes = useEntity('classes');
   const courses = useEntity('courses');
   const students = useEntity('students');
@@ -91,6 +112,9 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   const [showGeneralNotes, setShowGeneralNotes] = useState(false);
   const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
   const [replacementDialog, setReplacementDialog] = useState<ReplacementDialogState>();
+  const [quickEditStudent, setQuickEditStudent] = useState<QuickEditStudentState>();
+  const [quickAddStudent, setQuickAddStudent] = useState<QuickAddStudentState>();
+  const [taughtSessionsCount, setTaughtSessionsCount] = useState<number>(0);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ severity: 'success' | 'error'; message: string }>();
 
@@ -114,6 +138,35 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   useEffect(() => {
     if (!classId && classes.items.length) setClassId(classes.items[0]!.id);
   }, [classId, classes.items]);
+
+  // Load canonical taught class sessions count from server or distinct attendance dates
+  useEffect(() => {
+    if (!classId) {
+      setTaughtSessionsCount(0);
+      return;
+    }
+    const distinctDates = new Set(
+      attendance.items
+        .filter((item) => !item.deleted_at && item.class_id === classId && item.date)
+        .map((item) => String(item.date)),
+    );
+    setTaughtSessionsCount(distinctDates.size);
+
+    if (api && typeof api.getClassSessions === 'function') {
+      void api
+        .getClassSessions(classId)
+        .then((res) => {
+          const count =
+            typeof (res as any)?.totalTaughtSessions === 'number'
+              ? (res as any).totalTaughtSessions
+              : typeof res?.total === 'number'
+              ? res.total
+              : 0;
+          setTaughtSessionsCount(Math.max(count, distinctDates.size));
+        })
+        .catch(() => {});
+    }
+  }, [api, attendance.items, classId]);
 
   const existingClassNote = classNotes.items.find(
     (item) => !item.deleted_at && item.class_id === classId && item.date === canonicalDate,
@@ -224,9 +277,10 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
         existingClassNote,
       });
       await Promise.all([attendance.reload(), classNotes.reload(), replacements.reload()]);
+      setTaughtSessionsCount((prev) => Math.max(prev, 1));
       setNotice({
         severity: 'success',
-        message: 'Chamada salva neste dispositivo. A sincronização seguirá em segundo plano.',
+        message: 'Chamada registrada com sucesso no servidor.',
       });
       void sync();
     } catch (error) {
@@ -238,6 +292,142 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
       setSaving(false);
     }
   };
+
+  const handleSaveQuickEditStudent = async () => {
+    if (!quickEditStudent) return;
+    if (!quickEditStudent.name.trim()) {
+      setQuickEditStudent({ ...quickEditStudent, error: 'O nome do aluno é obrigatório.' });
+      return;
+    }
+    try {
+      const existing = students.items.find((s) => s.id === quickEditStudent.studentId);
+      await store.mutateBatch([
+        {
+          entity: 'students',
+          data: {
+            ...(existing ?? {}),
+            id: quickEditStudent.studentId,
+            name: quickEditStudent.name.trim(),
+            registration_number: quickEditStudent.registrationNumber.trim() || undefined,
+            contact: quickEditStudent.contact.trim() || undefined,
+          },
+        },
+      ]);
+      await students.reload();
+      setQuickEditStudent(undefined);
+      setNotice({ severity: 'success', message: 'Cadastro do aluno atualizado com sucesso.' });
+      void sync();
+    } catch (error) {
+      setQuickEditStudent({
+        ...quickEditStudent,
+        error: error instanceof Error ? error.message : 'Não foi possível atualizar o aluno.',
+      });
+    }
+  };
+
+  const handleQuickLockEnrollment = async (studentId: string, studentName: string) => {
+    if (!classId) return;
+    if (
+      typeof window !== 'undefined' &&
+      typeof window.confirm === 'function' &&
+      !window.confirm(
+        `Deseja trancar a matrícula de "${studentName}" nesta turma?\n\nO histórico de presenças, notas e financeiro será preservado, e o aluno não aparecerá em chamadas futuras.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      if (api && typeof api.lockStudentEnrollment === 'function') {
+        await api.lockStudentEnrollment(studentId);
+      } else {
+        const enr = enrollments.items.find(
+          (e) => !e.deleted_at && e.class_id === classId && e.student_id === studentId && e.status === 'ativa',
+        );
+        if (enr) {
+          await store.mutateBatch([
+            {
+              entity: 'enrollments',
+              data: { ...enr, status: 'trancada', left_at: canonicalDate || today },
+            },
+          ]);
+        }
+      }
+      await Promise.all([enrollments.reload(), students.reload()]);
+      setNotice({ severity: 'success', message: `Matrícula de ${studentName} trancada com sucesso.` });
+      void sync();
+    } catch (error) {
+      setNotice({
+        severity: 'error',
+        message: error instanceof Error ? error.message : 'Não foi possível trancar a matrícula.',
+      });
+    }
+  };
+
+  const handleConfirmQuickAddStudent = async () => {
+    if (!quickAddStudent || !classId) return;
+    try {
+      let targetStudentId = quickAddStudent.existingStudentId;
+      if (quickAddStudent.mode === 'new') {
+        if (!quickAddStudent.name.trim()) {
+          setQuickAddStudent({ ...quickAddStudent, error: 'Informe o nome completo do aluno.' });
+          return;
+        }
+        targetStudentId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `std-${Date.now()}`;
+        const regNum =
+          quickAddStudent.registrationNumber.trim() ||
+          `ITB-${new Date().getFullYear()}-${String(Math.floor(1000 + Math.random() * 9000))}`;
+        await store.mutateBatch([
+          {
+            entity: 'students',
+            data: {
+              id: targetStudentId,
+              name: quickAddStudent.name.trim(),
+              registration_number: regNum,
+              contact: quickAddStudent.contact.trim() || null,
+              active: 1,
+            },
+          },
+        ]);
+      } else if (!targetStudentId) {
+        setQuickAddStudent({ ...quickAddStudent, error: 'Selecione um aluno para matricular.' });
+        return;
+      }
+
+      const enrollmentId = `${classId}:${targetStudentId}`;
+      await store.mutateBatch([
+        {
+          entity: 'enrollments',
+          data: {
+            id: enrollmentId,
+            class_id: classId,
+            student_id: targetStudentId,
+            status: 'ativa',
+            enrolled_at: canonicalDate || today,
+          },
+        },
+      ]);
+      await Promise.all([students.reload(), enrollments.reload()]);
+      setQuickAddStudent(undefined);
+      setNotice({ severity: 'success', message: 'Aluno incluído na turma com sucesso.' });
+      void sync();
+    } catch (error) {
+      setQuickAddStudent({
+        ...quickAddStudent,
+        error: error instanceof Error ? error.message : 'Não foi possível incluir o aluno na turma.',
+      });
+    }
+  };
+
+  const unenrolledStudents = useMemo(() => {
+    const enrolledIds = new Set(
+      enrollments.items
+        .filter((e) => !e.deleted_at && e.class_id === classId && e.status === 'ativa')
+        .map((e) => String(e.student_id)),
+    );
+    return students.items.filter(
+      (s) => !s.deleted_at && s.active !== 0 && s.active !== false && !enrolledIds.has(s.id),
+    );
+  }, [classId, enrollments.items, students.items]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -274,8 +464,17 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
             </div>
           </div>
 
-          {/* Action buttons (Obs. da turma toggle + Salvar chamada) */}
-          <div className="flex items-center gap-2 pt-1 md:pt-0 self-stretch md:self-auto justify-end">
+          {/* Action buttons (Aulas ministradas badge + Obs. da turma toggle + Salvar chamada) */}
+          <div className="flex items-center gap-2 pt-1 md:pt-0 self-stretch md:self-auto justify-end flex-wrap">
+            {classId && (
+              <span
+                title="Total de aulas ministradas (sessões registradas) nesta turma"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200 h-[38px]"
+              >
+                <BookOpen className="w-3.5 h-3.5 text-slate-500" />
+                <span>{taughtSessionsCount} aula(s)</span>
+              </span>
+            )}
             <button
               type="button"
               aria-label="Observação da turma"
@@ -389,7 +588,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                               disabled={!access.editable}
                               aria-pressed={selected}
                               onClick={() => selectStatus(rowIndex, statusKey)}
-                              className={`w-7 h-7 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
+                              className={`w-11 h-11 sm:w-8 sm:h-8 min-w-[44px] min-h-[44px] sm:min-w-[32px] sm:min-h-[32px] rounded-md text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
                                 selected
                                   ? `${cfg.activeBg} ${cfg.activeText} shadow-xs scale-105`
                                   : `text-slate-600 ${cfg.hoverBg}`
@@ -429,13 +628,42 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                             return next;
                           })
                         }
-                        className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                        className={`p-1.5 min-w-[32px] min-h-[32px] flex items-center justify-center rounded-lg border transition-colors cursor-pointer ${
                           row.notes.trim()
                             ? 'bg-sky-50 border-sky-200 text-sky-700'
                             : 'bg-white border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-50'
                         }`}
                       >
                         <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+
+                      {/* Quick Edit Student Button */}
+                      <button
+                        type="button"
+                        aria-label={`Editar cadastro de ${text(row.student, 'name')}`}
+                        title="Editar dados do aluno rapidamente"
+                        onClick={() =>
+                          setQuickEditStudent({
+                            studentId: row.student.id,
+                            name: text(row.student, 'name'),
+                            registrationNumber: text(row.student, 'registration_number'),
+                            contact: text(row.student, 'contact'),
+                          })
+                        }
+                        className="p-1.5 min-w-[32px] min-h-[32px] flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                      >
+                        <UserCog className="w-3.5 h-3.5" />
+                      </button>
+
+                      {/* Quick Lock Enrollment Button */}
+                      <button
+                        type="button"
+                        aria-label={`Trancar matrícula de ${text(row.student, 'name')}`}
+                        title="Trancar matrícula nesta turma"
+                        onClick={() => void handleQuickLockEnrollment(row.student.id, text(row.student, 'name'))}
+                        className="p-1.5 min-w-[32px] min-h-[32px] flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-amber-700 hover:bg-amber-50 hover:border-amber-200 transition-colors cursor-pointer"
+                      >
+                        <UserMinus className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
@@ -471,8 +699,198 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
               );
             })}
           </div>
+
+          {/* Discrete Quick Add/Enroll Student Button Below Roster */}
+          <div className="flex justify-center pt-1">
+            <button
+              type="button"
+              aria-label="Incluir aluno na turma"
+              title="Matricular aluno existente ou cadastrar novo aluno nesta turma"
+              onClick={() =>
+                setQuickAddStudent({
+                  mode: unenrolledStudents.length > 0 ? 'existing' : 'new',
+                  existingStudentId: unenrolledStudents[0]?.id ?? '',
+                  name: '',
+                  registrationNumber: '',
+                  contact: '',
+                })
+              }
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-dashed border-slate-300 bg-white/80 hover:bg-slate-100 text-slate-600 hover:text-slate-900 text-xs font-semibold transition-all cursor-pointer shadow-2xs"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Incluir aluno na turma</span>
+            </button>
+          </div>
         </>
       )}
+
+      {/* Quick Edit Student Dialog */}
+      <PageDialog
+        open={Boolean(quickEditStudent)}
+        title="Editar dados do aluno"
+        onClose={() => setQuickEditStudent(undefined)}
+        onSave={() => void handleSaveQuickEditStudent()}
+        saveText="Salvar alterações"
+      >
+        {quickEditStudent?.error && (
+          <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800">
+            {quickEditStudent.error}
+          </div>
+        )}
+        <div className="flex flex-col gap-1.5 text-left">
+          <label htmlFor="quick-edit-name" className="text-xs font-semibold text-slate-700">
+            Nome completo <span className="text-rose-500">*</span>
+          </label>
+          <input
+            id="quick-edit-name"
+            type="text"
+            value={quickEditStudent?.name ?? ''}
+            onChange={(e) =>
+              setQuickEditStudent((cur) => (cur ? { ...cur, name: e.target.value, error: undefined } : cur))
+            }
+            className="w-full px-3 py-2 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5 text-left">
+          <label htmlFor="quick-edit-reg" className="text-xs font-semibold text-slate-700">
+            Matrícula / RA
+          </label>
+          <input
+            id="quick-edit-reg"
+            type="text"
+            value={quickEditStudent?.registrationNumber ?? ''}
+            onChange={(e) =>
+              setQuickEditStudent((cur) =>
+                cur ? { ...cur, registrationNumber: e.target.value, error: undefined } : cur,
+              )
+            }
+            className="w-full px-3 py-2 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5 text-left">
+          <label htmlFor="quick-edit-contact" className="text-xs font-semibold text-slate-700">
+            Telefone / Contato
+          </label>
+          <input
+            id="quick-edit-contact"
+            type="text"
+            value={quickEditStudent?.contact ?? ''}
+            onChange={(e) =>
+              setQuickEditStudent((cur) => (cur ? { ...cur, contact: e.target.value, error: undefined } : cur))
+            }
+            className="w-full px-3 py-2 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg"
+          />
+        </div>
+      </PageDialog>
+
+      {/* Quick Add/Enroll Student Dialog */}
+      <PageDialog
+        open={Boolean(quickAddStudent)}
+        title="Incluir aluno na turma"
+        onClose={() => setQuickAddStudent(undefined)}
+        onSave={() => void handleConfirmQuickAddStudent()}
+        saveText="Confirmar inclusão"
+      >
+        {quickAddStudent?.error && (
+          <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800">
+            {quickAddStudent.error}
+          </div>
+        )}
+        <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-xl">
+          <button
+            type="button"
+            onClick={() =>
+              setQuickAddStudent((cur) => (cur ? { ...cur, mode: 'existing', error: undefined } : cur))
+            }
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+              quickAddStudent?.mode === 'existing'
+                ? 'bg-white text-slate-900 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Aluno já cadastrado
+          </button>
+          <button
+            type="button"
+            onClick={() => setQuickAddStudent((cur) => (cur ? { ...cur, mode: 'new', error: undefined } : cur))}
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+              quickAddStudent?.mode === 'new'
+                ? 'bg-white text-slate-900 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Cadastrar novo aluno
+          </button>
+        </div>
+
+        {quickAddStudent?.mode === 'existing' ? (
+          <SelectField
+            label="Selecione o aluno"
+            value={quickAddStudent.existingStudentId}
+            onChange={(val) =>
+              setQuickAddStudent((cur) => (cur ? { ...cur, existingStudentId: val, error: undefined } : cur))
+            }
+            options={
+              unenrolledStudents.length > 0
+                ? unenrolledStudents.map((s) => ({
+                    value: s.id,
+                    label: `${text(s, 'name')} (${text(s, 'registration_number') || 'Sem RA'})`,
+                  }))
+                : [{ value: '', label: 'Todos os alunos ativos já estão matriculados' }]
+            }
+          />
+        ) : (
+          <>
+            <div className="flex flex-col gap-1.5 text-left">
+              <label htmlFor="quick-add-name" className="text-xs font-semibold text-slate-700">
+                Nome completo <span className="text-rose-500">*</span>
+              </label>
+              <input
+                id="quick-add-name"
+                type="text"
+                value={quickAddStudent?.name ?? ''}
+                onChange={(e) =>
+                  setQuickAddStudent((cur) => (cur ? { ...cur, name: e.target.value, error: undefined } : cur))
+                }
+                placeholder="Nome do aluno"
+                className="w-full px-3 py-2 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5 text-left">
+              <label htmlFor="quick-add-reg" className="text-xs font-semibold text-slate-700">
+                Matrícula / RA (opcional)
+              </label>
+              <input
+                id="quick-add-reg"
+                type="text"
+                value={quickAddStudent?.registrationNumber ?? ''}
+                onChange={(e) =>
+                  setQuickAddStudent((cur) =>
+                    cur ? { ...cur, registrationNumber: e.target.value, error: undefined } : cur,
+                  )
+                }
+                placeholder="Gerado automaticamente se vazio"
+                className="w-full px-3 py-2 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5 text-left">
+              <label htmlFor="quick-add-contact" className="text-xs font-semibold text-slate-700">
+                Telefone / Contato
+              </label>
+              <input
+                id="quick-add-contact"
+                type="text"
+                value={quickAddStudent?.contact ?? ''}
+                onChange={(e) =>
+                  setQuickAddStudent((cur) => (cur ? { ...cur, contact: e.target.value, error: undefined } : cur))
+                }
+                placeholder="(11) 99999-9999"
+                className="w-full px-3 py-2 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg"
+              />
+            </div>
+          </>
+        )}
+      </PageDialog>
 
       {/* Replacement Modal via PageDialog */}
       <PageDialog

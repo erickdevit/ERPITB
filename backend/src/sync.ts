@@ -1,6 +1,6 @@
 import { decryptText, encryptText } from './crypto';
 import { AppError, nowIso, readJson, requireString, uuid } from './http';
-import { dateInTimeZone, hasPermission, teacherCanEditDate } from './rbac';
+import { canAccessStudentPii, dateInTimeZone, hasPermission, teacherCanEditDate } from './rbac';
 import type { AuthUser, Env, SyncEntity, SyncOperation, SyncPushBody } from './types';
 
 type Row = Record<string, unknown>;
@@ -484,6 +484,10 @@ export async function push(request: Request, env: Env, user: AuthUser): Promise<
 }
 
 async function mayReadChange(env: Env, user: AuthUser, entity: SyncEntity, payload: Row): Promise<boolean> {
+  if (user.role === 'financeiro') {
+    // Strict least-privilege: zero access to pedagogical records, grades, notes, attendance
+    return entity === 'courses' || entity === 'classes' || entity === 'students';
+  }
   if (user.role !== 'professor') return true;
   if (entity === 'laboratories' || entity === 'courses') return true;
   if (entity === 'classes') return teacherOwnsClass(env, user.id, String(payload.id));
@@ -509,13 +513,14 @@ async function mayReadChange(env: Env, user: AuthUser, entity: SyncEntity, paylo
   return false;
 }
 
-async function clientPayload(env: Env, entity: SyncEntity, payload: Row): Promise<Row> {
+async function clientPayload(env: Env, entity: SyncEntity, payload: Row, user?: AuthUser): Promise<Row> {
   if (entity !== 'students' || !payload.encrypted_name) return payload;
   const result = { ...payload };
+  const hasPii = user ? canAccessStudentPii(user) : true;
   try {
     result.name = await decryptText(env, String(payload.encrypted_name));
-    result.cpf = payload.encrypted_cpf ? await decryptText(env, String(payload.encrypted_cpf)) : null;
-    result.contact = payload.encrypted_contact ? await decryptText(env, String(payload.encrypted_contact)) : null;
+    result.cpf = hasPii && payload.encrypted_cpf ? await decryptText(env, String(payload.encrypted_cpf)) : null;
+    result.contact = hasPii && payload.encrypted_contact ? await decryptText(env, String(payload.encrypted_contact)) : null;
   } catch {
     result.name = result.name || `Aluno ${result.registration_number || result.id || ''}`;
   }
@@ -526,6 +531,9 @@ async function clientPayload(env: Env, entity: SyncEntity, payload: Row): Promis
 }
 
 export async function pull(url: URL, env: Env, user: AuthUser): Promise<unknown> {
+  if (user.role === 'financeiro') {
+    throw new AppError(403, 'Acesso restrito ao corpo docente e pedagógico.', 'FORBIDDEN');
+  }
   const cursor = Number(url.searchParams.get('cursor') ?? 0);
   const limit = Math.min(Math.max(Number(url.searchParams.get('limit') ?? 200), 1), 500);
   if (!Number.isSafeInteger(cursor) || cursor < 0) throw new AppError(400, 'Cursor inválido.', 'VALIDATION_ERROR');
@@ -539,7 +547,7 @@ export async function pull(url: URL, env: Env, user: AuthUser): Promise<unknown>
     if (!isSyncEntity(row.entity_name)) continue;
     const payload = JSON.parse(row.payload_json) as Row;
     if (!await mayReadChange(env, user, row.entity_name, payload)) continue;
-    changes.push({ seq: row.seq, entity: row.entity_name, entityId: row.entity_id, operation: row.operation, data: await clientPayload(env, row.entity_name, payload), changedAt: row.changed_at });
+    changes.push({ seq: row.seq, entity: row.entity_name, entityId: row.entity_id, operation: row.operation, data: await clientPayload(env, row.entity_name, payload, user), changedAt: row.changed_at });
     if (changes.length >= limit) break;
   }
   return { changes, nextCursor, hasMore: rows.results.length === limit * 3 || changes.length === limit };

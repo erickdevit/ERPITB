@@ -1,47 +1,68 @@
-# ERPITB
+# ERPITB — Plataforma de Gestão Acadêmica, Financeira e Analítica
 
-ERP do Instituto Transforma Brasil, composto por aplicação Web PWA (React 19 + TypeScript) 100% online e API serverless em Cloudflare Workers + D1. A plataforma reúne módulos operacionais, acadêmicos, administrativos e analíticos, incluindo frequência e boletim escolar.
+ERP do **Instituto Transforma Brasil**, composto por aplicação Web PWA (**React 19 + TypeScript + Vite**) 100% online e API REST serverless em **Cloudflare Workers + D1 (SQLite)**.
 
-## Ambiente atual
+---
 
-- **Aplicação & API**: `https://erp.itbcursos.com`
-- **Banco D1 vinculado à API** (UUID): `be668f55-5a2c-40a2-9cdc-25248be7e65e`
-- **Autenticação**: Web Crypto PBKDF2-HMAC-SHA256 (100.000 iterações, nativo V8 < 1ms) com fallback legado para Argon2id
+## Principais Módulos e Capacidades
+
+- **Arquitetura Online REST (`/api/v1/*`)**:
+  - Cloudflare D1 como autoridade canônica única de dados e regras de negócio.
+  - Controle de concorrência otimista (`ETag` / `If-Match` com detecção de conflito HTTP 409).
+  - Idempotência nativa (`x-idempotency-key`) para chamadas, baixas de mensalidades, lançamentos de caixa e estornos.
+  - Invalidação de cache e revogação de sessão em tempo real via Server-Sent Events (`GET /api/v1/events`).
+  - Drenagem automática e segura de filas legadas do navegador (`POST /api/v1/migration/drain`).
+- **Gestão Acadêmica e Chamada Rápida**:
+  - Chamada com ações rápidas inline (edição rápida de aluno, trancamento de matrícula preservando histórico e botão discreto `+` para inclusão imediata na turma).
+  - Contabilização canônica de aulas ministradas (`class_sessions`) desacoplada dos registros individuais de presença.
+  - Boletim escolar unificado (por turma e individual), gestão de etapas avaliativas e controle de reposições.
+- **Domínio Financeiro Completo e RBAC de Menor Privilégio**:
+  - Gestão de mensalidades (`financial_fees`) com geração individual ou em lote por turma, controle de competência, vencimento, baixa parcial/total e cálculo automático de inadimplência.
+  - Livro Caixa (`cash_transactions`) com saldo inicial, entradas, saídas, saldo de fechamento e estornos compensatórios auditáveis (sem exclusão física).
+  - Papel dedicado `financeiro` com isolamento estrito: acesso total à operação financeira e bloqueio (`403 Forbidden`) a dados pedagógicos (notas, frequência e anotações de aula).
+  - Criptografia **AES-256-GCM** para dados sensíveis (CPF e contatos de alunos e responsáveis financeiros).
+- **Identidade Visual (Branding), Chaves M2M e OpenAPI**:
+  - Painel administrativo (`/admin/branding`) com validação de contraste **WCAG 2.1 AA**, logotipo, plano de fundo de login e marca d'água para impressões A4 (`.print-portrait` e `.print-landscape`).
+  - Gestão de Chaves de API M2M (`/admin/api-keys`) com escopos granulares, rotação, revogação e proteção de PII (`students:pii`).
+  - Especificação OpenAPI 3.0 disponível em `GET /api/v1/openapi.json`.
+
+---
 
 ## Estrutura do Repositório
 
-- `backend/`: API REST em Cloudflare Workers, autenticação JWT, RBAC, criptografia AES-256-GCM para dados sensíveis e motor de dados.
-- `web/`: Aplicação Web PWA em React 19 + TypeScript (instalável via webmanifest e service worker, operação 100% online), IndexedDB cifrado (Dexie), relatórios (PDF, Excel, CSV) e dashboards analíticos de B.I.
-- `itb-logo.svg`: Ativo oficial da marca Instituto Transforma Brasil.
-- `.github/workflows/ci.yml`: Pipeline de CI/CD para backend e web.
+- `backend/`: API REST `/api/v1/*` em Cloudflare Workers, autenticação PBKDF2/JWT/API Keys, RBAC, serviços de domínio (acadêmico, financeiro, B.I., relatórios, SSE) e migrações D1.
+- `web/`: Aplicação Web PWA em React 19 + TypeScript (shell instalável 100% online), módulos operacionais, financeiro, B.I., administração e layouts de impressão A4.
+- `docs/`: Documentação de arquitetura, contratos de API, segurança e guia de operação (`docs/architecture.md`).
 
-## Desenvolvimento Rápido
+---
 
-### 1. Aplicação Web (`web/`)
+## Desenvolvimento e Verificação
 
-```bash
-cd web
-npm install
-npm run dev        # Executa com proxy apontando para backend local (8787)
-npm run dev:real   # Executa com proxy apontando para a API de produção
-npm test           # Executa a suíte de testes unitários e de componentes
-npm run build      # Gera o bundle de produção em web/dist
-```
-
-### 2. Backend Worker (`backend/`)
+### 1. Backend Worker (`backend/`)
 
 ```bash
 cd backend
 npm install
 npm run typecheck  # Validação estática de tipos TypeScript
-npm test           # Executa os testes de integração e unitários (Vitest)
-npm run dev        # Inicia o servidor local do Cloudflare Worker (Wrangler)
+npm test           # Suíte de testes unitários, RBAC, concorrência, idempotência e integração (Vitest)
+npm run dev        # Servidor local do Cloudflare Worker (Wrangler na porta 8787)
 ```
 
-Para aplicar o schema no banco D1 local:
+Para inicializar o schema completo no banco D1 local:
 
 ```bash
 npx wrangler d1 execute erpitb --local --file=src/schema.sql
+```
+
+### 2. Aplicação Web (`web/`)
+
+```bash
+cd web
+npm install
+npx tsc -b         # Validação estática de tipos TypeScript
+npm test           # Suíte de testes unitários, componentes e E2E (Vitest)
+npm run dev        # Servidor Vite local com proxy para o Worker (8787)
+npm run build      # Gera o bundle de produção em web/dist
 ```
 
 ### 3. Build & Deploy Completo
@@ -51,6 +72,8 @@ A partir do diretório `backend/`:
 ```bash
 npm run deploy     # Compila o PWA (web/dist) e publica no Cloudflare Worker
 ```
+
+---
 
 ## Bootstrap do Primeiro Administrador
 

@@ -17,7 +17,12 @@ export type Permission =
   | 'attendance:write'
   | 'grades:write'
   | 'conflicts:resolve'
-  | 'audit:read';
+  | 'audit:read'
+  | 'finance:read'
+  | 'finance:write'
+  | 'reports:finance'
+  | 'branding:manage'
+  | 'api_keys:manage';
 
 const grants: Record<Role, ReadonlySet<Permission>> = {
   admin: new Set([
@@ -26,19 +31,64 @@ const grants: Record<Role, ReadonlySet<Permission>> = {
     'classes:create', 'classes:update', 'classes:delete',
     'students:write', 'students:delete', 'teachers:assign', 'attendance:write', 'grades:write',
     'conflicts:resolve', 'audit:read',
+    'finance:read', 'finance:write', 'reports:finance', 'branding:manage', 'api_keys:manage',
   ]),
   pedagogico: new Set([
     'laboratories:update', 'courses:update', 'classes:update', 'students:write', 'teachers:assign',
     'attendance:write', 'grades:write', 'conflicts:resolve', 'audit:read',
   ]),
   professor: new Set(['attendance:write', 'grades:write']),
+  financeiro: new Set(['finance:read', 'finance:write', 'reports:finance']),
+  machine: new Set([]),
 };
 
 export function hasPermission(role: Role, permission: Permission): boolean {
-  return grants[role].has(permission);
+  return grants[role]?.has(permission) ?? false;
 }
 
+export function canAccessStudentPii(user: AuthUser): boolean {
+  if (!user.isApiKey) {
+    return user.role === 'admin' || user.role === 'pedagogico';
+  }
+  const scopes = user.scopes ?? [];
+  return scopes.includes('students:pii') || scopes.includes('*');
+}
+
+export function requireScope(user: AuthUser, ...requiredScopes: string[]): void {
+  if (user.isApiKey || user.role === 'machine') {
+    const scopes = user.scopes ?? [];
+    if (scopes.includes('*')) return;
+    const hasScope = requiredScopes.some((s) => scopes.includes(s));
+    if (!hasScope) {
+      throw new AppError(403, 'A chave de API não possui escopo suficiente para esta ação.', 'FORBIDDEN');
+    }
+  }
+}
+
+const PERMISSION_SCOPE_ALIASES: Record<string, string[]> = {
+  'classes:create': ['classes:write'],
+  'classes:update': ['classes:write'],
+  'classes:delete': ['classes:write'],
+  'courses:create': ['courses:write', 'classes:write'],
+  'courses:update': ['courses:write', 'classes:write'],
+  'courses:delete': ['courses:write', 'classes:write'],
+  'laboratories:create': ['laboratories:write', 'classes:write'],
+  'laboratories:update': ['laboratories:write', 'classes:write'],
+  'laboratories:delete': ['laboratories:write', 'classes:write'],
+  'students:delete': ['students:write'],
+  'teachers:assign': ['classes:write'],
+};
+
 export function requirePermission(user: AuthUser, permission: Permission): void {
+  if (user.isApiKey || user.role === 'machine') {
+    const scopes = user.scopes ?? [];
+    const aliases = PERMISSION_SCOPE_ALIASES[permission] ?? [];
+    const hasAccess = scopes.includes('*') || scopes.includes(permission) || aliases.some((a) => scopes.includes(a));
+    if (!hasAccess) {
+      throw new AppError(403, 'A chave de API não possui escopo suficiente para esta ação.', 'FORBIDDEN');
+    }
+    return;
+  }
   if (!hasPermission(user.role, permission)) {
     throw new AppError(403, 'Seu perfil não possui permissão para esta ação.', 'FORBIDDEN');
   }

@@ -2,6 +2,9 @@ import { authenticate, bootstrap, login, logout, refresh } from './auth';
 import { getPublicStudentData, handleDataRoute } from './data';
 import { AppError, json } from './http';
 import { pull, push } from './sync';
+import { getBranding } from './branding';
+import { formatETag } from './concurrency';
+import { handleV1Route } from './v1-router';
 import type { Env } from './types';
 
 function corsHeaders(env: Env, request: Request): HeadersInit {
@@ -10,8 +13,10 @@ function corsHeaders(env: Env, request: Request): HeadersInit {
   const selected = allowed === '*' ? (origin ?? '*') : origin === allowed ? origin : allowed;
   return {
     'access-control-allow-origin': selected,
+    'access-control-allow-credentials': 'true',
     'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
-    'access-control-allow-headers': 'authorization,content-type,x-bootstrap-secret',
+    'access-control-allow-headers': 'authorization,content-type,x-bootstrap-secret,x-api-key,x-idempotency-key,if-match,idempotency-key',
+    'access-control-expose-headers': 'etag, x-idempotency, x-request-id',
     'access-control-max-age': '86400',
     'x-content-type-options': 'nosniff',
     'referrer-policy': 'no-referrer',
@@ -44,6 +49,24 @@ export default {
       if (url.pathname === '/health' && request.method === 'GET') {
         return withHeaders(json({ status: 'ok', service: 'ERPITB API' }), commonHeaders, requestId);
       }
+      if ((url.pathname === '/v1/openapi.json' || url.pathname === '/openapi.json') && request.method === 'GET') {
+        const { openApiSpec } = await import('./openapi');
+        return withHeaders(json(openApiSpec), commonHeaders, requestId);
+      }
+      if ((url.pathname === '/v1/admin/branding' || url.pathname === '/admin/branding') && request.method === 'GET') {
+        const branding = await getBranding(env);
+        return withHeaders(
+          new Response(JSON.stringify(branding), {
+            status: 200,
+            headers: {
+              'content-type': 'application/json',
+              'etag': formatETag(branding.syncVersion ?? 1),
+            },
+          }),
+          commonHeaders,
+          requestId,
+        );
+      }
       if (url.pathname === '/auth/bootstrap' && request.method === 'POST') {
         return withHeaders(json(await bootstrap(request, env), 201), commonHeaders, requestId);
       }
@@ -67,14 +90,44 @@ export default {
       if (url.pathname === '/sync/pull' && request.method === 'GET') {
         return withHeaders(json(await pull(url, env, user)), commonHeaders, requestId);
       }
+      const v1Result = await handleV1Route(request, env, user, url);
+      if (v1Result !== undefined) {
+        if (v1Result instanceof Response) {
+          return withHeaders(v1Result, commonHeaders, requestId);
+        }
+        const isPost = request.method === 'POST';
+        const isAction = url.pathname.endsWith('/resolve') || url.pathname.endsWith('/lock') || url.pathname.endsWith('/drain') || url.pathname.endsWith('/revoke') || url.pathname.endsWith('/reset') || url.pathname.endsWith('/rotate') || url.pathname.endsWith('/reversal');
+        const status = isPost && !isAction ? 201 : 200;
+        return withHeaders(json(v1Result, status), commonHeaders, requestId);
+      }
       const result = await handleDataRoute(request, env, user, url);
       if (result !== undefined) {
+        if (result instanceof Response) {
+          return withHeaders(result, commonHeaders, requestId);
+        }
         const status = request.method === 'POST' && !url.pathname.endsWith('/resolve') ? 201 : 200;
         return withHeaders(json(result, status), commonHeaders, requestId);
       }
       throw new AppError(404, 'Rota não encontrada.', 'NOT_FOUND');
     } catch (error) {
       const known = error instanceof AppError;
+      if (known && error.code === 'CONCURRENCY_CONFLICT') {
+        const details = (error.details || {}) as Record<string, unknown>;
+        const serverVersion = details.serverVersion ?? details.currentVersion;
+        return withHeaders(
+          new Response(JSON.stringify({
+            ok: false,
+            error: error.message,
+            code: 'CONCURRENCY_CONFLICT',
+            serverVersion,
+          }), {
+            status: 409,
+            headers: { 'content-type': 'application/json' },
+          }),
+          commonHeaders,
+          requestId
+        );
+      }
       const isDuplicate = String(error).includes('UNIQUE constraint failed');
       const message = known
         ? error.message

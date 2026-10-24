@@ -312,8 +312,8 @@ export function ClassesPage() {
               <tr className="border-b border-slate-200 bg-slate-50/75 text-slate-500 uppercase tracking-wider font-semibold text-[11px]">
                 <th className="py-3 px-4">Turma</th>
                 <th className="py-3 px-4">Curso</th>
-                <th className="py-3 px-4">Turno / Dia</th>
-                <th className="py-3 px-4">Laboratório</th>
+                <th className="py-3 px-4 hidden sm:table-cell">Turno / Dia</th>
+                <th className="py-3 px-4 hidden md:table-cell">Laboratório</th>
                 <th className="py-3 px-4">Professor(es)</th>
                 <th className="py-3 px-4 text-right">Ações</th>
               </tr>
@@ -342,11 +342,11 @@ export function ClassesPage() {
                     </div>
                   </td>
                   <td className="py-3 px-4 text-slate-600 font-semibold">{row.courseName}</td>
-                  <td className="py-3 px-4 text-slate-500">
+                  <td className="py-3 px-4 text-slate-500 hidden sm:table-cell">
                     {shiftLabel(row.shift)}
                     {row.weekDay ? ` · ${row.weekDay}` : ''}
                   </td>
-                  <td className="py-3 px-4 text-slate-500">{row.laboratoryName || '—'}</td>
+                  <td className="py-3 px-4 text-slate-500 hidden md:table-cell">{row.laboratoryName || '—'}</td>
                   <td className="py-3 px-4">
                     <TeacherNames row={row} />
                   </td>
@@ -358,7 +358,7 @@ export function ClassesPage() {
                           aria-label={`Editar ${row.name}`}
                           onClick={() => openEdit(row)}
                           title="Editar turma"
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                          className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
@@ -369,7 +369,7 @@ export function ClassesPage() {
                           aria-label={`Gerenciar professores de ${row.name}`}
                           onClick={() => openTeacherAssignment(row)}
                           title="Gerenciar professores"
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                          className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
                         >
                           <UserCheck className="w-3.5 h-3.5" />
                         </button>
@@ -380,7 +380,7 @@ export function ClassesPage() {
                           aria-label={`Excluir ${row.name}`}
                           onClick={() => deleteClass(row)}
                           title="Excluir turma"
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                          className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

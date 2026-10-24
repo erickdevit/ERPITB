@@ -1,7 +1,9 @@
 import { hashPassword } from './auth';
 import { decryptText, encryptText } from './crypto';
 import { AppError, normalizeEmail, nowIso, readJson, requireString, uuid } from './http';
-import { dateInTimeZone, requirePermission, teacherCanEditDate } from './rbac';
+import { canAccessStudentPii, dateInTimeZone, requirePermission, requireScope, teacherCanEditDate } from './rbac';
+import { assertConcurrencyVersion, formatETag, parseIfMatchHeader } from './concurrency';
+import { broadcastEvent } from './events-bus';
 import type { AttendanceStatus, AuthUser, Env, Role } from './types';
 
 type JsonRecord = Record<string, unknown>;
@@ -55,6 +57,7 @@ function change(env: Env, user: AuthUser, entity: string, entityId: string, oper
 async function requireClassAccess(env: Env, user: AuthUser, classId: string): Promise<void> {
   const activeClass = await env.DB.prepare(`SELECT id FROM classes WHERE id = ? AND deleted_at IS NULL`).bind(classId).first();
   if (!activeClass) throw new AppError(404, 'Turma não encontrada.', 'NOT_FOUND');
+  if (user.role === 'financeiro') throw new AppError(403, 'Acesso restrito ao corpo docente e pedagógico.', 'FORBIDDEN');
   if (user.role !== 'professor') return;
   const assigned = await env.DB.prepare(
     `SELECT 1 AS allowed FROM class_teachers WHERE class_id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1`,
@@ -74,24 +77,26 @@ async function getEntityRow(env: Env, table: string, id: string): Promise<JsonRe
   return row;
 }
 
-async function clientEntityRow(env: Env, entity: string, row: JsonRecord): Promise<JsonRecord> {
+async function clientEntityRow(env: Env, entity: string, row: JsonRecord, user?: AuthUser): Promise<JsonRecord> {
   if (entity !== 'students' || !row.encrypted_name) return row;
   const result = { ...row };
+  const hasPii = user ? canAccessStudentPii(user) : true;
   result.name = await decryptText(env, String(row.encrypted_name));
-  result.cpf = row.encrypted_cpf ? await decryptText(env, String(row.encrypted_cpf)) : null;
-  result.contact = row.encrypted_contact ? await decryptText(env, String(row.encrypted_contact)) : null;
+  result.cpf = hasPii && row.encrypted_cpf ? await decryptText(env, String(row.encrypted_cpf)) : null;
+  result.contact = hasPii && row.encrypted_contact ? await decryptText(env, String(row.encrypted_contact)) : null;
   delete result.encrypted_name; delete result.encrypted_cpf; delete result.encrypted_contact;
   return result;
 }
 
-async function listLaboratories(env: Env, user: AuthUser): Promise<unknown> {
+export async function listLaboratories(env: Env, user: AuthUser): Promise<unknown> {
+  requireScope(user, 'laboratories:read', 'classes:read');
   const rows = await env.DB.prepare(
     `SELECT id, name, active, sync_version, created_at, updated_at FROM laboratories WHERE deleted_at IS NULL ORDER BY name`,
   ).all();
   return { items: rows.results };
 }
 
-async function createLaboratory(request: Request, env: Env, user: AuthUser): Promise<unknown> {
+export async function createLaboratory(request: Request, env: Env, user: AuthUser): Promise<unknown> {
   requirePermission(user, 'laboratories:create');
   const body = await readJson<JsonRecord>(request);
   const timestamp = nowIso();
@@ -113,22 +118,51 @@ async function createLaboratory(request: Request, env: Env, user: AuthUser): Pro
   return row;
 }
 
-async function updateLaboratory(request: Request, env: Env, user: AuthUser, id: string): Promise<unknown> {
+export async function getLaboratory(env: Env, user: AuthUser, id: string): Promise<Response> {
+  requireScope(user, 'laboratories:read', 'classes:read');
+  const row = await env.DB.prepare(
+    `SELECT id, name, active, sync_version, created_at, updated_at FROM laboratories WHERE id = ? AND deleted_at IS NULL`
+  ).bind(id).first<Record<string, unknown>>();
+  if (!row) throw new AppError(404, 'Laboratório não encontrado.', 'NOT_FOUND');
+  return new Response(JSON.stringify(row), {
+    status: 200,
+    headers: { 'content-type': 'application/json', 'etag': formatETag(Number(row.sync_version ?? 1)) },
+  });
+}
+
+export async function updateLaboratory(request: Request, env: Env, user: AuthUser, id: string): Promise<unknown> {
   requirePermission(user, 'laboratories:update');
   const current = await getEntityRow(env, 'laboratories', id);
+  const ifMatch = parseIfMatchHeader(request);
+  assertConcurrencyVersion(Number(current.sync_version ?? 1), ifMatch);
+
   const body = await readJson<JsonRecord>(request);
   const name = body.name === undefined ? String(current.name) : requireString(body.name, 'nome', { min: 2, max: 160 });
   const active = body.active === undefined ? Number(current.active) : boolInt(body.active);
   const timestamp = nowIso();
-  await env.DB.prepare(
-    `UPDATE laboratories SET name = ?, active = ?, sync_version = sync_version + 1, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
-  ).bind(name, active, timestamp, id).run();
+  const currentVersion = Number(current.sync_version ?? 1);
+  const nextVersion = currentVersion + 1;
+
+  const result = await env.DB.prepare(
+    `UPDATE laboratories SET name = ?, active = ?, sync_version = ?, updated_at = ? WHERE id = ? AND sync_version = ? AND deleted_at IS NULL`,
+  ).bind(name, active, nextVersion, timestamp, id, currentVersion).run();
+
+  if (result.meta.changes === 0) {
+    const latest = await getEntityRow(env, 'laboratories', id);
+    throw new AppError(409, 'Registro foi modificado concorrentemente por outro usuário.', 'CONCURRENCY_CONFLICT', { serverVersion: Number(latest.sync_version ?? 1) });
+  }
+
   const row = await getEntityRow(env, 'laboratories', id);
   await env.DB.batch([change(env, user, 'laboratories', id, 'upsert', row), audit(env, user, 'UPDATE', 'laboratories', id)]);
-  return row;
+
+  return new Response(JSON.stringify(row), {
+    status: 200,
+    headers: { 'content-type': 'application/json', 'etag': formatETag(nextVersion) },
+  });
 }
 
-async function listCourses(env: Env, user: AuthUser): Promise<unknown> {
+export async function listCourses(env: Env, user: AuthUser): Promise<unknown> {
+  requireScope(user, 'courses:read', 'classes:read');
   const rows = user.role === 'professor'
     ? await env.DB.prepare(
       `SELECT DISTINCT co.id, co.code, co.name, co.active, co.sync_version, co.created_at, co.updated_at
@@ -142,7 +176,19 @@ async function listCourses(env: Env, user: AuthUser): Promise<unknown> {
   return { items: rows.results };
 }
 
-async function createCourse(request: Request, env: Env, user: AuthUser): Promise<unknown> {
+export async function getCourse(env: Env, user: AuthUser, id: string): Promise<Response> {
+  requireScope(user, 'courses:read', 'classes:read');
+  const row = await env.DB.prepare(
+    `SELECT id, code, name, active, sync_version, created_at, updated_at FROM courses WHERE id = ? AND deleted_at IS NULL`
+  ).bind(id).first<Record<string, unknown>>();
+  if (!row) throw new AppError(404, 'Curso não encontrado.', 'NOT_FOUND');
+  return new Response(JSON.stringify(row), {
+    status: 200,
+    headers: { 'content-type': 'application/json', 'etag': formatETag(Number(row.sync_version ?? 1)) },
+  });
+}
+
+export async function createCourse(request: Request, env: Env, user: AuthUser): Promise<unknown> {
   requirePermission(user, 'courses:create');
   const body = await readJson<JsonRecord>(request);
   const timestamp = nowIso();
@@ -166,25 +212,50 @@ async function createCourse(request: Request, env: Env, user: AuthUser): Promise
   return row;
 }
 
-async function updateCourse(request: Request, env: Env, user: AuthUser, id: string): Promise<unknown> {
+export async function updateCourse(request: Request, env: Env, user: AuthUser, id: string): Promise<unknown> {
   requirePermission(user, 'courses:update');
   const current = await getEntityRow(env, 'courses', id);
+  const ifMatch = parseIfMatchHeader(request);
+  assertConcurrencyVersion(Number(current.sync_version ?? 1), ifMatch);
+
   const body = await readJson<JsonRecord>(request);
   const code = body.code === undefined ? (current.code as string | null) : (typeof body.code === 'string' && body.code.trim().length > 0 ? body.code.trim().toUpperCase() : null);
   const name = body.name === undefined ? String(current.name) : requireString(body.name, 'nome', { min: 2, max: 160 });
   const active = body.active === undefined ? Number(current.active) : boolInt(body.active);
   const timestamp = nowIso();
-  await env.DB.prepare(
-    `UPDATE courses SET code = ?, name = ?, active = ?, sync_version = sync_version + 1, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
-  ).bind(code, name, active, timestamp, id).run();
+  const currentVersion = Number(current.sync_version ?? 1);
+  const nextVersion = currentVersion + 1;
+
+  const result = await env.DB.prepare(
+    `UPDATE courses SET code = ?, name = ?, active = ?, sync_version = ?, updated_at = ? WHERE id = ? AND sync_version = ? AND deleted_at IS NULL`,
+  ).bind(code, name, active, nextVersion, timestamp, id, currentVersion).run();
+
+  if (result.meta.changes === 0) {
+    const latest = await getEntityRow(env, 'courses', id);
+    throw new AppError(409, 'Registro foi modificado concorrentemente por outro usuário.', 'CONCURRENCY_CONFLICT', { serverVersion: Number(latest.sync_version ?? 1) });
+  }
+
   const row = await getEntityRow(env, 'courses', id);
   await env.DB.batch([change(env, user, 'courses', id, 'upsert', row), audit(env, user, 'UPDATE', 'courses', id)]);
-  return row;
+
+  return new Response(JSON.stringify(row), {
+    status: 200,
+    headers: { 'content-type': 'application/json', 'etag': formatETag(nextVersion) },
+  });
 }
 
-async function deleteEntity(env: Env, user: AuthUser, table: 'laboratories' | 'courses' | 'classes', id: string): Promise<unknown> {
+export async function deleteEntity(env: Env, user: AuthUser, table: 'laboratories' | 'courses' | 'classes', id: string, request?: Request): Promise<unknown> {
   const perm = table === 'laboratories' ? 'laboratories:delete' : table === 'courses' ? 'courses:delete' : 'classes:delete';
   requirePermission(user, perm);
+
+  const current = await env.DB.prepare(`SELECT sync_version FROM ${table} WHERE id = ? AND deleted_at IS NULL`).bind(id).first<{ sync_version: number }>();
+  if (!current) throw new AppError(404, 'Registro não encontrado.', 'NOT_FOUND');
+
+  if (request) {
+    const ifMatch = parseIfMatchHeader(request);
+    assertConcurrencyVersion(Number(current.sync_version ?? 1), ifMatch);
+  }
+
   const linked = table === 'laboratories'
     ? await env.DB.prepare(`SELECT 1 AS linked FROM classes WHERE laboratory_id = ? AND deleted_at IS NULL LIMIT 1`).bind(id).first()
     : table === 'courses'
@@ -206,16 +277,23 @@ async function deleteEntity(env: Env, user: AuthUser, table: 'laboratories' | 'c
     );
   }
   const timestamp = nowIso();
+  const currentVersion = Number(current.sync_version ?? 1);
+  const nextVersion = currentVersion + 1;
   const result = await env.DB.prepare(
-    `UPDATE ${table} SET active = 0, deleted_at = ?, updated_at = ?, sync_version = sync_version + 1 WHERE id = ? AND deleted_at IS NULL`,
-  ).bind(timestamp, timestamp, id).run();
-  if (result.meta.changes === 0) throw new AppError(404, 'Registro não encontrado.', 'NOT_FOUND');
+    `UPDATE ${table} SET active = 0, deleted_at = ?, updated_at = ?, sync_version = ? WHERE id = ? AND sync_version = ? AND deleted_at IS NULL`,
+  ).bind(timestamp, timestamp, nextVersion, id, currentVersion).run();
+  if (result.meta.changes === 0) {
+    const latest = await env.DB.prepare(`SELECT sync_version FROM ${table} WHERE id = ?`).bind(id).first<{ sync_version: number }>();
+    if (!latest) throw new AppError(404, 'Registro não encontrado.', 'NOT_FOUND');
+    throw new AppError(409, 'Registro foi modificado concorrentemente por outro usuário.', 'CONCURRENCY_CONFLICT', { serverVersion: Number(latest.sync_version ?? 1) });
+  }
   const tombstone = { id, deleted_at: timestamp, updated_at: timestamp };
   await env.DB.batch([change(env, user, table, id, 'delete', tombstone), audit(env, user, 'DELETE', table, id)]);
   return { ok: true };
 }
 
-async function listClasses(env: Env, user: AuthUser): Promise<unknown> {
+export async function listClasses(env: Env, user: AuthUser): Promise<unknown> {
+  requireScope(user, 'classes:read');
   const filter = user.role === 'professor'
     ? `JOIN class_teachers ct ON ct.class_id = c.id AND ct.user_id = ? AND ct.deleted_at IS NULL`
     : '';
@@ -230,7 +308,24 @@ async function listClasses(env: Env, user: AuthUser): Promise<unknown> {
   return { items: rows.results };
 }
 
-async function createClass(request: Request, env: Env, user: AuthUser): Promise<unknown> {
+export async function getClass(env: Env, user: AuthUser, id: string): Promise<Response> {
+  requireScope(user, 'classes:read');
+  await requireClassAccess(env, user, id);
+  const row = await env.DB.prepare(
+    `SELECT c.id, c.course_id, c.name, c.shift, c.week_day, c.is_kids, c.laboratory_id, c.active, c.sync_version, c.created_at, c.updated_at,
+            co.code AS course_code, co.name AS course_name, l.name AS laboratory_name
+       FROM classes c JOIN courses co ON co.id = c.course_id
+       LEFT JOIN laboratories l ON l.id = c.laboratory_id
+      WHERE c.id = ? AND c.deleted_at IS NULL`
+  ).bind(id).first<Record<string, unknown>>();
+  if (!row) throw new AppError(404, 'Turma não encontrada.', 'NOT_FOUND');
+  return new Response(JSON.stringify(row), {
+    status: 200,
+    headers: { 'content-type': 'application/json', 'etag': formatETag(Number(row.sync_version ?? 1)) },
+  });
+}
+
+export async function createClass(request: Request, env: Env, user: AuthUser): Promise<unknown> {
   requirePermission(user, 'classes:create');
   const body = await readJson<JsonRecord>(request);
   const timestamp = nowIso();
@@ -258,12 +353,23 @@ async function createClass(request: Request, env: Env, user: AuthUser): Promise<
     ...(assignment ? [env.DB.prepare(`INSERT INTO class_teachers (id, class_id, user_id, sync_version, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)`).bind(assignment.id, row.id, teacherId, timestamp, timestamp), change(env, user, 'class_teachers', assignment.id, 'upsert', assignment)] : []),
     audit(env, user, 'CREATE', 'classes', row.id, { teacherId: teacherId ?? undefined }),
   ]);
+
+  broadcastEvent('entity_changed', {
+    entity: 'classes',
+    operation: 'upsert',
+    id: row.id,
+    timestamp,
+  }, { env });
+
   return { ...row, teacher_id: teacherId };
 }
 
-async function updateClass(request: Request, env: Env, user: AuthUser, id: string): Promise<unknown> {
+export async function updateClass(request: Request, env: Env, user: AuthUser, id: string): Promise<unknown> {
   requirePermission(user, 'classes:update');
   const current = await getEntityRow(env, 'classes', id);
+  const ifMatch = parseIfMatchHeader(request);
+  assertConcurrencyVersion(Number(current.sync_version ?? 1), ifMatch);
+
   const body = await readJson<JsonRecord>(request);
   const courseId = body.courseId === undefined ? String(current.course_id) : requireString(body.courseId, 'courseId', { max: 36 });
   const name = body.name === undefined ? String(current.name) : requireString(body.name, 'nome', { min: 2, max: 120 });
@@ -272,15 +378,36 @@ async function updateClass(request: Request, env: Env, user: AuthUser, id: strin
   const isKids = body.isKids === undefined ? Number(current.is_kids ?? 0) : boolInt(body.isKids, false);
   const laboratoryId = body.laboratoryId === undefined ? (current.laboratory_id as string | null) : (typeof body.laboratoryId === 'string' && body.laboratoryId.length > 0 ? body.laboratoryId : null);
   const active = body.active === undefined ? Number(current.active) : boolInt(body.active);
-  await env.DB.prepare(
-    `UPDATE classes SET course_id = ?, name = ?, shift = ?, week_day = ?, is_kids = ?, laboratory_id = ?, active = ?, sync_version = sync_version + 1, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
-  ).bind(courseId, name, shift, weekDay, isKids, laboratoryId, active, nowIso(), id).run();
+  const timestamp = nowIso();
+  const currentVersion = Number(current.sync_version ?? 1);
+  const nextVersion = currentVersion + 1;
+
+  const result = await env.DB.prepare(
+    `UPDATE classes SET course_id = ?, name = ?, shift = ?, week_day = ?, is_kids = ?, laboratory_id = ?, active = ?, sync_version = ?, updated_at = ? WHERE id = ? AND sync_version = ? AND deleted_at IS NULL`,
+  ).bind(courseId, name, shift, weekDay, isKids, laboratoryId, active, nextVersion, timestamp, id, currentVersion).run();
+
+  if (result.meta.changes === 0) {
+    const latest = await getEntityRow(env, 'classes', id);
+    throw new AppError(409, 'Registro foi modificado concorrentemente por outro usuário.', 'CONCURRENCY_CONFLICT', { serverVersion: Number(latest.sync_version ?? 1) });
+  }
+
   const row = await getEntityRow(env, 'classes', id);
   await env.DB.batch([change(env, user, 'classes', id, 'upsert', row), audit(env, user, 'UPDATE', 'classes', id)]);
-  return row;
+
+  broadcastEvent('entity_changed', {
+    entity: 'classes',
+    operation: 'upsert',
+    id,
+    timestamp,
+  }, { env });
+
+  return new Response(JSON.stringify(row), {
+    status: 200,
+    headers: { 'content-type': 'application/json', 'etag': formatETag(nextVersion) },
+  });
 }
 
-async function listUsers(url: URL, env: Env, user: AuthUser): Promise<unknown> {
+export async function listUsers(url: URL, env: Env, user: AuthUser): Promise<unknown> {
   if (user.role === 'professor') throw new AppError(403, 'Acesso negado.', 'FORBIDDEN');
   const role = url.searchParams.get('role');
   const active = url.searchParams.get('active');
@@ -297,10 +424,22 @@ async function listUsers(url: URL, env: Env, user: AuthUser): Promise<unknown> {
   return { items: (await statement.all()).results };
 }
 
-async function createUser(request: Request, env: Env, user: AuthUser): Promise<unknown> {
+export async function getUser(env: Env, user: AuthUser, id: string): Promise<Response> {
+  if (user.role !== 'admin' && user.id !== id) throw new AppError(403, 'Acesso negado.', 'FORBIDDEN');
+  const row = await env.DB.prepare(
+    `SELECT id, name, email, role, active, created_at, updated_at FROM users WHERE id = ?`
+  ).bind(id).first<Record<string, unknown>>();
+  if (!row) throw new AppError(404, 'Usuário não encontrado.', 'NOT_FOUND');
+  return new Response(JSON.stringify(row), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+export async function createUser(request: Request, env: Env, user: AuthUser): Promise<unknown> {
   if (user.role !== 'admin') throw new AppError(403, 'Apenas administradores criam usuários.', 'FORBIDDEN');
   const body = await readJson<JsonRecord>(request);
-  const role = oneOf<Role>(body.role, 'perfil', ['admin', 'pedagogico', 'professor']);
+  const role = oneOf<Role>(body.role, 'perfil', ['admin', 'pedagogico', 'professor', 'financeiro']);
   const password = requireString(body.password, 'senha', { min: 6, max: 200 });
   const timestamp = nowIso();
   const row = { id: uuid(), name: requireString(body.name, 'nome', { min: 2, max: 120 }), email: normalizeEmail(body.email), role, active: 1, created_at: timestamp, updated_at: timestamp };
@@ -328,14 +467,14 @@ async function ensureProfessorMayBeDisabled(env: Env, professorId: string): Prom
   }
 }
 
-async function updateUser(request: Request, env: Env, user: AuthUser, id: string): Promise<unknown> {
+export async function updateUser(request: Request, env: Env, user: AuthUser, id: string): Promise<unknown> {
   if (user.role !== 'admin') throw new AppError(403, 'Apenas administradores alteram usuários.', 'FORBIDDEN');
   const current = await env.DB.prepare(`SELECT id, name, email, role, active FROM users WHERE id = ?`).bind(id).first<JsonRecord>();
   if (!current) throw new AppError(404, 'Usuário não encontrado.', 'NOT_FOUND');
   const body = await readJson<JsonRecord>(request);
   const name = body.name === undefined ? String(current.name) : requireString(body.name, 'nome', { min: 2, max: 120 });
   const email = body.email === undefined ? String(current.email) : normalizeEmail(body.email);
-  const role = body.role === undefined ? current.role as Role : oneOf<Role>(body.role, 'perfil', ['admin', 'pedagogico', 'professor']);
+  const role = body.role === undefined ? current.role as Role : oneOf<Role>(body.role, 'perfil', ['admin', 'pedagogico', 'professor', 'financeiro']);
   const active = body.active === undefined ? Number(current.active) : boolInt(body.active);
   if (id === user.id && (!active || role !== 'admin')) throw new AppError(400, 'Você não pode remover seu próprio acesso administrativo.', 'SELF_LOCKOUT');
   if (current.role === 'admin' && (role !== 'admin' || !active)) {
@@ -357,7 +496,7 @@ async function updateUser(request: Request, env: Env, user: AuthUser, id: string
   return { id, name, email, role, active, updated_at: timestamp };
 }
 
-async function deleteUser(env: Env, user: AuthUser, id: string): Promise<unknown> {
+export async function deleteUser(env: Env, user: AuthUser, id: string): Promise<unknown> {
   if (user.role !== 'admin') throw new AppError(403, 'Apenas administradores podem excluir usuários.', 'FORBIDDEN');
   if (id === user.id) throw new AppError(400, 'Você não pode excluir seu próprio usuário.', 'SELF_LOCKOUT');
 
@@ -408,10 +547,28 @@ async function deleteUser(env: Env, user: AuthUser, id: string): Promise<unknown
   await env.DB.prepare(`DELETE FROM users WHERE id = ?`).bind(id).run();
   await env.DB.batch([audit(env, user, 'DELETE', 'users', id, { name: current.name, email: current.email, role: current.role })]);
 
+  broadcastEvent('session_revoked', {
+    userId: id,
+    reason: 'USER_DELETED',
+    timestamp: nowIso(),
+  }, { targetUserId: id, env });
+
   return { ok: true, deleted: id };
 }
 
-async function assignTeacher(request: Request, env: Env, user: AuthUser, classId: string): Promise<unknown> {
+
+export async function listClassTeachers(env: Env, user: AuthUser, classId: string): Promise<unknown> {
+  requireScope(user, 'classes:read');
+  if (user.role === 'professor') throw new AppError(403, 'Acesso negado.', 'FORBIDDEN');
+  const rows = await env.DB.prepare(
+    `SELECT u.id, u.name, u.email, ct.id AS assignment_id
+       FROM class_teachers ct JOIN users u ON u.id = ct.user_id
+      WHERE ct.class_id = ? AND ct.deleted_at IS NULL AND u.active = 1 ORDER BY u.name`,
+  ).bind(classId).all();
+  return { items: rows.results };
+}
+
+export async function assignTeacher(request: Request, env: Env, user: AuthUser, classId: string): Promise<unknown> {
   requirePermission(user, 'teachers:assign');
   const body = await readJson<JsonRecord>(request);
   const userId = requireString(body.userId, 'userId', { max: 36 });
@@ -431,17 +588,7 @@ async function assignTeacher(request: Request, env: Env, user: AuthUser, classId
   return row;
 }
 
-async function listClassTeachers(env: Env, user: AuthUser, classId: string): Promise<unknown> {
-  if (user.role === 'professor') throw new AppError(403, 'Acesso negado.', 'FORBIDDEN');
-  const rows = await env.DB.prepare(
-    `SELECT u.id, u.name, u.email, ct.id AS assignment_id
-       FROM class_teachers ct JOIN users u ON u.id = ct.user_id
-      WHERE ct.class_id = ? AND ct.deleted_at IS NULL AND u.active = 1 ORDER BY u.name`,
-  ).bind(classId).all();
-  return { items: rows.results };
-}
-
-async function removeTeacher(env: Env, user: AuthUser, classId: string, teacherId: string): Promise<unknown> {
+export async function removeTeacher(env: Env, user: AuthUser, classId: string, teacherId: string): Promise<unknown> {
   requirePermission(user, 'teachers:assign');
   const timestamp = nowIso();
   const row = await env.DB.prepare(`SELECT id FROM class_teachers WHERE class_id = ? AND user_id = ? AND deleted_at IS NULL`).bind(classId, teacherId).first<{ id: string }>();
@@ -460,15 +607,16 @@ interface StudentRow extends JsonRecord {
   id: string; encrypted_name: string; encrypted_cpf: string | null; encrypted_contact: string | null;
 }
 
-async function clearStudent(env: Env, row: StudentRow): Promise<JsonRecord> {
+async function clearStudent(env: Env, row: StudentRow, user?: AuthUser): Promise<JsonRecord> {
   const { encrypted_name, encrypted_cpf, encrypted_contact, ...safe } = row;
   let name = `Aluno ${row.registration_number || row.id.slice(0, 8)}`;
   let cpf: string | null = null;
   let contact: string | null = null;
+  const hasPii = user ? canAccessStudentPii(user) : true;
   try {
     name = await decryptText(env, encrypted_name);
-    cpf = encrypted_cpf ? await decryptText(env, encrypted_cpf) : null;
-    contact = encrypted_contact ? await decryptText(env, encrypted_contact) : null;
+    cpf = hasPii && encrypted_cpf ? await decryptText(env, encrypted_cpf) : null;
+    contact = hasPii && encrypted_contact ? await decryptText(env, encrypted_contact) : null;
   } catch {
     // fallback gracefully
   }
@@ -480,7 +628,8 @@ async function clearStudent(env: Env, row: StudentRow): Promise<JsonRecord> {
   };
 }
 
-async function listStudents(url: URL, env: Env, user: AuthUser): Promise<unknown> {
+export async function listStudents(url: URL, env: Env, user: AuthUser): Promise<unknown> {
+  requireScope(user, 'students:read');
   const classId = url.searchParams.get('classId');
   if (classId) await requireClassAccess(env, user, classId);
   const rows = classId
@@ -498,10 +647,32 @@ async function listStudents(url: URL, env: Env, user: AuthUser): Promise<unknown
         ORDER BY s.registration_number`,
     ).bind(user.id).all<StudentRow>()
     : await env.DB.prepare(`SELECT * FROM students WHERE deleted_at IS NULL ORDER BY registration_number`).all<StudentRow>();
-  return { items: await Promise.all(rows.results.map((row) => clearStudent(env, row))) };
+  return { items: await Promise.all(rows.results.map((row) => clearStudent(env, row, user))) };
 }
 
-async function createStudent(request: Request, env: Env, user: AuthUser): Promise<unknown> {
+export async function getStudent(env: Env, user: AuthUser, id: string): Promise<Response> {
+  requireScope(user, 'students:read');
+  const row = await env.DB.prepare(`SELECT * FROM students WHERE id = ? AND deleted_at IS NULL`).bind(id).first<StudentRow>();
+  if (!row) throw new AppError(404, 'Aluno não encontrado.', 'NOT_FOUND');
+  if (user.role === 'professor') {
+    const allowed = await env.DB.prepare(
+      `SELECT 1 FROM enrollments e JOIN class_teachers ct ON ct.class_id = e.class_id
+        WHERE e.student_id = ? AND ct.user_id = ? AND e.deleted_at IS NULL AND ct.deleted_at IS NULL LIMIT 1`
+    ).bind(id, user.id).first();
+    if (!allowed) throw new AppError(403, 'Acesso negado a este aluno.', 'FORBIDDEN');
+  }
+  const cleared = await clearStudent(env, row, user);
+  const version = Number(row.sync_version ?? 1);
+  return new Response(JSON.stringify(cleared), {
+    status: 200,
+    headers: {
+      'content-type': 'application/json',
+      'etag': formatETag(version),
+    },
+  });
+}
+
+export async function createStudent(request: Request, env: Env, user: AuthUser): Promise<unknown> {
   requirePermission(user, 'students:write');
   const body = await readJson<JsonRecord>(request);
   const classId = requireString(body.classId, 'turma', { max: 36 });
@@ -531,12 +702,22 @@ async function createStudent(request: Request, env: Env, user: AuthUser): Promis
     change(env, user, 'enrollments', enrollment.id, 'upsert', enrollment),
     audit(env, user, 'CREATE', 'students', clear.id, { classId }),
   ]);
+  broadcastEvent('entity_changed', { entity: 'students', operation: 'upsert', id: clear.id, timestamp }, { env });
+  const hasPii = canAccessStudentPii(user);
+  if (!hasPii) {
+    clear.cpf = null;
+    clear.contact = null;
+  }
   return clear;
 }
 
-async function updateStudent(request: Request, env: Env, user: AuthUser, id: string): Promise<unknown> {
+export async function updateStudent(request: Request, env: Env, user: AuthUser, id: string): Promise<unknown> {
   requirePermission(user, 'students:write');
   const current = await getEntityRow(env, 'students', id) as StudentRow;
+  const currentVersion = Number(current.sync_version ?? 1);
+  const ifMatch = parseIfMatchHeader(request);
+  assertConcurrencyVersion(currentVersion, ifMatch);
+
   const body = await readJson<JsonRecord>(request);
   const encryptedName = body.name === undefined ? current.encrypted_name : await encryptText(env, requireString(body.name, 'nome', { min: 2, max: 160 }));
   const encryptedCpf = body.cpf === undefined ? current.encrypted_cpf : body.cpf == null ? null : await encryptText(env, requireString(body.cpf, 'cpf', { min: 11, max: 20 }));
@@ -544,25 +725,56 @@ async function updateStudent(request: Request, env: Env, user: AuthUser, id: str
   const registration = body.registrationNumber === undefined ? String(current.registration_number) : requireString(body.registrationNumber, 'matrícula', { min: 2, max: 40 });
   const birthDate = body.birthDate === undefined ? current.birth_date : body.birthDate == null ? null : parseBirthDate(body.birthDate);
   const active = body.active === undefined ? Number(current.active) : boolInt(body.active);
-  await env.DB.prepare(
-    `UPDATE students SET encrypted_name = ?, encrypted_cpf = ?, encrypted_contact = ?, registration_number = ?, birth_date = ?, active = ?, sync_version = sync_version + 1, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
-  ).bind(encryptedName, encryptedCpf, encryptedContact, registration, birthDate, active, nowIso(), id).run();
+  const timestamp = nowIso();
+  const nextVersion = currentVersion + 1;
+
+  const result = await env.DB.prepare(
+    `UPDATE students SET encrypted_name = ?, encrypted_cpf = ?, encrypted_contact = ?, registration_number = ?, birth_date = ?, active = ?, sync_version = ?, updated_at = ? WHERE id = ? AND sync_version = ? AND deleted_at IS NULL`,
+  ).bind(encryptedName, encryptedCpf, encryptedContact, registration, birthDate, active, nextVersion, timestamp, id, currentVersion).run();
+  if (result.meta.changes === 0) {
+    const latest = await getEntityRow(env, 'students', id).catch(() => null) as StudentRow | null;
+    throw new AppError(409, 'Versão concorrente detectada ao atualizar aluno.', 'CONCURRENCY_CONFLICT', {
+      serverVersion: latest ? Number(latest.sync_version ?? 1) : currentVersion,
+    });
+  }
   const row = await getEntityRow(env, 'students', id) as StudentRow;
   await env.DB.batch([change(env, user, 'students', id, 'upsert', row), audit(env, user, 'UPDATE', 'students', id)]);
-  return clearStudent(env, row);
+  broadcastEvent('entity_changed', { entity: 'students', operation: 'upsert', id, timestamp }, { env });
+  const cleared = await clearStudent(env, row, user);
+
+  return new Response(JSON.stringify(cleared), {
+    status: 200,
+    headers: {
+      'content-type': 'application/json',
+      'etag': formatETag(nextVersion),
+    },
+  });
 }
 
-async function inactivateStudent(env: Env, user: AuthUser, id: string): Promise<unknown> {
+export async function inactivateStudent(env: Env, user: AuthUser, id: string, request?: Request): Promise<unknown> {
   requirePermission(user, 'students:delete');
+  const current = await getEntityRow(env, 'students', id) as StudentRow;
+  const currentVersion = Number(current.sync_version ?? 1);
+  if (request) {
+    const ifMatch = parseIfMatchHeader(request);
+    assertConcurrencyVersion(currentVersion, ifMatch);
+  }
   const timestamp = nowIso();
-  const result = await env.DB.prepare(`UPDATE students SET active = 0, sync_version = sync_version + 1, updated_at = ? WHERE id = ? AND deleted_at IS NULL`).bind(timestamp, id).run();
-  if (result.meta.changes === 0) throw new AppError(404, 'Aluno não encontrado.', 'NOT_FOUND');
+  const nextVersion = currentVersion + 1;
+  const result = await env.DB.prepare(`UPDATE students SET active = 0, sync_version = ?, updated_at = ? WHERE id = ? AND sync_version = ? AND deleted_at IS NULL`).bind(nextVersion, timestamp, id, currentVersion).run();
+  if (result.meta.changes === 0) {
+    const latest = await getEntityRow(env, 'students', id).catch(() => null) as StudentRow | null;
+    throw new AppError(409, 'Versão concorrente detectada ao inativar aluno.', 'CONCURRENCY_CONFLICT', {
+      serverVersion: latest ? Number(latest.sync_version ?? 1) : currentVersion,
+    });
+  }
   const row = await getEntityRow(env, 'students', id);
   await env.DB.batch([change(env, user, 'students', id, 'upsert', row), audit(env, user, 'INACTIVATE', 'students', id)]);
+  broadcastEvent('entity_changed', { entity: 'students', operation: 'upsert', id, timestamp }, { env });
   return { ok: true };
 }
 
-async function enrollStudent(request: Request, env: Env, user: AuthUser, classId: string): Promise<unknown> {
+export async function enrollStudent(request: Request, env: Env, user: AuthUser, classId: string): Promise<unknown> {
   requirePermission(user, 'students:write');
   const body = await readJson<JsonRecord>(request);
   const studentId = requireString(body.studentId, 'studentId', { max: 36 });
@@ -585,7 +797,109 @@ async function enrollStudent(request: Request, env: Env, user: AuthUser, classId
   return row;
 }
 
-async function listAttendance(url: URL, env: Env, user: AuthUser): Promise<unknown> {
+export async function listEnrollments(env: Env, user: AuthUser, url: URL): Promise<{ items: unknown[] }> {
+  requireScope(user, 'students:read', 'classes:read');
+  const classId = url.searchParams.get('classId');
+  const studentId = url.searchParams.get('studentId');
+  const status = url.searchParams.get('status');
+
+  if (classId) await requireClassAccess(env, user, classId);
+
+  let sql = `SELECT * FROM enrollments WHERE deleted_at IS NULL`;
+  const binds: unknown[] = [];
+  if (classId) { sql += ` AND class_id = ?`; binds.push(classId); }
+  if (studentId) { sql += ` AND student_id = ?`; binds.push(studentId); }
+  if (status) { sql += ` AND status = ?`; binds.push(status); }
+  sql += ` ORDER BY created_at DESC`;
+
+  const rows = await env.DB.prepare(sql).bind(...binds).all();
+  return { items: rows.results };
+}
+
+export async function getEnrollment(env: Env, user: AuthUser, id: string): Promise<Response> {
+  requireScope(user, 'students:read', 'classes:read');
+  const row = await env.DB.prepare(`SELECT * FROM enrollments WHERE id = ? AND deleted_at IS NULL`).bind(id).first<Record<string, unknown>>();
+  if (!row) throw new AppError(404, 'Matrícula não encontrada.', 'NOT_FOUND');
+  await requireClassAccess(env, user, String(row.class_id));
+  return new Response(JSON.stringify(row), {
+    status: 200,
+    headers: { 'content-type': 'application/json', 'etag': formatETag(Number(row.sync_version ?? 1)) },
+  });
+}
+
+export async function updateEnrollment(request: Request, env: Env, user: AuthUser, id: string): Promise<Response> {
+  requirePermission(user, 'students:write');
+  const current = await env.DB.prepare(`SELECT * FROM enrollments WHERE id = ? AND deleted_at IS NULL`).bind(id).first<Record<string, unknown>>();
+  if (!current) throw new AppError(404, 'Matrícula não encontrada.', 'NOT_FOUND');
+
+  const currentVersion = Number(current.sync_version ?? 1);
+  const ifMatch = parseIfMatchHeader(request);
+  assertConcurrencyVersion(currentVersion, ifMatch);
+
+  const body = await readJson<Record<string, unknown>>(request);
+  const status = ['ativa', 'trancada', 'concluida'].includes(String(body.status))
+    ? String(body.status)
+    : String(current.status);
+
+  const timestamp = nowIso();
+  const nextVersion = currentVersion + 1;
+
+  const result = await env.DB.prepare(`UPDATE enrollments SET status = ?, sync_version = ?, updated_at = ? WHERE id = ? AND sync_version = ? AND deleted_at IS NULL`).bind(status, nextVersion, timestamp, id, currentVersion).run();
+  if (result.meta.changes === 0) {
+    const latest = await env.DB.prepare(`SELECT sync_version FROM enrollments WHERE id = ?`).bind(id).first<{ sync_version: number }>();
+    throw new AppError(409, 'Versão concorrente detectada ao atualizar matrícula.', 'CONCURRENCY_CONFLICT', {
+      serverVersion: latest ? Number(latest.sync_version ?? 1) : currentVersion,
+    });
+  }
+
+  await env.DB.batch([
+    audit(env, user, 'UPDATE', 'enrollments', id, { status }),
+  ]);
+
+  const updated = await env.DB.prepare(`SELECT * FROM enrollments WHERE id = ?`).bind(id).first();
+  broadcastEvent('entity_changed', { entity: 'enrollments', operation: 'upsert', id, timestamp }, { env });
+  return new Response(JSON.stringify(updated), {
+    status: 200,
+    headers: { 'content-type': 'application/json', 'etag': formatETag(nextVersion) },
+  });
+}
+
+export async function deleteEnrollment(request: Request, env: Env, user: AuthUser, id: string): Promise<Response> {
+  requirePermission(user, 'students:write');
+  const current = await env.DB.prepare(`SELECT * FROM enrollments WHERE id = ? AND deleted_at IS NULL`).bind(id).first<Record<string, unknown>>();
+  if (!current) throw new AppError(404, 'Matrícula não encontrada.', 'NOT_FOUND');
+
+  const currentVersion = Number(current.sync_version ?? 1);
+  const ifMatch = parseIfMatchHeader(request);
+  assertConcurrencyVersion(currentVersion, ifMatch);
+
+  const timestamp = nowIso();
+  const nextVersion = currentVersion + 1;
+  const result = await env.DB.prepare(`UPDATE enrollments SET status = 'concluida', deleted_at = ?, sync_version = ?, updated_at = ? WHERE id = ? AND sync_version = ? AND deleted_at IS NULL`).bind(timestamp, nextVersion, timestamp, id, currentVersion).run();
+  if (result.meta.changes === 0) {
+    const latest = await env.DB.prepare(`SELECT sync_version FROM enrollments WHERE id = ?`).bind(id).first<{ sync_version: number }>();
+    throw new AppError(409, 'Versão concorrente detectada ao remover matrícula.', 'CONCURRENCY_CONFLICT', {
+      serverVersion: latest ? Number(latest.sync_version ?? 1) : currentVersion,
+    });
+  }
+
+  await env.DB.batch([
+    audit(env, user, 'DELETE', 'enrollments', id),
+  ]);
+
+  broadcastEvent('entity_changed', { entity: 'enrollments', operation: 'delete', id, timestamp }, { env });
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+
+export async function listAttendance(url: URL, env: Env, user: AuthUser): Promise<unknown> {
+  requireScope(user, 'attendance:read');
+  if (user.role === 'financeiro') {
+    throw new AppError(403, 'Acesso restrito ao corpo docente e pedagógico.', 'FORBIDDEN');
+  }
   const classId = requireString(url.searchParams.get('classId'), 'classId', { max: 36 });
   await requireClassAccess(env, user, classId);
   const date = url.searchParams.get('date');
@@ -612,7 +926,7 @@ async function listAttendance(url: URL, env: Env, user: AuthUser): Promise<unkno
   return { items, generalNotes: generalNote?.notes ?? null };
 }
 
-async function saveAttendance(request: Request, env: Env, user: AuthUser): Promise<unknown> {
+export async function saveAttendance(request: Request, env: Env, user: AuthUser): Promise<unknown> {
   requirePermission(user, 'attendance:write');
   const body = await readJson<JsonRecord>(request);
   const classId = requireString(body.classId, 'classId', { max: 36 });
@@ -672,12 +986,26 @@ async function saveAttendance(request: Request, env: Env, user: AuthUser): Promi
   const notePayload = { id: noteId, class_id: classId, date, notes: generalNotes, recorded_by_user_id: user.id, sync_version: noteVersion, created_at: currentNote?.created_at ?? timestamp, updated_at: timestamp };
   statements.push(env.DB.prepare(`INSERT INTO class_notes (id, class_id, date, notes, recorded_by_user_id, sync_version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?) ON CONFLICT(class_id, date) DO UPDATE SET notes = excluded.notes, recorded_by_user_id = excluded.recorded_by_user_id, sync_version = class_notes.sync_version + 1, deleted_at = NULL, updated_at = excluded.updated_at`).bind(noteId, classId, date, generalNotes, user.id, currentNote?.created_at ?? timestamp, timestamp));
   statements.push(change(env, user, 'class_notes', noteId, 'upsert', notePayload));
+  statements.push(
+    env.DB.prepare(`
+      INSERT INTO class_sessions (id, class_id, date, recorded_by_user_id, summary, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(class_id, date) DO UPDATE SET
+        deleted_at = NULL,
+        summary = COALESCE(excluded.summary, class_sessions.summary),
+        updated_at = excluded.updated_at
+    `).bind(uuid(), classId, date, user.id, generalNotes, timestamp, timestamp)
+  );
   statements.push(audit(env, user, 'ATTENDANCE_BATCH', 'attendance_records', classId, { date, count: saved.length, generalNotes, justification: body.justification ?? null }));
   await env.DB.batch(statements);
+  broadcastEvent('entity_changed', { entity: 'attendance_records', operation: 'upsert', classId, date, timestamp }, { env });
   return { items: saved };
 }
 
-async function dashboard(url: URL, env: Env, user: AuthUser): Promise<unknown> {
+export async function dashboard(url: URL, env: Env, user: AuthUser): Promise<unknown> {
+  if (user.role === 'financeiro') {
+    throw new AppError(403, 'Acesso restrito ao corpo docente e pedagógico.', 'FORBIDDEN');
+  }
   const from = parseDate(url.searchParams.get('from') ?? new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10), 'data inicial');
   const to = parseDate(url.searchParams.get('to') ?? new Date().toISOString().slice(0, 10), 'data final');
   if (from > to) throw new AppError(400, 'O período informado é inválido.', 'VALIDATION_ERROR');
@@ -745,7 +1073,7 @@ async function dashboard(url: URL, env: Env, user: AuthUser): Promise<unknown> {
   };
 }
 
-async function listConflicts(env: Env, user: AuthUser): Promise<unknown> {
+export async function listConflicts(env: Env, user: AuthUser): Promise<unknown> {
   requirePermission(user, 'conflicts:resolve');
   const rows = await env.DB.prepare(
     `SELECT sc.*, u.name AS resolved_by_name FROM sync_conflicts sc LEFT JOIN users u ON u.id = sc.resolved_by_user_id ORDER BY CASE sc.status WHEN 'PENDING' THEN 0 ELSE 1 END, sc.created_at DESC LIMIT 500`,
@@ -800,7 +1128,7 @@ export async function resolveConflict(request: Request, env: Env, user: AuthUser
   return { ok: true, decision, entity, record, version: Number(record.sync_version ?? 0) };
 }
 
-async function listAudit(url: URL, env: Env, user: AuthUser): Promise<unknown> {
+export async function listAudit(url: URL, env: Env, user: AuthUser): Promise<unknown> {
   requirePermission(user, 'audit:read');
   const limit = Math.min(Math.max(Number(url.searchParams.get('limit') ?? 100), 1), 500);
   const rows = await env.DB.prepare(

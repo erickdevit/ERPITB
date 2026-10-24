@@ -7,6 +7,7 @@ import {
   Search,
 } from 'lucide-react';
 import type { ClassBoletimData } from '../../lib/boletim';
+import { PrintWatermark } from '../../components';
 import { exportClassBoletimPdf } from '../../lib/boletim-pdf';
 import { formatGrade, type GradeStatus } from '../../lib/grades';
 
@@ -32,6 +33,7 @@ export interface ClassBoletimViewProps {
   onPrint?: () => void;
   onDownloadPdf?: () => void;
   showSearch?: boolean;
+  watermarkText?: string;
 }
 
 export function ClassBoletimView({
@@ -41,6 +43,7 @@ export function ClassBoletimView({
   onPrint,
   onDownloadPdf,
   showSearch = true,
+  watermarkText = 'INSTITUTO TRANSFORMA BRASIL',
 }: ClassBoletimViewProps) {
   const [search, setSearch] = useState('');
   const [downloading, setDownloading] = useState(false);
@@ -91,7 +94,8 @@ export function ClassBoletimView({
   })();
 
   return (
-    <div className="flex flex-col gap-3 text-left w-full">
+    <div className="flex flex-col gap-3 text-left w-full print-landscape relative">
+      <PrintWatermark text={watermarkText} />
       {/* PRINT-ONLY INSTITUTIONAL HEADER */}
       <div className="hidden print:flex flex-col gap-3 pb-4 border-b border-slate-300">
         <div className="flex items-center justify-between">

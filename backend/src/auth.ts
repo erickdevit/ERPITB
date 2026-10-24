@@ -1,7 +1,8 @@
 import { argon2id } from '@noble/hashes/argon2';
 import { SignJWT, jwtVerify } from 'jose';
-import { base64, randomToken, sha256Base64 } from './crypto';
+import { base64, randomToken, sha256Base64, sha256Hex } from './crypto';
 import { AppError, normalizeEmail, nowIso, readJson, requireString, uuid } from './http';
+import { broadcastEvent } from './events-bus';
 import type { AuthUser, Env, Role, TokenClaims } from './types';
 
 const encoder = new TextEncoder();
@@ -130,8 +131,21 @@ export async function login(request: Request, env: Env): Promise<unknown> {
 }
 
 export async function refresh(request: Request, env: Env): Promise<unknown> {
-  const body = await readJson<Record<string, unknown>>(request);
-  const supplied = requireString(body.refreshToken, 'refreshToken', { min: 32, max: 256 });
+  let supplied = '';
+  try {
+    const body = await readJson<Record<string, unknown>>(request);
+    if (typeof body.refreshToken === 'string') supplied = body.refreshToken.trim();
+  } catch {
+    // maybe in cookie
+  }
+  if (!supplied) {
+    const cookies = request.headers.get('cookie') || '';
+    const match = cookies.match(/erpitb_refresh_token=([^;]+)/);
+    if (match && match[1]) supplied = decodeURIComponent(match[1].trim());
+  }
+  if (!supplied || supplied.length < 32 || supplied.length > 256) {
+    throw new AppError(401, 'Sessão expirada.', 'INVALID_REFRESH_TOKEN');
+  }
   const tokenHash = await sha256Base64(supplied);
   const row = await env.DB.prepare(
     `SELECT rt.id AS token_id, u.id, u.name, u.email, u.role
@@ -173,13 +187,53 @@ export async function bootstrap(request: Request, env: Env): Promise<unknown> {
 }
 
 export async function authenticate(request: Request, env: Env): Promise<AuthUser> {
-  const header = request.headers.get('authorization');
-  if (!header?.startsWith('Bearer ')) throw new AppError(401, 'Autenticação necessária.', 'UNAUTHENTICATED');
+  const apiKeyHeader = request.headers.get('x-api-key');
+  const authHeader = request.headers.get('authorization');
+  const apiToken = apiKeyHeader || (authHeader?.startsWith('Bearer itb_') ? authHeader.slice(7) : null);
+
+  if (apiToken) {
+    const keyHash = await sha256Hex(apiToken);
+    const now = nowIso();
+    const keyRow = await env.DB.prepare(
+      `SELECT id, name, scopes_json, created_by_user_id, expires_at, revoked_at
+         FROM api_keys
+        WHERE key_hash = ? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)
+        LIMIT 1`,
+    ).bind(keyHash, now).first<{ id: string; name: string; scopes_json: string; created_by_user_id: string; expires_at: string | null; revoked_at: string | null }>();
+
+    if (!keyRow) {
+      throw new AppError(401, 'Chave de API inválida ou revogada.', 'INVALID_API_KEY');
+    }
+
+    try {
+      await env.DB.prepare(`UPDATE api_keys SET last_used_at = ? WHERE id = ?`).bind(now, keyRow.id).run();
+    } catch {
+      // non-fatal
+    }
+
+    let scopes: string[] = [];
+    try {
+      scopes = JSON.parse(keyRow.scopes_json);
+    } catch {
+      scopes = [];
+    }
+
+    return {
+      id: keyRow.id,
+      name: keyRow.name,
+      email: 'machine@apikey',
+      role: 'machine',
+      isApiKey: true,
+      scopes,
+    };
+  }
+
+  if (!authHeader?.startsWith('Bearer ')) throw new AppError(401, 'Autenticação necessária.', 'UNAUTHENTICATED');
   let claims: TokenClaims;
   try {
-    const verified = await jwtVerify(header.slice(7), jwtSecret(env), { algorithms: ['HS256'] });
+    const verified = await jwtVerify(authHeader.slice(7), jwtSecret(env), { algorithms: ['HS256'] });
     claims = verified.payload as unknown as TokenClaims;
-    if (!claims.sub || claims.type !== 'access' || !['admin', 'pedagogico', 'professor'].includes(claims.role)) {
+    if (!claims.sub || claims.type !== 'access' || !['admin', 'pedagogico', 'professor', 'financeiro'].includes(claims.role)) {
       throw new Error('invalid claims');
     }
   } catch {
@@ -188,7 +242,7 @@ export async function authenticate(request: Request, env: Env): Promise<AuthUser
   const current = await env.DB.prepare(
     `SELECT id, name, email, role, active FROM users WHERE id = ? LIMIT 1`,
   ).bind(claims.sub).first<AuthUser & { active: number }>();
-  if (!current || current.active !== 1 || !['admin', 'pedagogico', 'professor'].includes(current.role)) {
+  if (!current || current.active !== 1 || !['admin', 'pedagogico', 'professor', 'financeiro'].includes(current.role)) {
     throw new AppError(401, 'Usuário inativo ou sessão inválida.', 'INVALID_TOKEN');
   }
   return { id: current.id, name: current.name, email: current.email, role: current.role };
@@ -197,13 +251,21 @@ export async function authenticate(request: Request, env: Env): Promise<AuthUser
 export async function logout(request: Request, env: Env, user: AuthUser): Promise<unknown> {
   const body = await readJson<Record<string, unknown>>(request);
   const supplied = requireString(body.refreshToken, 'refreshToken', { min: 32, max: 256 });
+  const timestamp = nowIso();
   await env.DB.prepare(
     `UPDATE refresh_tokens SET revoked_at = ? WHERE user_id = ? AND token_hash = ? AND revoked_at IS NULL`,
-  ).bind(nowIso(), user.id, await sha256Base64(supplied)).run();
+  ).bind(timestamp, user.id, await sha256Base64(supplied)).run();
+
+  broadcastEvent('session_revoked', {
+    userId: user.id,
+    reason: 'LOGOUT',
+    timestamp,
+  }, { targetUserId: user.id, env });
+
   return { ok: true };
 }
 
 export function assertRole(value: unknown): Role {
-  if (value === 'admin' || value === 'pedagogico' || value === 'professor') return value;
+  if (value === 'admin' || value === 'pedagogico' || value === 'professor' || value === 'financeiro') return value;
   throw new AppError(400, 'Perfil inválido.', 'VALIDATION_ERROR');
 }

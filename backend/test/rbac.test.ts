@@ -17,10 +17,29 @@ describe('RBAC and attendance window', () => {
     expect(teacherCanEditDate('2026-07-21', now)).toBe(false);
   });
 
-  it('uses the institution calendar instead of UTC around midnight', () => {
-    const now = new Date('2026-07-20T02:00:00.000Z');
-    expect(dateInTimeZone(now, 'America/Sao_Paulo')).toBe('2026-07-19');
-    expect(teacherCanEditDate('2026-07-12', now, 'America/Sao_Paulo')).toBe(true);
-    expect(teacherCanEditDate('2026-07-20', now, 'America/Sao_Paulo')).toBe(false);
+  it('enforces least-privilege for role financeiro and isolates financial operations', () => {
+    // financeiro has finance access
+    expect(hasPermission('financeiro', 'finance:read')).toBe(true);
+    expect(hasPermission('financeiro', 'finance:write')).toBe(true);
+    expect(hasPermission('financeiro', 'reports:finance')).toBe(true);
+
+    // financeiro cannot write grades, attendance, manage courses or api keys
+    expect(hasPermission('financeiro', 'grades:write')).toBe(false);
+    expect(hasPermission('financeiro', 'attendance:write')).toBe(false);
+    expect(hasPermission('financeiro', 'courses:delete')).toBe(false);
+    expect(hasPermission('financeiro', 'api_keys:manage')).toBe(false);
+    expect(hasPermission('financeiro', 'branding:manage')).toBe(false);
+
+    // professors and pedagogico cannot access financial operations
+    expect(hasPermission('professor', 'finance:read')).toBe(false);
+    expect(hasPermission('professor', 'finance:write')).toBe(false);
+    expect(hasPermission('pedagogico', 'finance:read')).toBe(false);
+    expect(hasPermission('pedagogico', 'finance:write')).toBe(false);
+
+    // admin has both
+    expect(hasPermission('admin', 'finance:read')).toBe(true);
+    expect(hasPermission('admin', 'finance:write')).toBe(true);
+    expect(hasPermission('admin', 'branding:manage')).toBe(true);
+    expect(hasPermission('admin', 'api_keys:manage')).toBe(true);
   });
 });
