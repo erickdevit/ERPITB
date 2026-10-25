@@ -289,7 +289,15 @@ export function ErrorNotice({ message }: { message: string }) {
   );
 }
 
-export function PrintWatermark({ text, logoUrl }: { text?: string; logoUrl?: string }) {
+export function PrintWatermark({
+  text,
+  logoUrl,
+  grayscale = true,
+}: {
+  text?: string;
+  logoUrl?: string;
+  grayscale?: boolean;
+}) {
   if (!text && !logoUrl) return null;
   return (
     <div
@@ -300,7 +308,9 @@ export function PrintWatermark({ text, logoUrl }: { text?: string; logoUrl?: str
         <img
           src={logoUrl}
           alt=""
-          className="max-w-[340px] max-h-[340px] sm:max-w-[460px] sm:max-h-[460px] object-contain opacity-[0.09] grayscale pointer-events-none select-none"
+          className={`max-w-[340px] max-h-[340px] sm:max-w-[460px] sm:max-h-[460px] object-contain opacity-[0.09] pointer-events-none select-none ${
+            grayscale ? 'grayscale' : ''
+          }`}
         />
       ) : (
         <span className="text-3xl sm:text-5xl font-black uppercase tracking-widest text-slate-900/[0.045] -rotate-30 select-none whitespace-nowrap">

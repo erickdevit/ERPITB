@@ -12,6 +12,7 @@ export const DEFAULT_BRANDING: BrandingSettings = {
   loginBgUrl: '',
   printWatermarkText: 'ERPITB - Documento Oficial',
   printWatermarkLogoUrl: '',
+  printWatermarkGrayscale: true,
   showHeaderLogoLeft: true,
   showHeaderLogoRight: false,
   documentHeaderAlign: 'left',
@@ -89,6 +90,7 @@ export async function getBranding(env: Env): Promise<BrandingSettings> {
     id: string; app_name: string; accent_color: string; login_logo_url: string | null;
     login_bg_url: string | null; print_watermark_text: string | null;
     print_watermark_logo_url: string | null;
+    print_watermark_grayscale: number | null;
     show_header_logo_left: number; show_header_logo_right: number;
     document_header_align: 'left' | 'center' | 'right' | 'split' | null;
     sync_version: number | null;
@@ -107,6 +109,9 @@ export async function getBranding(env: Env): Promise<BrandingSettings> {
     loginBgUrl: row.login_bg_url || '',
     printWatermarkText: row.print_watermark_text || DEFAULT_BRANDING.printWatermarkText,
     printWatermarkLogoUrl: row.print_watermark_logo_url || '',
+    printWatermarkGrayscale: row.print_watermark_grayscale !== undefined && row.print_watermark_grayscale !== null
+      ? Boolean(row.print_watermark_grayscale)
+      : true,
     showHeaderLogoLeft: Boolean(row.show_header_logo_left),
     showHeaderLogoRight: Boolean(row.show_header_logo_right),
     documentHeaderAlign: row.document_header_align || 'left',
@@ -141,6 +146,7 @@ export async function updateBranding(request: Request, env: Env, user: AuthUser)
   const loginBgUrl = typeof body.loginBgUrl === 'string' ? body.loginBgUrl.trim() : '';
   const printWatermarkLogoUrl = typeof body.printWatermarkLogoUrl === 'string' ? body.printWatermarkLogoUrl.trim() : '';
   const printWatermarkText = typeof body.printWatermarkText === 'string' ? body.printWatermarkText.trim() : DEFAULT_BRANDING.printWatermarkText;
+  const printWatermarkGrayscale = body.printWatermarkGrayscale !== undefined ? (body.printWatermarkGrayscale ? 1 : 0) : 1;
   const showHeaderLogoLeft = body.showHeaderLogoLeft !== undefined ? (body.showHeaderLogoLeft ? 1 : 0) : 1;
   const showHeaderLogoRight = body.showHeaderLogoRight !== undefined ? (body.showHeaderLogoRight ? 1 : 0) : 0;
   const documentHeaderAlign = body.documentHeaderAlign === undefined
@@ -170,24 +176,24 @@ export async function updateBranding(request: Request, env: Env, user: AuthUser)
     await env.DB.prepare(`
       INSERT INTO branding_settings (
         id, app_name, accent_color, login_logo_url, login_bg_url,
-        print_watermark_text, print_watermark_logo_url, show_header_logo_left, show_header_logo_right,
+        print_watermark_text, print_watermark_logo_url, print_watermark_grayscale, show_header_logo_left, show_header_logo_right,
         document_header_align, sync_version, updated_by_user_id, updated_at
-      ) VALUES ('default', ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+      ) VALUES ('default', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
     `).bind(
       appName, accentColor, loginLogoUrl, loginBgUrl,
-      printWatermarkText, printWatermarkLogoUrl, showHeaderLogoLeft, showHeaderLogoRight,
+      printWatermarkText, printWatermarkLogoUrl, printWatermarkGrayscale, showHeaderLogoLeft, showHeaderLogoRight,
       documentHeaderAlign, user.id, timestamp,
     ).run();
   } else {
     const updateResult = await env.DB.prepare(`
       UPDATE branding_settings
          SET app_name = ?, accent_color = ?, login_logo_url = ?, login_bg_url = ?,
-             print_watermark_text = ?, print_watermark_logo_url = ?, show_header_logo_left = ?, show_header_logo_right = ?,
+             print_watermark_text = ?, print_watermark_logo_url = ?, print_watermark_grayscale = ?, show_header_logo_left = ?, show_header_logo_right = ?,
              document_header_align = ?, sync_version = ?, updated_by_user_id = ?, updated_at = ?
        WHERE id = 'default' AND sync_version = ?
     `).bind(
       appName, accentColor, loginLogoUrl, loginBgUrl,
-      printWatermarkText, printWatermarkLogoUrl, showHeaderLogoLeft, showHeaderLogoRight,
+      printWatermarkText, printWatermarkLogoUrl, printWatermarkGrayscale, showHeaderLogoLeft, showHeaderLogoRight,
       documentHeaderAlign, nextVersion, user.id, timestamp, currentVersion,
     ).run();
 
@@ -217,6 +223,7 @@ export async function updateBranding(request: Request, env: Env, user: AuthUser)
     loginBgUrl,
     printWatermarkText,
     printWatermarkLogoUrl,
+    printWatermarkGrayscale: Boolean(printWatermarkGrayscale),
     showHeaderLogoLeft: Boolean(showHeaderLogoLeft),
     showHeaderLogoRight: Boolean(showHeaderLogoRight),
     documentHeaderAlign,
@@ -241,9 +248,9 @@ export async function resetBranding(env: Env, user: AuthUser): Promise<BrandingS
     env.DB.prepare(`
       INSERT INTO branding_settings (
         id, app_name, accent_color, login_logo_url, login_bg_url,
-        print_watermark_text, print_watermark_logo_url, show_header_logo_left, show_header_logo_right,
+        print_watermark_text, print_watermark_logo_url, print_watermark_grayscale, show_header_logo_left, show_header_logo_right,
         document_header_align, sync_version, updated_by_user_id, updated_at
-      ) VALUES ('default', ?, ?, '', '', ?, '', 1, 0, 'left', 1, ?, ?)
+      ) VALUES ('default', ?, ?, '', '', ?, '', 1, 1, 0, 'left', 1, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         app_name = excluded.app_name,
         accent_color = excluded.accent_color,
@@ -251,6 +258,7 @@ export async function resetBranding(env: Env, user: AuthUser): Promise<BrandingS
         login_bg_url = '',
         print_watermark_text = excluded.print_watermark_text,
         print_watermark_logo_url = '',
+        print_watermark_grayscale = 1,
         show_header_logo_left = 1,
         show_header_logo_right = 0,
         document_header_align = 'left',

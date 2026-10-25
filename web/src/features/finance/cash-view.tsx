@@ -163,76 +163,11 @@ export function CashView({ mode = 'all' }: { mode?: 'all' | 'entrada' | 'saida' 
 
   return (
     <>
-      <div className="flex flex-col gap-6 print:hidden">
-      {/* Cash KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs">
-          <p className="text-xs font-semibold text-slate-500">Saldo Anterior</p>
-          <p className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
-            {formatCents(summary.openingBalanceCents || 0)}
-          </p>
-          <p className="text-[11px] text-slate-400 mt-1">Acumulado antes deste mês</p>
-        </div>
-
-        <div className="bg-white border border-emerald-200 rounded-2xl p-4 shadow-2xs bg-emerald-50/20">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
-            <ArrowDownCircle className="w-4 h-4 text-emerald-600" />
-            <span>Total de Entradas</span>
-          </div>
-          <p className="text-xl sm:text-2xl font-black text-emerald-700 mt-1">
-            {formatCents(summary.totalInflowCents || 0)}
-          </p>
-          <p className="text-[11px] text-emerald-600/70 mt-1">Mensalidades e receitas</p>
-        </div>
-
-        <div className="bg-white border border-rose-200 rounded-2xl p-4 shadow-2xs bg-rose-50/20">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-rose-700">
-            <ArrowUpCircle className="w-4 h-4 text-rose-600" />
-            <span>Total de Saídas</span>
-          </div>
-          <p className="text-xl sm:text-2xl font-black text-rose-700 mt-1">
-            {formatCents(summary.totalOutflowCents || 0)}
-          </p>
-          <p className="text-[11px] text-rose-600/70 mt-1">Despesas e estornos</p>
-        </div>
-
-        <div className="bg-slate-900 text-white border border-slate-800 rounded-2xl p-4 shadow-2xs">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
-            <Wallet className="w-4 h-4 text-sky-400" />
-            <span>Saldo Atual em Caixa</span>
-          </div>
-          <p className="text-xl sm:text-2xl font-black text-white mt-1">
-            {formatCents(summary.closingBalanceCents || 0)}
-          </p>
-          <p className="text-[11px] text-slate-400 mt-1">
-            Fluxo líquido: {formatCents(summary.netFlowCents || 0)}
-          </p>
-        </div>
-      </div>
-
-      {/* Payment Method Breakdown Badges */}
-      {summary.totalsByMethod && (
-        <div className="bg-slate-100/70 rounded-2xl p-3 flex flex-wrap items-center gap-3 text-xs">
-          <span className="font-bold text-slate-700 text-[11px] uppercase tracking-wider">
-            Totais por Método:
-          </span>
-          {Object.entries(summary.totalsByMethod).map(([m, vals]: any) => {
-            if (vals.entrada === 0 && vals.saida === 0) return null;
-            return (
-              <div key={m} className="bg-white px-2.5 py-1 rounded-xl border border-slate-200 text-slate-700 font-medium flex items-center gap-2">
-                <span className="font-bold">{m}:</span>
-                <span className="text-emerald-700 font-semibold">+{formatCents(vals.entrada)}</span>
-                {vals.saida > 0 && <span className="text-rose-600 font-semibold">-{formatCents(vals.saida)}</span>}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Filter and Action Bar */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-        <div className="flex flex-wrap items-center gap-2 flex-1">
-          <div className="relative flex-1 min-w-[200px]">
+      <div className="flex flex-col gap-4 text-left print:hidden">
+        {/* Filter and Action Bar */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+          <div className="flex flex-wrap items-center gap-2 flex-1">
+            <div className="relative flex-1 min-w-[200px]">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
             <input
               type="text"

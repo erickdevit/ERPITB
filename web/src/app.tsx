@@ -94,7 +94,11 @@ function allowed(item: Destination, role: Role) {
   return (!item.manager || canManage(role)) && (!item.admin || role === 'admin');
 }
 
-const FinancePage = lazy(() => import('./features/finance/finance-page').then((m) => ({ default: m.FinancePage })));
+const FinanceDashboardPage = lazy(() => import('./features/finance/finance-dashboard-page').then((m) => ({ default: m.FinanceDashboardPage })));
+const FinanceFeesPage = lazy(() => import('./features/finance/fees-page').then((m) => ({ default: m.FinanceFeesPage })));
+const FinanceCashPage = lazy(() => import('./features/finance/cash-page').then((m) => ({ default: m.FinanceCashPage })));
+const FinanceEntriesPage = lazy(() => import('./features/finance/entries-page').then((m) => ({ default: m.FinanceEntriesPage })));
+const FinanceExitsPage = lazy(() => import('./features/finance/exits-page').then((m) => ({ default: m.FinanceExitsPage })));
 const BrandingPage = lazy(() => import('./features/admin/branding-page').then((m) => ({ default: m.BrandingPage })));
 const ApiKeysPage = lazy(() => import('./features/admin/api-keys-page').then((m) => ({ default: m.ApiKeysPage })));
 const BiInstitutionalPage = lazy(() => import('./features/bi/institutional-page').then((m) => ({ default: m.BiInstitutionalPage })));
@@ -144,11 +148,11 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={isFinanceOnly ? <Navigate to="/financeiro/dashboard" replace /> : deferred(<DashboardPage />)} />
       <Route path="/financeiro" element={<Navigate to="/financeiro/dashboard" replace />} />
-      <Route path="/financeiro/dashboard" element={financeAllowed ? deferred(<FinancePage />) : <Navigate to="/" replace />} />
-      <Route path="/financeiro/mensalidades" element={financeAllowed ? deferred(<FinancePage />) : <Navigate to="/" replace />} />
-      <Route path="/financeiro/caixa" element={financeAllowed ? deferred(<FinancePage />) : <Navigate to="/" replace />} />
-      <Route path="/financeiro/entradas" element={financeAllowed ? deferred(<FinancePage />) : <Navigate to="/" replace />} />
-      <Route path="/financeiro/saidas" element={financeAllowed ? deferred(<FinancePage />) : <Navigate to="/" replace />} />
+      <Route path="/financeiro/dashboard" element={financeAllowed ? deferred(<FinanceDashboardPage />) : <Navigate to="/" replace />} />
+      <Route path="/financeiro/mensalidades" element={financeAllowed ? deferred(<FinanceFeesPage />) : <Navigate to="/" replace />} />
+      <Route path="/financeiro/caixa" element={financeAllowed ? deferred(<FinanceCashPage />) : <Navigate to="/" replace />} />
+      <Route path="/financeiro/entradas" element={financeAllowed ? deferred(<FinanceEntriesPage />) : <Navigate to="/" replace />} />
+      <Route path="/financeiro/saidas" element={financeAllowed ? deferred(<FinanceExitsPage />) : <Navigate to="/" replace />} />
       <Route path="/turmas" element={!isFinanceOnly ? deferred(<ClassesPage />) : <Navigate to="/financeiro/dashboard" replace />} />
       <Route path="/turmas/:classId" element={!isFinanceOnly ? deferred(<ClassDetailPage />) : <Navigate to="/financeiro/dashboard" replace />} />
       <Route path="/alunos" element={deferred(<StudentsPage />)} />

@@ -141,6 +141,7 @@ export interface BrandingSettings {
   loginBgUrl?: string;
   printWatermarkText?: string;
   printWatermarkLogoUrl?: string;
+  printWatermarkGrayscale?: boolean;
   showHeaderLogoLeft: boolean;
   showHeaderLogoRight: boolean;
   documentHeaderAlign?: 'left' | 'center' | 'right' | 'split';

@@ -42,6 +42,7 @@ export function BrandingPage() {
   const [accentColor, setAccentColor] = useState('#0284c7');
   const [loginLogoUrl, setLoginLogoUrl] = useState('');
   const [printWatermarkLogoUrl, setPrintWatermarkLogoUrl] = useState('');
+  const [printWatermarkGrayscale, setPrintWatermarkGrayscale] = useState(true);
   const [loginBgUrl, setLoginBgUrl] = useState('');
   const [printWatermarkText, setPrintWatermarkText] = useState('INSTITUTO TRANSFORMA BRASIL');
   const [showHeaderLogoLeft, setShowHeaderLogoLeft] = useState(true);
@@ -57,6 +58,7 @@ export function BrandingPage() {
         setAccentColor(b.accentColor || '#0284c7');
         setLoginLogoUrl(b.loginLogoUrl || '');
         setPrintWatermarkLogoUrl(b.printWatermarkLogoUrl || '');
+        setPrintWatermarkGrayscale(b.printWatermarkGrayscale ?? true);
         setLoginBgUrl(b.loginBgUrl || '');
         setPrintWatermarkText(b.printWatermarkText || 'INSTITUTO TRANSFORMA BRASIL');
         setShowHeaderLogoLeft(b.showHeaderLogoLeft ?? true);
@@ -129,6 +131,7 @@ export function BrandingPage() {
         accentColor,
         loginLogoUrl: loginLogoUrl || undefined,
         printWatermarkLogoUrl: printWatermarkLogoUrl || undefined,
+        printWatermarkGrayscale: Boolean(printWatermarkGrayscale),
         loginBgUrl: loginBgUrl || undefined,
         printWatermarkText: printWatermarkText || undefined,
         showHeaderLogoLeft,
@@ -158,6 +161,7 @@ export function BrandingPage() {
       setAccentColor(def.accentColor);
       setLoginLogoUrl('');
       setPrintWatermarkLogoUrl('');
+      setPrintWatermarkGrayscale(true);
       setLoginBgUrl('');
       setPrintWatermarkText(def.printWatermarkText || 'INSTITUTO TRANSFORMA BRASIL');
       setShowHeaderLogoLeft(def.showHeaderLogoLeft);

@@ -375,6 +375,7 @@ CREATE TABLE IF NOT EXISTS branding_settings (
   login_bg_url TEXT,
   print_watermark_text TEXT DEFAULT 'ERPITB - Documento Oficial',
   print_watermark_logo_url TEXT,
+  print_watermark_grayscale INTEGER NOT NULL DEFAULT 1,
   show_header_logo_left INTEGER NOT NULL DEFAULT 1,
   show_header_logo_right INTEGER NOT NULL DEFAULT 0,
   document_header_align TEXT DEFAULT 'left' CHECK (document_header_align IN ('left', 'center', 'right', 'split')),

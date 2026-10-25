@@ -147,6 +147,7 @@ export interface BrandingSettings {
   loginBgUrl?: string;
   printWatermarkText?: string;
   printWatermarkLogoUrl?: string;
+  printWatermarkGrayscale?: boolean;
   showHeaderLogoLeft: boolean;
   showHeaderLogoRight: boolean;
   updatedAt: string;

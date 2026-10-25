@@ -220,59 +220,17 @@ export function FeesView() {
 
   return (
     <>
-      <div className="flex flex-col gap-6 print:hidden">
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs">
-          <p className="text-xs font-semibold text-slate-500">Valor Previsto</p>
-          <p className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
-            {formatCents(summary.totalExpectedCents || 0)}
-          </p>
-          <p className="text-[11px] text-slate-400 mt-1">{summary.totalFeesCount || 0} mensalidades</p>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs">
-          <p className="text-xs font-semibold text-emerald-600">Total Recebido</p>
-          <p className="text-xl sm:text-2xl font-black text-emerald-700 mt-1">
-            {formatCents(summary.totalPaidCents || 0)}
-          </p>
-          <p className="text-[11px] text-emerald-600/70 mt-1">Valores confirmados em caixa</p>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs">
-          <p className="text-xs font-semibold text-sky-600">Saldo a Receber</p>
-          <p className="text-xl sm:text-2xl font-black text-sky-700 mt-1">
-            {formatCents(summary.totalOpenCents || 0)}
-          </p>
-          <p className="text-[11px] text-slate-400 mt-1">Dentro do prazo de vencimento</p>
-        </div>
-
-        <div className="bg-white border border-rose-200 rounded-2xl p-4 shadow-2xs bg-rose-50/20">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-rose-600">Inadimplência</p>
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800">
-              {summary.delinquencyRate || 0}%
-            </span>
-          </div>
-          <p className="text-xl sm:text-2xl font-black text-rose-700 mt-1">
-            {formatCents(summary.totalOverdueCents || 0)}
-          </p>
-          <p className="text-[11px] text-rose-600/80 mt-1 font-medium">
-            {summary.overdueCount || 0} alunos em atraso
-          </p>
-        </div>
-      </div>
-
-      {/* Filter and Action Bar */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-        <div className="flex flex-wrap items-center gap-2 flex-1">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-            <input
-              type="text"
-              placeholder="Buscar aluno, matrícula ou turma..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+      <div className="flex flex-col gap-4 text-left print:hidden">
+        {/* Filter and Action Bar */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+          <div className="flex flex-wrap items-center gap-2 flex-1">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              <input
+                type="text"
+                placeholder="Buscar aluno, matrícula ou turma..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-900"
             />
           </div>
@@ -664,3 +622,6 @@ export function FeesView() {
     </>
   );
 }
+
+export const FinanceFeesPage = FeesView;
+
