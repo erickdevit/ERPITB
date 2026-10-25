@@ -288,11 +288,19 @@ export function ErrorNotice({ message }: { message: string }) {
   );
 }
 
-export function PrintWatermark({ text }: { text?: string }) {
-  if (!text) return null;
+export function PrintWatermark({ text, logoUrl }: { text?: string; logoUrl?: string }) {
+  if (!text && !logoUrl) return null;
   return (
-    <div className="print-watermark hidden print:flex" aria-hidden="true">
-      {text}
+    <div className="print-watermark hidden print:flex pointer-events-none select-none" aria-hidden="true">
+      {logoUrl ? (
+        <img
+          src={logoUrl}
+          alt=""
+          className="max-w-[400px] max-h-[400px] object-contain opacity-[0.06] grayscale"
+        />
+      ) : (
+        <span>{text}</span>
+      )}
     </div>
   );
 }

@@ -35,7 +35,7 @@ import {
   type CalculationMode,
   type GradeStatus,
 } from '../lib/grades';
-import { useEntity } from '../lib/use-entity';
+import { useEntity, clearEntityMemoryCache } from '../lib/use-entity';
 import type { LocalRecord } from '../types';
 import { ClassBoletimView } from './reports/class-boletim-view';
 import { StudentReportCardView } from './reports/student-report-card-view';
@@ -123,7 +123,7 @@ interface OrganizeModalState {
 }
 
 export function GradesPage() {
-  const { store, sync, session } = useApp();
+  const { store, sync, session, api, branding } = useApp();
   const [searchParams, setSearchParams] = useSearchParams();
   const classes = useEntity('classes');
   const courses = useEntity('courses');
@@ -142,6 +142,8 @@ export function GradesPage() {
   const [saving, setSaving] = useState(false);
   const [selectedStudentForBoletim, setSelectedStudentForBoletim] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ severity: 'success' | 'error'; message: string }>();
+  const [itemToDelete, setItemToDelete] = useState<LocalRecord | null>(null);
+  const [deletingItem, setDeletingItem] = useState(false);
 
   // Draft cells: key = `${studentId}:${itemId}` -> { scoreText, remarks }
   const [draftCells, setDraftCells] = useState<Record<string, { scoreText: string; remarks: string }>>({});
@@ -545,15 +547,32 @@ export function GradesPage() {
     }
   };
 
-  const handleDeleteItem = async (item: LocalRecord) => {
+  const confirmDeleteItem = async () => {
+    if (!itemToDelete) return;
+    setDeletingItem(true);
     try {
-      await deleteGradeItemCascade(store, sync, item, studentGrades.items);
-      setNotice({ severity: 'success', message: `Avaliação "${text(item, 'name')}" removida.` });
+      await api.deleteGradeItem(itemToDelete.id);
+      setDraftCells((prev) => {
+        const next = { ...prev };
+        for (const key of Object.keys(next)) {
+          if (key.endsWith(`:${itemToDelete.id}`)) {
+            delete next[key];
+          }
+        }
+        return next;
+      });
+      clearEntityMemoryCache();
+      await Promise.all([gradeItems.reload(), studentGrades.reload()]);
+      await sync();
+      setNotice({ severity: 'success', message: `Avaliação "${text(itemToDelete, 'name')}" removida com sucesso.` });
+      setItemToDelete(null);
     } catch (err) {
       setNotice({
         severity: 'error',
         message: err instanceof Error ? err.message : 'Erro ao remover avaliação.',
       });
+    } finally {
+      setDeletingItem(false);
     }
   };
 
@@ -1006,7 +1025,7 @@ export function GradesPage() {
                               </button>
                               <button
                                 type="button"
-                                onClick={() => void handleDeleteItem(item)}
+                                onClick={() => setItemToDelete(item)}
                                 className="p-1 rounded hover:bg-rose-100 text-slate-400 hover:text-rose-600 cursor-pointer"
                                 title="Remover avaliação"
                               >
@@ -1201,6 +1220,8 @@ export function GradesPage() {
               onOrganizeTables={classTables.length > 1 ? openOrganizeModal : undefined}
               onSelectStudent={(studentId) => setSelectedStudentForBoletim(studentId)}
               showSearch={false}
+              logoUrl={branding?.loginLogoUrl}
+              watermarkLogoUrl={branding?.printWatermarkLogoUrl}
             />
           )}
         </div>
@@ -1530,6 +1551,24 @@ export function GradesPage() {
         />
       </PageDialog>
 
+      {/* Modal: Confirm Delete Grade Item */}
+      <PageDialog
+        open={Boolean(itemToDelete)}
+        title="Remover Avaliação"
+        onClose={() => setItemToDelete(null)}
+        onSave={confirmDeleteItem}
+        saveText={deletingItem ? 'Removendo...' : 'Remover Avaliação'}
+      >
+        <div className="space-y-2 text-xs text-slate-600">
+          <p>
+            Deseja realmente remover a avaliação <strong>"{itemToDelete ? text(itemToDelete, 'name') : ''}"</strong>?
+          </p>
+          <p className="text-rose-600 font-medium">
+            Todas as notas lançadas nesta coluna serão excluídas. Esta ação não poderá ser desfeita.
+          </p>
+        </div>
+      </PageDialog>
+
       {/* Modal: Student Individual Boletim */}
       {selectedStudentForBoletim && studentBoletimData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 print:p-0">
@@ -1557,7 +1596,11 @@ export function GradesPage() {
                 ✕
               </button>
             </div>
-            <StudentReportCardView data={studentBoletimData} />
+            <StudentReportCardView
+              data={studentBoletimData}
+              logoUrl={branding?.loginLogoUrl}
+              watermarkLogoUrl={branding?.printWatermarkLogoUrl}
+            />
           </div>
         </div>
       )}

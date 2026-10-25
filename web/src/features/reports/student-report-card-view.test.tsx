@@ -128,7 +128,7 @@ describe('StudentReportCardView Component', () => {
     expect(
       screen.getByText('ERPITB — Relatório Acadêmico')
     ).toBeDefined();
-    expect(screen.getByText(/Data de Emissão/i)).toBeDefined();
+    expect(screen.getByText(/Data e Hora de Emissão|Data de Emissão/i)).toBeDefined();
   });
 
   it('renders student credentials with name, registration, course and class names', () => {
@@ -140,15 +140,14 @@ describe('StudentReportCardView Component', () => {
     expect(screen.getByText('Turma Alpha (Manhã), Turma Beta (Tarde)')).toBeDefined();
   });
 
-  it('renders all table headers and module data accurately', () => {
+  it('renders student credentials, academic indicators and module breakdown', () => {
     render(<StudentReportCardView data={mockData} />);
 
     expect(screen.getByText('Aluno')).toBeDefined();
     expect(screen.getByText('Média Geral')).toBeDefined();
     expect(screen.getByText('Frequência')).toBeDefined();
-    const situacaoTh = screen.getByText('Situação');
-    expect(situacaoTh).toBeDefined();
-    expect(situacaoTh.closest('th')?.classList.contains('print:hidden')).toBe(true);
+    const situacao = screen.getByText('Situação');
+    expect(situacao).toBeDefined();
 
     expect(screen.getAllByText('Módulo 1: Frontend React').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Módulo 2: Backend Node.js').length).toBeGreaterThan(0);

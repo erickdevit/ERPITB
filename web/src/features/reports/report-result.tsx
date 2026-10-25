@@ -2,14 +2,29 @@ import React from 'react';
 import type { ReportView } from './model';
 import { StudentReportCardView } from './student-report-card-view';
 import { ClassBoletimView } from './class-boletim-view';
+import { useApp } from '../../app-context';
 
 export function ReportResult({ view }: { view: ReportView }) {
+  const { branding } = useApp();
+
   if (view.type === 'studentBoletim' && view.boletimData) {
-    return <StudentReportCardView data={view.boletimData} />;
+    return (
+      <StudentReportCardView
+        data={view.boletimData}
+        logoUrl={branding?.loginLogoUrl}
+        watermarkLogoUrl={branding?.printWatermarkLogoUrl}
+      />
+    );
   }
 
   if (view.type === 'classGrades' && view.classBoletimData) {
-    return <ClassBoletimView data={view.classBoletimData} />;
+    return (
+      <ClassBoletimView
+        data={view.classBoletimData}
+        logoUrl={branding?.loginLogoUrl}
+        watermarkLogoUrl={branding?.printWatermarkLogoUrl}
+      />
+    );
   }
 
   const displayTitle = view.tableTitle || view.title;

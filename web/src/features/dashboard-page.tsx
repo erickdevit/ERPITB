@@ -539,96 +539,79 @@ export function DashboardPage() {
         {loading ? (
           <ChartSkeleton height={240} label="Carregando comparativo por turma" />
         ) : analytics.byClass.length ? (
-          <div className="space-y-3">
-            {analytics.byClass.some((item) => item.records === 0) && (
-              <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-500">
-                <span className="font-semibold text-slate-700">Turmas sem chamadas no período:</span>
-                {analytics.byClass
-                  .filter((item) => item.records === 0)
-                  .map((item) => (
-                    <span
-                      key={item.id}
-                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-600 font-medium"
-                    >
-                      {item.name}: <span className="text-slate-400">Sem chamadas no período</span>
-                    </span>
-                  ))}
-              </div>
-            )}
-            <div
-              role="img"
-              aria-label="Gráfico comparativo da frequência por turma"
-              style={{ height: Math.min(480, Math.max(240, analytics.byClass.length * 40)) }}
-              className="w-full"
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={analytics.byClass} layout="vertical" margin={{ top: 4, right: 36, bottom: 4, left: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" horizontal={false} />
-                  <XAxis type="number" domain={[0, 100]} unit="%" tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    width={130}
-                    tick={{ fontSize: 11, fill: '#0F172A', fontWeight: 600 }}
-                    stroke="#E2E8F0"
-                    tickFormatter={(val) => (String(val).length > 18 ? `${String(val).slice(0, 17)}…` : String(val))}
-                  />
-                  <Tooltip
-                    formatter={(value: any, _name: any, item: any) => {
-                      if (item?.payload?.records === 0) {
-                        return ['Sem chamadas no período', 'Status'];
-                      }
-                      return [`${value}% (${item?.payload?.present ?? 0} presenças em ${item?.payload?.records ?? 0} marcações)`, 'Frequência'];
-                    }}
-                    contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0' }}
-                  />
-                  <Bar
-                    dataKey="rate"
-                    name="Frequência (%)"
-                    radius={[0, 4, 4, 0]}
-                    maxBarSize={18}
-                    label={(props: any) => {
-                      const { x, y, width, height, value, index } = props;
-                      const entry = analytics.byClass[index];
-                      if (!entry) return null;
-                      if (entry.records === 0) {
-                        return (
-                          <text
-                            x={x + 8}
-                            y={y + height / 2}
-                            fill="#94A3B8"
-                            fontSize={11}
-                            fontWeight={500}
-                            dominantBaseline="central"
-                          >
-                            Sem chamadas no período
-                          </text>
-                        );
-                      }
+          <div
+            role="img"
+            aria-label="Gráfico comparativo da frequência por turma"
+            style={{ height: Math.min(480, Math.max(240, analytics.byClass.length * 40)) }}
+            className="w-full"
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={analytics.byClass} layout="vertical" margin={{ top: 4, right: 36, bottom: 4, left: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" horizontal={false} />
+                <XAxis type="number" domain={[0, 100]} unit="%" tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={130}
+                  tick={{ fontSize: 11, fill: '#0F172A', fontWeight: 600 }}
+                  stroke="#E2E8F0"
+                  tickFormatter={(val) => (String(val).length > 18 ? `${String(val).slice(0, 17)}…` : String(val))}
+                />
+                <Tooltip
+                  formatter={(value: any, _name: any, item: any) => {
+                    if (item?.payload?.records === 0) {
+                      return ['Sem chamadas no período', 'Status'];
+                    }
+                    return [`${value}% (${item?.payload?.present ?? 0} presenças em ${item?.payload?.records ?? 0} marcações)`, 'Frequência'];
+                  }}
+                  contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0' }}
+                />
+                <Bar
+                  dataKey="rate"
+                  name="Frequência (%)"
+                  radius={[0, 4, 4, 0]}
+                  maxBarSize={18}
+                  label={(props: any) => {
+                    const { x, y, width, height, value, index } = props;
+                    const entry = analytics.byClass[index];
+                    if (!entry) return null;
+                    if (entry.records === 0) {
                       return (
                         <text
-                          x={x + width + 8}
+                          x={x + 8}
                           y={y + height / 2}
-                          fill="#475569"
+                          fill="#94A3B8"
                           fontSize={11}
-                          fontWeight={600}
+                          fontWeight={500}
                           dominantBaseline="central"
                         >
-                          {value}%
+                          Sem chamadas no período
                         </text>
                       );
-                    }}
-                  >
-                    {analytics.byClass.map((entry) => (
-                      <Cell
-                        key={entry.id}
-                        fill={entry.records === 0 ? '#E2E8F0' : '#0284C7'}
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+                    }
+                    return (
+                      <text
+                        x={x + width + 8}
+                        y={y + height / 2}
+                        fill="#475569"
+                        fontSize={11}
+                        fontWeight={600}
+                        dominantBaseline="central"
+                      >
+                        {value}%
+                      </text>
+                    );
+                  }}
+                >
+                  {analytics.byClass.map((entry) => (
+                    <Cell
+                      key={entry.id}
+                      fill={entry.records === 0 ? '#E2E8F0' : '#0284C7'}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         ) : (
           <EmptyChart icon={CalendarX} title="Nenhuma turma disponível">

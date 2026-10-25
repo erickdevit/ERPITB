@@ -240,7 +240,7 @@ export class LocalStore {
           : { ...previous, ...mutation.data, id: mutation.data.id, deleted_at: null, updated_at: now, created_at: previous?.created_at ?? now, sync_status: 'PENDING' };
         const operation: SyncOperation = {
           operationId: crypto.randomUUID(), entity: mutation.entity, action, id: record.id,
-          baseVersion: Number(previous?.sync_version ?? 0), updatedAt: now, data: record,
+          baseVersion: Number(mutation.data.sync_version ?? previous?.sync_version ?? 0), updatedAt: now, data: record,
         };
         const [recordCipher, operationCipher] = await Promise.all([encrypt(key, record), encrypt(key, operation)]);
         return {

@@ -16,6 +16,7 @@ import { buildClassBoletimData, buildUnifiedBoletimData, type ClassBoletimData }
 import { exportClassBoletimPdf } from '../../lib/boletim-pdf';
 import { ClassBoletimView } from '../reports/class-boletim-view';
 import { StudentReportCardView } from '../reports/student-report-card-view';
+import { useApp } from '../../app-context';
 import { BiFilterBar } from './bi-filter-bar';
 import { AnalyticsChart, ExportActions, initialFilters } from './bi-page';
 import type { BiFilters } from './model';
@@ -23,6 +24,7 @@ import { useBiData } from './use-bi-data';
 import { buildBiView } from './views';
 
 export function BiGradesPage() {
+  const { branding } = useApp();
   const today = todayInSaoPaulo();
   const defaults = useMemo(() => initialFilters(today), [today]);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -222,6 +224,8 @@ export function BiGradesPage() {
               onSelectStudent={(studentId) => setSelectedStudentId(studentId)}
               onPrint={handlePrint}
               onDownloadPdf={() => void handleDownloadClassPdf()}
+              logoUrl={branding?.loginLogoUrl}
+              watermarkLogoUrl={branding?.printWatermarkLogoUrl}
             />
           ) : (
             <div className="bg-white border border-slate-200/90 rounded-2xl p-8 text-center shadow-2xs max-w-xl mx-auto my-6 print:border-none">
@@ -350,7 +354,11 @@ export function BiGradesPage() {
               </button>
             </div>
 
-            <StudentReportCardView data={studentBoletimData} />
+            <StudentReportCardView
+              data={studentBoletimData}
+              logoUrl={branding?.loginLogoUrl}
+              watermarkLogoUrl={branding?.printWatermarkLogoUrl}
+            />
           </div>
         </div>
       )}

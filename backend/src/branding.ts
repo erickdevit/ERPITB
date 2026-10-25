@@ -11,6 +11,7 @@ export const DEFAULT_BRANDING: BrandingSettings = {
   loginLogoUrl: '',
   loginBgUrl: '',
   printWatermarkText: 'ERPITB - Documento Oficial',
+  printWatermarkLogoUrl: '',
   showHeaderLogoLeft: true,
   showHeaderLogoRight: false,
   documentHeaderAlign: 'left',
@@ -87,6 +88,7 @@ export async function getBranding(env: Env): Promise<BrandingSettings> {
   ).first<{
     id: string; app_name: string; accent_color: string; login_logo_url: string | null;
     login_bg_url: string | null; print_watermark_text: string | null;
+    print_watermark_logo_url: string | null;
     show_header_logo_left: number; show_header_logo_right: number;
     document_header_align: 'left' | 'center' | 'right' | 'split' | null;
     sync_version: number | null;
@@ -104,6 +106,7 @@ export async function getBranding(env: Env): Promise<BrandingSettings> {
     loginLogoUrl: row.login_logo_url || '',
     loginBgUrl: row.login_bg_url || '',
     printWatermarkText: row.print_watermark_text || DEFAULT_BRANDING.printWatermarkText,
+    printWatermarkLogoUrl: row.print_watermark_logo_url || '',
     showHeaderLogoLeft: Boolean(row.show_header_logo_left),
     showHeaderLogoRight: Boolean(row.show_header_logo_right),
     documentHeaderAlign: row.document_header_align || 'left',
@@ -136,6 +139,7 @@ export async function updateBranding(request: Request, env: Env, user: AuthUser)
 
   const loginLogoUrl = typeof body.loginLogoUrl === 'string' ? body.loginLogoUrl.trim() : '';
   const loginBgUrl = typeof body.loginBgUrl === 'string' ? body.loginBgUrl.trim() : '';
+  const printWatermarkLogoUrl = typeof body.printWatermarkLogoUrl === 'string' ? body.printWatermarkLogoUrl.trim() : '';
   const printWatermarkText = typeof body.printWatermarkText === 'string' ? body.printWatermarkText.trim() : DEFAULT_BRANDING.printWatermarkText;
   const showHeaderLogoLeft = body.showHeaderLogoLeft !== undefined ? (body.showHeaderLogoLeft ? 1 : 0) : 1;
   const showHeaderLogoRight = body.showHeaderLogoRight !== undefined ? (body.showHeaderLogoRight ? 1 : 0) : 0;
@@ -145,9 +149,18 @@ export async function updateBranding(request: Request, env: Env, user: AuthUser)
         ? (body.documentHeaderAlign as 'left' | 'center' | 'right' | 'split')
         : 'left');
 
-  // Protect DB from enormous base64 strings (limit to 300KB)
-  if (loginLogoUrl.length > 300 * 1024 || loginBgUrl.length > 500 * 1024) {
+  // Protect DB from enormous payloads
+  if (loginLogoUrl.length > 300 * 1024 || loginBgUrl.length > 500 * 1024 || printWatermarkLogoUrl.length > 500 * 1024) {
     throw new AppError(400, 'As imagens enviadas excedem o tamanho máximo permitido (máx 300KB para logo e 500KB para fundo).', 'PAYLOAD_TOO_LARGE');
+  }
+
+  // Strictly forbid base64 payloads to preserve database performance (upload only to R2 bucket)
+  if (
+    loginLogoUrl.startsWith('data:') ||
+    loginBgUrl.startsWith('data:') ||
+    printWatermarkLogoUrl.startsWith('data:')
+  ) {
+    throw new AppError(400, 'Upload em base64 não é permitido. Faça o upload direto da imagem para armazenamento no bucket R2.', 'BASE64_NOT_ALLOWED');
   }
 
   const timestamp = nowIso();
@@ -157,24 +170,24 @@ export async function updateBranding(request: Request, env: Env, user: AuthUser)
     await env.DB.prepare(`
       INSERT INTO branding_settings (
         id, app_name, accent_color, login_logo_url, login_bg_url,
-        print_watermark_text, show_header_logo_left, show_header_logo_right,
+        print_watermark_text, print_watermark_logo_url, show_header_logo_left, show_header_logo_right,
         document_header_align, sync_version, updated_by_user_id, updated_at
-      ) VALUES ('default', ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+      ) VALUES ('default', ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
     `).bind(
       appName, accentColor, loginLogoUrl, loginBgUrl,
-      printWatermarkText, showHeaderLogoLeft, showHeaderLogoRight,
+      printWatermarkText, printWatermarkLogoUrl, showHeaderLogoLeft, showHeaderLogoRight,
       documentHeaderAlign, user.id, timestamp,
     ).run();
   } else {
     const updateResult = await env.DB.prepare(`
       UPDATE branding_settings
          SET app_name = ?, accent_color = ?, login_logo_url = ?, login_bg_url = ?,
-             print_watermark_text = ?, show_header_logo_left = ?, show_header_logo_right = ?,
+             print_watermark_text = ?, print_watermark_logo_url = ?, show_header_logo_left = ?, show_header_logo_right = ?,
              document_header_align = ?, sync_version = ?, updated_by_user_id = ?, updated_at = ?
        WHERE id = 'default' AND sync_version = ?
     `).bind(
       appName, accentColor, loginLogoUrl, loginBgUrl,
-      printWatermarkText, showHeaderLogoLeft, showHeaderLogoRight,
+      printWatermarkText, printWatermarkLogoUrl, showHeaderLogoLeft, showHeaderLogoRight,
       documentHeaderAlign, nextVersion, user.id, timestamp, currentVersion,
     ).run();
 
@@ -203,6 +216,7 @@ export async function updateBranding(request: Request, env: Env, user: AuthUser)
     loginLogoUrl,
     loginBgUrl,
     printWatermarkText,
+    printWatermarkLogoUrl,
     showHeaderLogoLeft: Boolean(showHeaderLogoLeft),
     showHeaderLogoRight: Boolean(showHeaderLogoRight),
     documentHeaderAlign,
@@ -227,15 +241,16 @@ export async function resetBranding(env: Env, user: AuthUser): Promise<BrandingS
     env.DB.prepare(`
       INSERT INTO branding_settings (
         id, app_name, accent_color, login_logo_url, login_bg_url,
-        print_watermark_text, show_header_logo_left, show_header_logo_right,
+        print_watermark_text, print_watermark_logo_url, show_header_logo_left, show_header_logo_right,
         document_header_align, sync_version, updated_by_user_id, updated_at
-      ) VALUES ('default', ?, ?, '', '', ?, 1, 0, 'left', 1, ?, ?)
+      ) VALUES ('default', ?, ?, '', '', ?, '', 1, 0, 'left', 1, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         app_name = excluded.app_name,
         accent_color = excluded.accent_color,
         login_logo_url = '',
         login_bg_url = '',
         print_watermark_text = excluded.print_watermark_text,
+        print_watermark_logo_url = '',
         show_header_logo_left = 1,
         show_header_logo_right = 0,
         document_header_align = 'left',
@@ -266,4 +281,59 @@ export async function resetBranding(env: Env, user: AuthUser): Promise<BrandingS
     ...DEFAULT_BRANDING,
     updatedAt: timestamp,
   };
+}
+
+export async function uploadBrandingAsset(request: Request, env: Env, user: AuthUser): Promise<Response> {
+  requirePermission(user, 'branding:manage');
+  if (!env.ASSETS_BUCKET) {
+    throw new AppError(503, 'Armazenamento de assets (R2) não configurado no servidor.', 'STORAGE_UNAVAILABLE');
+  }
+
+  const contentType = request.headers.get('content-type') || '';
+  if (!contentType.includes('multipart/form-data')) {
+    throw new AppError(400, 'Content-Type deve ser multipart/form-data.', 'INVALID_CONTENT_TYPE');
+  }
+
+  const formData = await request.formData();
+  const file = formData.get('file');
+  if (!file || !(file instanceof File)) {
+    throw new AppError(400, 'Nenhum arquivo enviado no campo "file".', 'FILE_REQUIRED');
+  }
+
+  // Max 5 MB limit
+  if (file.size > 5 * 1024 * 1024) {
+    throw new AppError(400, 'O arquivo deve ter no máximo 5MB.', 'FILE_TOO_LARGE');
+  }
+
+  const allowedMimeTypes: Record<string, string> = {
+    'image/png': 'png',
+    'image/jpeg': 'jpg',
+    'image/webp': 'webp',
+    'image/svg+xml': 'svg',
+    'image/gif': 'gif',
+  };
+
+  const extension = allowedMimeTypes[file.type.toLowerCase()];
+  if (!extension) {
+    throw new AppError(400, 'Formato de imagem não suportado. Utilize PNG, JPG, WEBP, SVG ou GIF.', 'INVALID_FILE_TYPE');
+  }
+
+  const fileKey = `branding/${uuid()}.${extension}`;
+  const arrayBuffer = await file.arrayBuffer();
+
+  await env.ASSETS_BUCKET.put(fileKey, arrayBuffer, {
+    httpMetadata: {
+      contentType: file.type,
+      cacheControl: 'public, max-age=31536000, immutable',
+    },
+  });
+
+  const assetUrl = `/v1/assets/${fileKey}`;
+
+  return new Response(JSON.stringify({ url: assetUrl, key: fileKey }), {
+    status: 201,
+    headers: {
+      'content-type': 'application/json',
+    },
+  });
 }

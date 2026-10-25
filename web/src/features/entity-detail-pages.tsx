@@ -320,6 +320,7 @@ export function ClassDetailPage() {
 export function StudentDetailPage() {
   const { studentId } = useParams<{ studentId: string }>();
   const navigate = useNavigate();
+  const { branding } = useApp();
   const students = useEntity('students');
   const enrollments = useEntity('enrollments');
   const classes = useEntity('classes');
@@ -527,7 +528,11 @@ export function StudentDetailPage() {
 
     {!boletimOpen && boletimData && (
       <div className="hidden print:block print:w-full">
-        <StudentReportCardView data={boletimData} />
+        <StudentReportCardView
+          data={boletimData}
+          logoUrl={branding?.loginLogoUrl}
+          watermarkLogoUrl={branding?.printWatermarkLogoUrl}
+        />
       </div>
     )}
 
@@ -561,7 +566,11 @@ export function StudentDetailPage() {
             </button>
           </div>
 
-          <StudentReportCardView data={boletimData} />
+          <StudentReportCardView
+            data={boletimData}
+            logoUrl={branding?.loginLogoUrl}
+            watermarkLogoUrl={branding?.printWatermarkLogoUrl}
+          />
         </div>
       </div>
     )}

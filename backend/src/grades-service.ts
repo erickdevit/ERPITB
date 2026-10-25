@@ -193,6 +193,14 @@ export async function deleteGradeTable(request: Request, env: Env, user: AuthUse
 
   await auditLog(env, user, 'DELETE', 'grade_tables', id).run();
 
+  await env.DB.prepare(
+    `UPDATE grade_items SET deleted_at = ?, sync_version = sync_version + 1, updated_at = ? WHERE grade_table_id = ? AND deleted_at IS NULL`
+  ).bind(timestamp, timestamp, id).run();
+
+  await env.DB.prepare(
+    `UPDATE student_grades SET deleted_at = ?, sync_version = sync_version + 1, updated_at = ? WHERE grade_table_id = ? AND deleted_at IS NULL`
+  ).bind(timestamp, timestamp, id).run();
+
   return new Response(JSON.stringify({ ok: true }), {
     status: 200,
     headers: { 'content-type': 'application/json' },
@@ -366,6 +374,10 @@ export async function deleteGradeItem(request: Request, env: Env, user: AuthUser
   }
 
   await auditLog(env, user, 'DELETE', 'grade_items', id).run();
+
+  await env.DB.prepare(
+    `UPDATE student_grades SET deleted_at = ?, sync_version = sync_version + 1, updated_at = ? WHERE grade_item_id = ? AND deleted_at IS NULL`
+  ).bind(timestamp, timestamp, id).run();
 
   return new Response(JSON.stringify({ ok: true }), {
     status: 200,

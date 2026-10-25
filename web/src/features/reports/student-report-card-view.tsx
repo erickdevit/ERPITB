@@ -59,6 +59,8 @@ export interface StudentReportCardViewProps {
   onPrint?: () => void;
   onDownloadPdf?: () => void;
   watermarkText?: string;
+  watermarkLogoUrl?: string;
+  logoUrl?: string;
   showHeaderLogoLeft?: boolean;
   showHeaderLogoRight?: boolean;
 }
@@ -68,8 +70,10 @@ export function StudentReportCardView({
   onPrint,
   onDownloadPdf,
   watermarkText = 'INSTITUTO TRANSFORMA BRASIL',
+  watermarkLogoUrl,
+  logoUrl,
   showHeaderLogoLeft = true,
-  showHeaderLogoRight = true,
+  showHeaderLogoRight = false,
 }: StudentReportCardViewProps) {
   const [downloading, setDownloading] = useState(false);
 
@@ -120,7 +124,7 @@ export function StudentReportCardView({
 
   return (
     <div className="flex flex-col gap-4 text-left w-full max-w-5xl mx-auto print-landscape print:max-w-none print:w-full print:mx-0 relative">
-      <PrintWatermark text={watermarkText} />
+      <PrintWatermark text={watermarkText} logoUrl={watermarkLogoUrl} />
       {/* ACTION BAR (Hidden in print) */}
       <div
         data-testid="print-hidden"
@@ -166,159 +170,97 @@ export function StudentReportCardView({
       {/* PRINTABLE BOLETIM SHEET */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-2xs print:border-none print:p-0 print:shadow-none print:w-full flex flex-col gap-6">
         {/* 1. INSTITUTIONAL ITB HEADER */}
-        <div className="border-b border-slate-200 pb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            {showHeaderLogoLeft && (
-              <div
+        <div className="border-b border-slate-200 pb-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            {logoUrl && (
+              <img
+                src={logoUrl}
+                alt="Logo Institucional"
+                className="w-10 h-10 object-contain rounded-lg"
                 data-testid="print-logo-left"
-                className="w-12 h-12 rounded-xl bg-slate-950 flex items-center justify-center text-white font-black text-lg tracking-wider shadow-xs shrink-0"
-              >
-                ITB
-              </div>
+              />
             )}
             <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black uppercase tracking-widest text-sky-600">
-                  Instituto Transforma Brasil
-                </span>
-              </div>
-              <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight leading-snug">
+              <span className="text-xs font-black uppercase tracking-widest text-slate-900 block">
+                INSTITUTO TRANSFORMA BRASIL
+              </span>
+              <h1 className="text-sm font-extrabold text-slate-900 tracking-tight">
                 BOLETIM ESCOLAR INDIVIDUAL
               </h1>
-              <p className="text-xs text-slate-500 font-medium">
+              <p className="text-[11px] text-slate-500 font-medium">
                 ERPITB — Relatório Acadêmico
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="text-left sm:text-right">
-              <span className="text-[11px] font-semibold text-slate-400 block">
-                Data de Emissão
+          <div className="text-right text-[11px] text-slate-500 shrink-0">
+            <span className="block font-semibold">Data e Hora de Emissão</span>
+            <span className="font-mono text-slate-800">{formattedEmissionDate}</span>
+          </div>
+        </div>
+
+        {/* 2. UNIFIED STUDENT CREDENTIALS & ACADEMIC SUMMARY ROW */}
+        <div className="bg-slate-50/80 border border-slate-200/90 rounded-xl p-3.5 sm:p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs print:bg-white print:border-slate-300">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+            <div>
+              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                Aluno
               </span>
-              <span className="text-xs font-bold text-slate-800">
-                {formattedEmissionDate}
+              <span className="text-xs font-bold text-slate-900 block truncate">
+                {data.student.name}
               </span>
             </div>
-            {showHeaderLogoRight && (
-              <div
-                data-testid="print-logo-right"
-                className="hidden print:flex w-9 h-9 rounded-lg border border-slate-900 items-center justify-center text-slate-900 font-black text-xs tracking-wider shrink-0"
-              >
-                ITB
+            {data.student.registrationNumber && (
+              <div>
+                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                  Matrícula
+                </span>
+                <span className="text-xs font-bold text-slate-900 block font-mono">
+                  {data.student.registrationNumber}
+                </span>
               </div>
             )}
-          </div>
-        </div>
-
-        {/* 2. STUDENT CREDENTIALS CARD */}
-        <div className="bg-slate-50/80 border border-slate-200/90 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 print:bg-white print:border-slate-300">
-          <div>
-            <span className="text-[11px] font-semibold text-slate-500 block">
-              Nome do Aluno
-            </span>
-            <span className="text-xs font-bold text-slate-900 block truncate">
-              {data.student.name}
-            </span>
-          </div>
-          <div>
-            <span className="text-[11px] font-semibold text-slate-500 block">
-              Matrícula
-            </span>
-            <span className="text-xs font-bold text-slate-900 block font-mono">
-              {data.student.registrationNumber || '—'}
-            </span>
-          </div>
-          <div>
-            <span className="text-[11px] font-semibold text-slate-500 block">
-              Curso
-            </span>
-            <span className="text-xs font-bold text-slate-900 block truncate">
-              {data.student.courseName || '—'}
-            </span>
-          </div>
-          <div>
-            <span className="text-[11px] font-semibold text-slate-500 block">
-              Turma(s)
-            </span>
-            <span className="text-xs font-bold text-slate-900 block truncate">
-              {classTitle}
-            </span>
-          </div>
-        </div>
-
-        {/* 3. CONSOLIDATED CLASS-STYLE TABLE (MATCHING SCREENSHOT) */}
-        <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xs overflow-hidden print:border print:border-slate-300 print:shadow-none print:w-full">
-          <div className="px-4 sm:px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-bold text-slate-900">
-                Boletim Consolidado — {classTitle}
-              </h3>
-              <p className="text-xs text-slate-500">
-                Visão geral de desempenho com médias calculadas conforme a configuração de cada etapa (Média Aritmética ou Maior Nota).
-              </p>
+              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                Curso
+              </span>
+              <span className="text-xs font-semibold text-slate-800 block truncate">
+                {data.student.courseName || '—'}
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                Turma
+              </span>
+              <span className="text-xs font-semibold text-slate-800 block truncate">
+                {classTitle}
+              </span>
             </div>
           </div>
 
-          <div className="overflow-x-auto print:overflow-visible">
-            <table className="w-full text-left border-collapse print:w-full" aria-label={`Boletim Consolidado — ${classTitle}`}>
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600">
-                  <th className="py-3 px-4 whitespace-nowrap">Aluno</th>
-                  {data.modules.map((m) => (
-                    <th key={m.moduleId} className="py-3 px-3 text-center border-l border-slate-200/60 whitespace-nowrap">
-                      <div>{m.moduleName}</div>
-                      <div className="text-[10px] font-normal text-slate-400">
-                        {m.calculationModeLabel || 'Média Simples'}
-                      </div>
-                    </th>
-                  ))}
-                  <th className="py-3 px-4 text-center border-l border-slate-200/60 whitespace-nowrap">
-                    Média Geral
-                  </th>
-                  <th className="py-3 px-3 text-center whitespace-nowrap">Frequência</th>
-                  <th className="py-3 px-4 text-center whitespace-nowrap print:hidden">Situação</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-xs">
-                <tr className="hover:bg-slate-50/70">
-                  <td className="py-2.5 px-4 font-semibold text-slate-900 whitespace-nowrap">
-                    {data.student.name}
-                  </td>
-                  {data.modules.map((m) => {
-                    const evalCount = m.grades.filter((g) => g.score !== null).length;
-                    return (
-                      <td
-                        key={m.moduleId}
-                        className="py-2.5 px-3 text-center border-l border-slate-100 font-semibold text-slate-800 whitespace-nowrap"
-                      >
-                        <div>{formatGrade(m.finalGrade)}</div>
-                        <div className="text-[10px] text-slate-400 font-normal">
-                          {evalCount}/{m.grades.length} aval.
-                        </div>
-                      </td>
-                    );
-                  })}
-                  <td className="py-2.5 px-4 text-center border-l border-slate-100 font-black text-slate-950 whitespace-nowrap">
-                    {formatGrade(data.overallGpa)}
-                  </td>
-                  <td className="py-2.5 px-3 text-center font-medium text-slate-700 whitespace-nowrap">
-                    {data.overallAttendanceRate.toFixed(1).replace('.', ',')}%
-                  </td>
-                  <td className="py-2.5 px-4 text-center whitespace-nowrap print:hidden">
-                    <span
-                      data-testid="status-badge"
-                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${statusBadgeStyle(
-                        data.overallAcademicStatus,
-                      )}`}
-                    >
-                      {data.overallAcademicStatus === 'Aprovado' && <CheckCircle2 className="w-3 h-3" />}
-                      <span>{data.overallAcademicStatus}</span>
-                    </span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <div className="flex items-center gap-5 border-t md:border-t-0 md:border-l border-slate-200/90 pt-2.5 md:pt-0 md:pl-5 shrink-0">
+            <div className="text-center md:text-right">
+              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                Média Geral
+              </span>
+              <span className="text-sm font-black text-slate-950">
+                {formatGrade(data.overallGpa)}
+              </span>
+            </div>
+            <div className="text-center md:text-right">
+              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                Frequência
+              </span>
+              <span className="text-sm font-bold text-slate-800">
+                {data.overallAttendanceRate.toFixed(1).replace('.', ',')}%
+              </span>
+            </div>
+            <div className="text-center md:text-right print:hidden">
+              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-0.5">
+                Situação
+              </span>
+              <AcademicStatusBadge status={data.overallAcademicStatus} />
+            </div>
           </div>
         </div>
 

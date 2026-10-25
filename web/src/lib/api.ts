@@ -30,10 +30,16 @@ export interface RequestOptions {
 }
 
 export class ApiClient {
+  private onUnauthorized?: (message: string) => void;
+
   constructor(
     private getSession: () => UserSession | null,
     private updateSession: (session: UserSession) => Promise<void>,
   ) {}
+
+  setOnUnauthorized(handler: (message: string) => void) {
+    this.onUnauthorized = handler;
+  }
 
   async request<T>(
     path: string,
@@ -44,8 +50,9 @@ export class ApiClient {
   ): Promise<T> {
     try {
       const session = this.getSession();
+      const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
       const headers: Record<string, string> = {
-        'content-type': 'application/json',
+        ...(isFormData ? {} : { 'content-type': 'application/json' }),
         ...(session ? { authorization: `Bearer ${session.accessToken}` } : {}),
         ...(options?.idempotencyKey ? { 'x-idempotency-key': options.idempotencyKey } : {}),
         ...(options?.headers || {}),
@@ -55,7 +62,7 @@ export class ApiClient {
         method,
         headers,
         credentials: 'include',
-        body: body === undefined ? undefined : JSON.stringify(body),
+        body: body === undefined ? undefined : isFormData ? (body as FormData) : JSON.stringify(body),
       });
 
       const payload = (await response.json().catch(() => ({}))) as {
@@ -63,8 +70,15 @@ export class ApiClient {
         requestId?: string;
       } & T;
 
-      if (response.status === 401 && session && refresh && (await this.refresh())) {
-        return this.request<T>(path, method, body, false, options);
+      if (response.status === 401 && session && refresh) {
+        const refreshed = await this.refresh();
+        if (refreshed) {
+          return this.request<T>(path, method, body, false, options);
+        }
+      }
+
+      if (response.status === 401 && session) {
+        this.onUnauthorized?.('Sua sessão expirou. Entre novamente.');
       }
 
       if (!response.ok) {
@@ -108,7 +122,9 @@ export class ApiClient {
       await this.updateSession({ ...result.user, accessToken: result.accessToken, refreshToken: result.refreshToken });
       return true;
     } catch (error) {
-      if (error instanceof OfflineError) return false;
+      if (error instanceof ApiError && error.status === 401) {
+        this.onUnauthorized?.('Sua sessão expirou. Entre novamente.');
+      }
       return false;
     }
   }
@@ -183,6 +199,21 @@ export class ApiClient {
 
   resetBranding() {
     return this.post<BrandingSettings>('/v1/admin/branding/reset');
+  }
+
+  uploadBrandingAsset(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.post<{ url: string; key: string }>('/v1/admin/branding/upload', formData);
+  }
+
+  // Grades Direct Endpoints
+  deleteGradeItem(id: string) {
+    return this.delete<{ ok: boolean }>(`/v1/grade-items/${id}`);
+  }
+
+  deleteGradeTable(id: string) {
+    return this.delete<{ ok: boolean }>(`/v1/grade-tables/${id}`);
   }
 
   // API Keys Helpers

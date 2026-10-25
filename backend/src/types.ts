@@ -4,6 +4,7 @@ export type SyncStatus = 'PENDING' | 'SYNCED' | 'CONFLICT';
 
 export interface Env {
   DB: D1Database;
+  ASSETS_BUCKET?: R2Bucket;
   JWT_SECRET: string;
   DATA_ENCRYPTION_KEY: string;
   BOOTSTRAP_SECRET: string;
@@ -139,6 +140,7 @@ export interface BrandingSettings {
   loginLogoUrl?: string;
   loginBgUrl?: string;
   printWatermarkText?: string;
+  printWatermarkLogoUrl?: string;
   showHeaderLogoLeft: boolean;
   showHeaderLogoRight: boolean;
   documentHeaderAlign?: 'left' | 'center' | 'right' | 'split';

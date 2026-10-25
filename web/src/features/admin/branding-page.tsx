@@ -8,6 +8,8 @@ import {
   RotateCcw,
   Save,
   ShieldAlert,
+  Trash2,
+  Upload,
 } from 'lucide-react';
 import { useApp } from '../../app-context';
 import { applyBrandDesignTokens, getContrastWithWhite } from '../../lib/design-tokens';
@@ -27,7 +29,9 @@ const PRESET_COLORS = [
 
 export function BrandingPage() {
   const { api, session, setBranding } = useApp();
-  const fileInputId = useId();
+  const fileInputLogoId = useId();
+  const fileInputWatermarkId = useId();
+  const fileInputBgId = useId();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -37,10 +41,12 @@ export function BrandingPage() {
   const [appName, setAppName] = useState('ERPITB');
   const [accentColor, setAccentColor] = useState('#0284c7');
   const [loginLogoUrl, setLoginLogoUrl] = useState('');
+  const [printWatermarkLogoUrl, setPrintWatermarkLogoUrl] = useState('');
   const [loginBgUrl, setLoginBgUrl] = useState('');
   const [printWatermarkText, setPrintWatermarkText] = useState('INSTITUTO TRANSFORMA BRASIL');
   const [showHeaderLogoLeft, setShowHeaderLogoLeft] = useState(true);
   const [showHeaderLogoRight, setShowHeaderLogoRight] = useState(true);
+  const [uploadingTarget, setUploadingTarget] = useState<'logo' | 'watermark' | 'bg' | null>(null);
 
   const loadSettings = async () => {
     setLoading(true);
@@ -50,6 +56,7 @@ export function BrandingPage() {
         setAppName(b.appName || 'ERPITB');
         setAccentColor(b.accentColor || '#0284c7');
         setLoginLogoUrl(b.loginLogoUrl || '');
+        setPrintWatermarkLogoUrl(b.printWatermarkLogoUrl || '');
         setLoginBgUrl(b.loginBgUrl || '');
         setPrintWatermarkText(b.printWatermarkText || 'INSTITUTO TRANSFORMA BRASIL');
         setShowHeaderLogoLeft(b.showHeaderLogoLeft ?? true);
@@ -77,25 +84,39 @@ export function BrandingPage() {
   const contrastRatio = getContrastRatio(accentColor);
   const isLowContrast = contrastRatio < 3.0;
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, target: 'logo' | 'bg') => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, target: 'logo' | 'watermark' | 'bg') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 800 * 1024) {
+    if (file.size > 5 * 1024 * 1024) {
       setStatusMessage({
-        text: 'A imagem deve ter menos de 800 KB para manter o carregamento instantâneo.',
+        text: 'A imagem deve ter menos de 5 MB para manter performance ideal.',
         type: 'error',
       });
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      if (target === 'logo') setLoginLogoUrl(result);
-      if (target === 'bg') setLoginBgUrl(result);
-    };
-    reader.readAsDataURL(file);
+    setUploadingTarget(target);
+    setStatusMessage(null);
+    try {
+      const res = await api.uploadBrandingAsset(file);
+      if (target === 'logo') setLoginLogoUrl(res.url);
+      else if (target === 'watermark') setPrintWatermarkLogoUrl(res.url);
+      else if (target === 'bg') setLoginBgUrl(res.url);
+
+      setStatusMessage({
+        text: 'Imagem enviada e armazenada com sucesso no bucket R2 do ERP!',
+        type: 'success',
+      });
+    } catch (err: any) {
+      setStatusMessage({
+        text: err.message || 'Erro ao enviar imagem para o bucket R2.',
+        type: 'error',
+      });
+    } finally {
+      setUploadingTarget(null);
+      e.target.value = '';
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -107,6 +128,7 @@ export function BrandingPage() {
         appName,
         accentColor,
         loginLogoUrl: loginLogoUrl || undefined,
+        printWatermarkLogoUrl: printWatermarkLogoUrl || undefined,
         loginBgUrl: loginBgUrl || undefined,
         printWatermarkText: printWatermarkText || undefined,
         showHeaderLogoLeft,
@@ -135,6 +157,7 @@ export function BrandingPage() {
       setAppName(def.appName);
       setAccentColor(def.accentColor);
       setLoginLogoUrl('');
+      setPrintWatermarkLogoUrl('');
       setLoginBgUrl('');
       setPrintWatermarkText(def.printWatermarkText || 'INSTITUTO TRANSFORMA BRASIL');
       setShowHeaderLogoLeft(def.showHeaderLogoLeft);
@@ -303,79 +326,172 @@ export function BrandingPage() {
             </div>
           </div>
 
-          {/* Section: Logotipos & Imagens */}
+          {/* Section: Logotipos & Imagens (Upload R2 Exclusivo) */}
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-4">
-            <h2 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2">
-              Logotipo &amp; Imagem de Fundo
-            </h2>
+            <div>
+              <h2 className="text-sm font-bold text-slate-900">
+                Identidade Visual &amp; Upload de Imagens
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Todos os elementos visuais são salvos diretamente no armazenamento seguro Cloudflare R2 (sem base64 no banco de dados).
+              </p>
+            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Logo */}
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-slate-700">Logotipo Institucional</label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* 1. Logo Institucional */}
+              <div className="flex flex-col justify-between p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-800 block">Logotipo Institucional</label>
+                  <span className="text-[11px] text-slate-400 block mt-0.5">Login e cabeçalho oficial</span>
+                </div>
+
+                <div className="h-24 rounded-lg bg-white border border-dashed border-slate-300 flex items-center justify-center p-2 relative overflow-hidden">
+                  {loginLogoUrl ? (
+                    <img src={loginLogoUrl} alt="Logo" className="max-h-full max-w-full object-contain" />
+                  ) : (
+                    <div className="flex flex-col items-center text-slate-400 gap-1 text-[11px]">
+                      <ImageIcon className="w-5 h-5 text-slate-300" />
+                      <span>Sem logo configurado</span>
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={loginLogoUrl}
-                    onChange={(e) => setLoginLogoUrl(e.target.value)}
-                    placeholder="URL ou carregue um arquivo"
-                    className="text-xs px-3 py-2 rounded-xl border border-slate-200 flex-1"
-                  />
                   <label
-                    htmlFor={fileInputId}
-                    className="px-2.5 py-2 rounded-xl border border-slate-200 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 cursor-pointer"
+                    htmlFor={fileInputLogoId}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs cursor-pointer transition-colors"
                   >
-                    Arquivo
+                    {uploadingTarget === 'logo' ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-slate-500" />
+                    ) : (
+                      <Upload className="w-3.5 h-3.5 text-slate-500" />
+                    )}
+                    <span>{loginLogoUrl ? 'Substituir' : 'Upload R2'}</span>
                   </label>
                   <input
-                    id={fileInputId}
+                    id={fileInputLogoId}
                     type="file"
-                    accept="image/*"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif"
                     onChange={(e) => handleFileUpload(e, 'logo')}
+                    disabled={uploadingTarget !== null}
                     className="hidden"
                   />
-                </div>
-                {loginLogoUrl && (
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-                    <img src={loginLogoUrl} alt="Logo Preview" className="max-h-10 object-contain" />
+                  {loginLogoUrl && (
                     <button
                       type="button"
                       onClick={() => setLoginLogoUrl('')}
-                      className="text-xs text-rose-600 hover:underline"
+                      className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 border border-rose-200 transition-colors cursor-pointer"
+                      title="Remover logotipo"
                     >
-                      Remover
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
 
-              {/* Background */}
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-slate-700">Fundo da Página de Login</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={loginBgUrl}
-                    onChange={(e) => setLoginBgUrl(e.target.value)}
-                    placeholder="URL ou carregue um arquivo"
-                    className="text-xs px-3 py-2 rounded-xl border border-slate-200 flex-1"
-                  />
+              {/* 2. Marca d'Água de Impressão */}
+              <div className="flex flex-col justify-between p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-800 block">Marca d'Água (Impressão)</label>
+                  <span className="text-[11px] text-slate-400 block mt-0.5">Fundo de boletins e relatórios</span>
                 </div>
-                {loginBgUrl && (
-                  <div className="p-2 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+
+                <div className="h-24 rounded-lg bg-white border border-dashed border-slate-300 flex items-center justify-center p-2 relative overflow-hidden">
+                  {printWatermarkLogoUrl ? (
+                    <img src={printWatermarkLogoUrl} alt="Marca d'Água" className="max-h-full max-w-full object-contain opacity-40 grayscale" />
+                  ) : (
+                    <div className="flex flex-col items-center text-slate-400 gap-1 text-[11px]">
+                      <ImageIcon className="w-5 h-5 text-slate-300" />
+                      <span>Sem marca d'água</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <label
+                    htmlFor={fileInputWatermarkId}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs cursor-pointer transition-colors"
+                  >
+                    {uploadingTarget === 'watermark' ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-slate-500" />
+                    ) : (
+                      <Upload className="w-3.5 h-3.5 text-slate-500" />
+                    )}
+                    <span>{printWatermarkLogoUrl ? 'Substituir' : 'Upload R2'}</span>
+                  </label>
+                  <input
+                    id={fileInputWatermarkId}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif"
+                    onChange={(e) => handleFileUpload(e, 'watermark')}
+                    disabled={uploadingTarget !== null}
+                    className="hidden"
+                  />
+                  {printWatermarkLogoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setPrintWatermarkLogoUrl('')}
+                      className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 border border-rose-200 transition-colors cursor-pointer"
+                      title="Remover marca d'água"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* 3. Fundo de Login */}
+              <div className="flex flex-col justify-between p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-800 block">Fundo de Login</label>
+                  <span className="text-[11px] text-slate-400 block mt-0.5">Plano de fundo da tela de login</span>
+                </div>
+
+                <div className="h-24 rounded-lg bg-white border border-dashed border-slate-300 flex items-center justify-center p-2 relative overflow-hidden">
+                  {loginBgUrl ? (
                     <div
-                      className="w-16 h-10 rounded bg-cover bg-center border border-slate-200"
+                      className="w-full h-full rounded bg-cover bg-center border border-slate-200"
                       style={{ backgroundImage: `url(${loginBgUrl})` }}
                     />
+                  ) : (
+                    <div className="flex flex-col items-center text-slate-400 gap-1 text-[11px]">
+                      <ImageIcon className="w-5 h-5 text-slate-300" />
+                      <span>Sem fundo personalizado</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <label
+                    htmlFor={fileInputBgId}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs cursor-pointer transition-colors"
+                  >
+                    {uploadingTarget === 'bg' ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-slate-500" />
+                    ) : (
+                      <Upload className="w-3.5 h-3.5 text-slate-500" />
+                    )}
+                    <span>{loginBgUrl ? 'Substituir' : 'Upload R2'}</span>
+                  </label>
+                  <input
+                    id={fileInputBgId}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif"
+                    onChange={(e) => handleFileUpload(e, 'bg')}
+                    disabled={uploadingTarget !== null}
+                    className="hidden"
+                  />
+                  {loginBgUrl && (
                     <button
                       type="button"
                       onClick={() => setLoginBgUrl('')}
-                      className="text-xs text-rose-600 hover:underline"
+                      className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 border border-rose-200 transition-colors cursor-pointer"
+                      title="Remover fundo de login"
                     >
-                      Remover
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
 
@@ -461,8 +577,11 @@ export function BrandingPage() {
                   </span>
                 </div>
 
-                <div className="pt-2 border-t border-slate-200 text-[10px] text-slate-400 font-mono">
-                  Marca d'água: {printWatermarkText}
+                <div className="pt-2 border-t border-slate-200 text-[10px] text-slate-400 font-mono flex items-center justify-between">
+                  <span>Marca d'água: {printWatermarkText}</span>
+                  {printWatermarkLogoUrl && (
+                    <img src={printWatermarkLogoUrl} alt="Marca d'água" className="h-4 object-contain opacity-40 grayscale" />
+                  )}
                 </div>
               </div>
             </div>

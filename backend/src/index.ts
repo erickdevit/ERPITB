@@ -70,6 +70,21 @@ export default {
       if (url.pathname === '/health' && request.method === 'GET') {
         return withHeaders(json({ status: 'ok', service: 'ERPITB API' }), commonHeaders, requestId);
       }
+      if (url.pathname.startsWith('/v1/assets/') && request.method === 'GET') {
+        const key = decodeURIComponent(url.pathname.slice('/v1/assets/'.length));
+        if (!env.ASSETS_BUCKET) {
+          throw new AppError(503, 'Armazenamento de assets (R2) não configurado.', 'STORAGE_UNAVAILABLE');
+        }
+        const object = await env.ASSETS_BUCKET.get(key);
+        if (!object) {
+          return withHeaders(new Response('Asset not found', { status: 404 }), commonHeaders, requestId);
+        }
+        const headers = new Headers(commonHeaders);
+        headers.set('content-type', object.httpMetadata?.contentType || 'application/octet-stream');
+        headers.set('cache-control', object.httpMetadata?.cacheControl || 'public, max-age=31536000, immutable');
+        if (object.httpEtag) headers.set('etag', object.httpEtag);
+        return new Response(object.body, { status: 200, headers });
+      }
       if ((url.pathname === '/v1/openapi.json' || url.pathname === '/openapi.json') && request.method === 'GET') {
         const { openApiSpec } = await import('./openapi');
         return withHeaders(json(openApiSpec), commonHeaders, requestId);

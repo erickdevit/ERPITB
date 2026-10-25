@@ -28,6 +28,10 @@ binding = "DB"
 database_name = "erpitb"
 database_id = "be668f55-5a2c-40a2-9cdc-25248be7e65e"
 
+[[r2_buckets]]
+binding = "ASSETS_BUCKET"
+bucket_name = "erpitb-assets"
+
 [vars]
 ALLOWED_ORIGIN = "*"
 ACCESS_TOKEN_TTL_MINUTES = "15"

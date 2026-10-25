@@ -123,17 +123,17 @@ describe('ClassBoletimView Component', () => {
     }
   });
 
-  it('renders student rows, evaluations count and status badges', () => {
+  it('renders student rows and status badges without evaluation counts', () => {
     render(<ClassBoletimView data={mockClassData} />);
 
     expect(screen.getByText('ALYANNE SILVA COSTA')).toBeDefined();
     expect(screen.getByText('AYLLA VITORIA SOUSA CARVALHO')).toBeDefined();
     expect(screen.getByText('ANTONIO GILVA DE JESUS DA CRUZ')).toBeDefined();
 
-    // Grades and evaluated count
+    // Grades rendered clearly
     expect(screen.getAllByText('9,5').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('2/3 aval.').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('0/2 aval.').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/2\/3 aval\./)).toBeNull();
+    expect(screen.queryByText(/0\/2 aval\./)).toBeNull();
 
     // Status badges
     expect(screen.getAllByText('Em andamento').length).toBe(3);

@@ -71,7 +71,7 @@ function RateChip({ row }: { row: StudentView }) {
 }
 
 export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) {
-  const { store, sync, session, api } = useApp();
+  const { store, sync, session, api, branding } = useApp();
   const students = useEntity('students');
   const enrollments = useEntity('enrollments');
   const classes = useEntity('classes');
@@ -648,7 +648,11 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
               </button>
             </div>
 
-            <StudentReportCardView data={boletimData} />
+            <StudentReportCardView
+              data={boletimData}
+              logoUrl={branding?.loginLogoUrl}
+              watermarkLogoUrl={branding?.printWatermarkLogoUrl}
+            />
           </div>
         </div>
       )}

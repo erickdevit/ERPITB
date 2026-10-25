@@ -15,7 +15,7 @@ import {
   saveFinancialContact,
   updateFee,
 } from './finance';
-import { getBranding, resetBranding, updateBranding } from './branding';
+import { getBranding, resetBranding, updateBranding, uploadBrandingAsset } from './branding';
 import { createApiKey, listApiKeys, revokeApiKey, rotateApiKey } from './apikeys';
 import { countDistinctClassLessons, ensureClassSession, listClassSessions } from './sessions-service';
 import { getAnalyticsData } from './analytics-service';
@@ -167,6 +167,7 @@ export async function handleV1Route(request: Request, env: Env, user: AuthUser, 
   if (path === '/v1/admin/branding' && method === 'GET') return getBranding(env);
   if (path === '/v1/admin/branding' && method === 'PUT') return updateBranding(request, env, user);
   if (path === '/v1/admin/branding/reset' && method === 'POST') return resetBranding(env, user);
+  if (path === '/v1/admin/branding/upload' && method === 'POST') return uploadBrandingAsset(request, env, user);
 
   // 3. API Keys Endpoints
   if (path === '/v1/admin/api-keys' && method === 'GET') return listApiKeys(env, user);

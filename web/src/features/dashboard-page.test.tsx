@@ -191,9 +191,8 @@ describe('DashboardPage', () => {
     expect(screen.getByText('Desenvolvimento Web')).toBeInTheDocument();
     expect(screen.getByText('2 faltas')).toBeInTheDocument();
 
-    // Comparative chart: class-2 (Design Gráfico) has 0 records and should be distinguished
-    // as "Sem chamadas no período"
-    expect(screen.getByText('Sem chamadas no período')).toBeInTheDocument();
+    // Comparative chart: class listing is removed per UI requirements, leaving only the bar chart
+    expect(screen.queryByText('Sem chamadas no período')).toBeNull();
 
     // Teacher workload
     expect(await screen.findByText('Professor Carlos')).toBeInTheDocument();

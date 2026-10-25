@@ -33,6 +33,8 @@ export interface ClassBoletimViewProps {
   onDownloadPdf?: () => void;
   showSearch?: boolean;
   watermarkText?: string;
+  watermarkLogoUrl?: string;
+  logoUrl?: string;
   showHeaderLogoLeft?: boolean;
   showHeaderLogoRight?: boolean;
 }
@@ -45,8 +47,10 @@ export function ClassBoletimView({
   onDownloadPdf,
   showSearch = true,
   watermarkText = 'INSTITUTO TRANSFORMA BRASIL',
+  watermarkLogoUrl,
+  logoUrl,
   showHeaderLogoLeft = true,
-  showHeaderLogoRight = true,
+  showHeaderLogoRight = false,
 }: ClassBoletimViewProps) {
   const [search, setSearch] = useState('');
   const [downloading, setDownloading] = useState(false);
@@ -99,41 +103,28 @@ export function ClassBoletimView({
 
   return (
     <div className="flex flex-col gap-3 text-left w-full print-landscape relative">
-      <PrintWatermark text={watermarkText} />
+      <PrintWatermark text={watermarkText} logoUrl={watermarkLogoUrl} />
       {/* PRINT-ONLY INSTITUTIONAL HEADER */}
       <div className="hidden print:flex flex-col gap-3 pb-4 border-b border-slate-300">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {showHeaderLogoLeft && (
-              <div
+            {logoUrl && (
+              <img
+                src={logoUrl}
+                alt="Logo Institucional"
+                className="w-10 h-10 object-contain rounded-lg"
                 data-testid="print-logo-left"
-                className="w-10 h-10 rounded-lg bg-slate-950 flex items-center justify-center text-white font-black text-sm"
-              >
-                ITB
-              </div>
+              />
             )}
             <div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-sky-600 block">
-                Instituto Transforma Brasil
+              <span className="text-xs font-black uppercase tracking-widest text-slate-900 block">
+                INSTITUTO TRANSFORMA BRASIL
               </span>
-              <h1 className="text-base font-extrabold text-slate-900 tracking-tight">
-                Boletim Consolidado da Turma — {data.className}
-              </h1>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="text-right text-[11px] text-slate-500">
-              <span className="block font-semibold">Data de Emissão</span>
-              <span className="font-mono text-slate-800">{formattedEmissionDate}</span>
-            </div>
-            {showHeaderLogoRight && (
-              <div
-                data-testid="print-logo-right"
-                className="w-8 h-8 rounded-lg border border-slate-900 flex items-center justify-center text-slate-900 font-black text-xs"
-              >
-                ITB
-              </div>
-            )}
+          <div className="text-right text-[11px] text-slate-500">
+            <span className="block font-semibold">Data e Hora de Emissão</span>
+            <span className="font-mono text-slate-800">{formattedEmissionDate}</span>
           </div>
         </div>
         <div className="grid grid-cols-3 gap-2 text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-200">
@@ -155,7 +146,7 @@ export function ClassBoletimView({
       {/* CONSOLIDATED BOLETIM CARD */}
       <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xs overflow-hidden print:border-none print:shadow-none">
         {/* CARD TOOLBAR / HEADER */}
-        <div className="px-4 sm:px-5 py-3.5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="px-4 sm:px-5 py-3.5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 print:hidden">
           <div>
             <h3 className="text-sm font-bold text-slate-900">
               Boletim Consolidado — {data.className}
@@ -268,9 +259,6 @@ export function ClassBoletimView({
                         className="py-2.5 px-3 text-center border-l border-slate-100 font-semibold text-slate-800 whitespace-nowrap"
                       >
                         <div>{formatGrade(tr.average)}</div>
-                        <div className="text-[10px] text-slate-400 font-normal">
-                          {tr.evaluatedCount}/{tr.totalItems} aval.
-                        </div>
                       </td>
                     ))}
 

@@ -149,6 +149,12 @@ export function ApplicationProvider({
     onSignedOut();
   }, [api, onSignedOut, session.refreshToken, store]);
 
+  useEffect(() => {
+    api.setOnUnauthorized(() => {
+      void logout();
+    });
+  }, [api, logout]);
+
   return (
     <Context.Provider value={{ session, store, api, branding, setBranding, sync, syncState, message, refresh, logout }}>
       {children}
@@ -183,23 +189,26 @@ export function useBoot() {
           },
         );
 
-        try {
-          if (restored.session.refreshToken) {
-            await api.refresh();
-          }
-          if (alive) setState({ loading: false, ...restored });
-        } catch (error) {
-          if (!alive) return;
-          if (error instanceof ApiError && error.status === 401) {
+        let refreshSucceeded = true;
+        if (restored.session.refreshToken) {
+          refreshSucceeded = await api.refresh();
+        }
+
+        if (!refreshSucceeded) {
+          const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+          if (isOnline) {
             await restored.store.clearSession();
-            setState({
-              loading: false,
-              error: 'Sua sessão expirou. Entre novamente.',
-            });
-          } else {
-            setState({ loading: false, ...restored });
+            if (alive) {
+              setState({
+                loading: false,
+                error: 'Sua sessão expirou. Entre novamente.',
+              });
+            }
+            return;
           }
         }
+
+        if (alive) setState({ loading: false, ...restored });
       } catch {
         if (alive) setState({ loading: false });
       }
