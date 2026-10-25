@@ -224,4 +224,36 @@ describe('StudentReportCardView Component', () => {
     render(<AcademicStatusBadge status="Desconhecido" />);
     expect(screen.getByText('Sem Notas')).toBeDefined();
   });
+
+  it('renders institutional footer with "ERPITB — Relatório Acadêmico" and QR Code to public portal', async () => {
+    render(<StudentReportCardView data={mockData} />);
+
+    // Institutional text in footer
+    expect(screen.getByText('ERPITB — Relatório Acadêmico')).toBeDefined();
+    expect(screen.getByText(/Documento oficial emitido pelo Sistema de Gestão ERPITB/i)).toBeDefined();
+
+    // QR Code container and link to virtual portal
+    const portalLink = screen.getByRole('link', { name: /Abrir boletim virtual público do aluno/i });
+    expect(portalLink).toBeDefined();
+    expect(portalLink.getAttribute('href')).toContain('/aluno/ITB-2026-9081');
+    expect(screen.getByText('Boletim Virtual')).toBeDefined();
+    expect(screen.getByText('Escaneie para validar')).toBeDefined();
+  });
+
+  it('renders Aluno, Matrícula, Curso, Turma, Média Geral, Frequência in unified single row layout', () => {
+    const { container } = render(<StudentReportCardView data={mockData} />);
+
+    // Grid container with responsive single row
+    const rowGrid = container.querySelector('.grid-cols-7');
+    expect(rowGrid).toBeDefined();
+    expect(rowGrid?.className).toContain('print:grid-cols-6');
+    expect(rowGrid?.textContent).toContain('Aluno');
+    expect(rowGrid?.textContent).toContain('Matrícula');
+    expect(rowGrid?.textContent).toContain('Curso');
+    expect(rowGrid?.textContent).toContain('Turma');
+    expect(rowGrid?.textContent).toContain('Média Geral');
+    expect(rowGrid?.textContent).toContain('Frequência');
+    expect(rowGrid?.textContent).toContain('6,7');
+    expect(rowGrid?.textContent).toContain('81,3%');
+  });
 });

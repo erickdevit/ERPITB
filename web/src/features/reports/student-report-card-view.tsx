@@ -6,7 +6,7 @@ import {
   FileText,
 } from 'lucide-react';
 import type { AcademicStatus, UnifiedBoletimData } from '../../lib/boletim';
-import { PrintWatermark } from '../../components';
+import { PrintWatermark, QrCodeImage } from '../../components';
 import { formatGrade } from '../../lib/grades';
 
 export function statusBadgeStyle(status: string): string {
@@ -56,6 +56,7 @@ export function AcademicStatusBadge({ status }: { status: AcademicStatus }) {
 
 export interface StudentReportCardViewProps {
   data: UnifiedBoletimData;
+  portalUrl?: string;
   onPrint?: () => void;
   onDownloadPdf?: () => void;
   watermarkText?: string;
@@ -67,6 +68,7 @@ export interface StudentReportCardViewProps {
 
 export function StudentReportCardView({
   data,
+  portalUrl,
   onPrint,
   onDownloadPdf,
   watermarkText = 'INSTITUTO TRANSFORMA BRASIL',
@@ -121,6 +123,12 @@ export function StudentReportCardView({
   })();
 
   const classTitle = data.student.classNames.length > 0 ? data.student.classNames.join(', ') : 'Turma';
+  const portalCode = data.student.registrationNumber || data.student.id;
+  const publicPortalUrl =
+    portalUrl ||
+    (typeof window !== 'undefined' && window.location?.origin
+      ? `${window.location.origin}/aluno/${encodeURIComponent(portalCode)}`
+      : `https://erp.itbcursos.com/aluno/${encodeURIComponent(portalCode)}`);
 
   return (
     <div className="flex flex-col gap-4 text-left w-full max-w-5xl mx-auto print-landscape print:max-w-none print:w-full print:mx-0 relative">
@@ -187,9 +195,6 @@ export function StudentReportCardView({
               <h1 className="text-sm font-extrabold text-slate-900 tracking-tight">
                 BOLETIM ESCOLAR INDIVIDUAL
               </h1>
-              <p className="text-[11px] text-slate-500 font-medium">
-                ERPITB — Relatório Acadêmico
-              </p>
             </div>
           </div>
 
@@ -199,67 +204,64 @@ export function StudentReportCardView({
           </div>
         </div>
 
-        {/* 2. UNIFIED STUDENT CREDENTIALS & ACADEMIC SUMMARY ROW */}
-        <div className="bg-slate-50/80 border border-slate-200/90 rounded-xl p-3.5 sm:p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs print:bg-white print:border-slate-300">
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-            <div>
-              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+        {/* 2. UNIFIED STUDENT CREDENTIALS & ACADEMIC SUMMARY ROW (SINGLE STRICT ROW) */}
+        <div className="bg-slate-50/80 border border-slate-200/90 rounded-xl p-3 sm:p-3.5 print:bg-white print:border-slate-300 w-full overflow-x-auto print:overflow-visible">
+          <div className="grid grid-cols-7 items-center gap-2 sm:gap-3 text-xs min-w-[680px] print:grid-cols-6 print:min-w-0">
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                 Aluno
               </span>
-              <span className="text-xs font-bold text-slate-900 block truncate">
+              <span className="text-xs font-bold text-slate-900 block truncate" title={data.student.name}>
                 {data.student.name}
               </span>
             </div>
-            {data.student.registrationNumber && (
-              <div>
-                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
-                  Matrícula
-                </span>
-                <span className="text-xs font-bold text-slate-900 block font-mono">
-                  {data.student.registrationNumber}
-                </span>
-              </div>
-            )}
-            <div>
-              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Matrícula
+              </span>
+              <span className="text-xs font-bold text-slate-900 block font-mono truncate">
+                {data.student.registrationNumber || '—'}
+              </span>
+            </div>
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                 Curso
               </span>
-              <span className="text-xs font-semibold text-slate-800 block truncate">
+              <span className="text-xs font-semibold text-slate-800 block truncate" title={data.student.courseName || '—'}>
                 {data.student.courseName || '—'}
               </span>
             </div>
-            <div>
-              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                 Turma
               </span>
-              <span className="text-xs font-semibold text-slate-800 block truncate">
+              <span className="text-xs font-semibold text-slate-800 block truncate" title={classTitle}>
                 {classTitle}
               </span>
             </div>
-          </div>
-
-          <div className="flex items-center gap-5 border-t md:border-t-0 md:border-l border-slate-200/90 pt-2.5 md:pt-0 md:pl-5 shrink-0">
-            <div className="text-center md:text-right">
-              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+            <div className="min-w-0 border-l border-slate-200/90 pl-2 sm:pl-3">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                 Média Geral
               </span>
-              <span className="text-sm font-black text-slate-950">
+              <span className="text-sm font-black text-slate-950 block">
                 {formatGrade(data.overallGpa)}
               </span>
             </div>
-            <div className="text-center md:text-right">
-              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+            <div className="min-w-0 border-l border-slate-200/90 pl-2 sm:pl-3">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                 Frequência
               </span>
-              <span className="text-sm font-bold text-slate-800">
+              <span className="text-sm font-bold text-slate-800 block">
                 {data.overallAttendanceRate.toFixed(1).replace('.', ',')}%
               </span>
             </div>
-            <div className="text-center md:text-right print:hidden">
-              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-0.5">
+            <div className="min-w-0 border-l border-slate-200/90 pl-2 sm:pl-3 print:hidden">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                 Situação
               </span>
-              <AcademicStatusBadge status={data.overallAcademicStatus} />
+              <div className="mt-0.5">
+                <AcademicStatusBadge status={data.overallAcademicStatus} />
+              </div>
             </div>
           </div>
         </div>
@@ -375,6 +377,34 @@ export function StudentReportCardView({
             <span className="text-[10px] text-slate-400 font-medium">
               Assinatura do Aluno / Responsável
             </span>
+          </div>
+        </div>
+
+        {/* 7. INSTITUTIONAL FOOTER WITH QR CODE (BOTTOM-RIGHT) */}
+        <div className="pt-4 border-t border-slate-200 flex items-center justify-between gap-4 text-xs print:pt-6 print:border-slate-300">
+          <div className="space-y-0.5">
+            <span className="text-xs font-bold text-slate-800 block">
+              ERPITB — Relatório Acadêmico
+            </span>
+            <p className="text-[11px] text-slate-500">
+              Documento oficial emitido pelo Sistema de Gestão ERPITB — Instituto Transforma Brasil.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 shrink-0 text-right">
+            <div className="text-[10px] text-slate-500 leading-tight">
+              <span className="font-bold text-slate-700 block">Boletim Virtual</span>
+              <span>Escaneie para validar</span>
+            </div>
+            <a
+              href={publicPortalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Abrir boletim virtual público do aluno"
+              className="p-1 bg-white border border-slate-200 rounded-lg shadow-2xs hover:border-sky-300 transition-colors inline-block"
+            >
+              <QrCodeImage value={publicPortalUrl} size={64} alt={`QR Code Boletim de ${data.student.name}`} />
+            </a>
           </div>
         </div>
       </div>

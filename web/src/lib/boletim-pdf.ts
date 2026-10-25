@@ -222,13 +222,7 @@ export function buildBoletimPdf(data: UnifiedBoletimData): jsPDF {
     doc.setFontSize(7.5);
     doc.setTextColor(30, 41, 59);
     const gradeStr = formatGrade(mod.finalGrade);
-    doc.text(gradeStr, curX + modColWidth / 2, currentY + 4.5, { align: 'center' });
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(5.5);
-    doc.setTextColor(148, 163, 184);
-    const evalCount = mod.grades.filter((g) => g.score !== null).length;
-    doc.text(`${evalCount}/${mod.grades.length} aval.`, curX + modColWidth / 2, currentY + 8.5, { align: 'center' });
+    doc.text(gradeStr, curX + modColWidth / 2, currentY + 6.5, { align: 'center' });
 
     curX += modColWidth;
   }
@@ -515,12 +509,7 @@ export function buildClassBoletimPdf(data: ClassBoletimData): jsPDF {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(7);
       doc.setTextColor(30, 41, 59);
-      doc.text(formatGrade(tr.average), curX + tableColWidth / 2, currentY + 4.5, { align: 'center' });
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(5.5);
-      doc.setTextColor(148, 163, 184);
-      doc.text(`${tr.evaluatedCount}/${tr.totalItems} aval.`, curX + tableColWidth / 2, currentY + 8, { align: 'center' });
+      doc.text(formatGrade(tr.average), curX + tableColWidth / 2, currentY + 6.5, { align: 'center' });
 
       curX += tableColWidth;
     }

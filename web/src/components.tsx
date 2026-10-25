@@ -1,4 +1,5 @@
 import React, { Component, useEffect, useState, type ErrorInfo, type PropsWithChildren, type ReactNode } from 'react';
+import QRCode from 'qrcode';
 import { AlertCircle, RefreshCw, X } from 'lucide-react';
 import { parseBrazilDate, formatDate } from './lib/date';
 
@@ -304,3 +305,63 @@ export function PrintWatermark({ text, logoUrl }: { text?: string; logoUrl?: str
     </div>
   );
 }
+
+export function QrCodeImage({
+  value,
+  size = 64,
+  className = '',
+  alt = 'QR Code de Validação',
+}: {
+  value: string;
+  size?: number;
+  className?: string;
+  alt?: string;
+}) {
+  const [svgHtml, setSvgHtml] = useState<string>('');
+
+  useEffect(() => {
+    let active = true;
+    if (!value) {
+      setSvgHtml('');
+      return;
+    }
+    QRCode.toString(value, {
+      type: 'svg',
+      margin: 1,
+      width: size,
+      color: { dark: '#020617', light: '#ffffff' },
+    })
+      .then((svg) => {
+        if (active) setSvgHtml(svg);
+      })
+      .catch((err) => {
+        console.error('Failed to generate QR code SVG:', err);
+      });
+    return () => {
+      active = false;
+    };
+  }, [value, size]);
+
+  if (!svgHtml) {
+    return (
+      <div
+        style={{ width: size, height: size }}
+        className={`bg-slate-100 rounded flex items-center justify-center text-[9px] text-slate-400 font-mono ${className}`}
+        aria-label={alt}
+      >
+        QR
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`inline-flex items-center justify-center shrink-0 ${className}`}
+      data-testid="qrcode-container"
+      title={value}
+      aria-label={alt}
+      dangerouslySetInnerHTML={{ __html: svgHtml }}
+    />
+  );
+}
+
