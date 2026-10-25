@@ -74,6 +74,7 @@ export function StudentReportCardView({
   onDownloadPdf,
   watermarkText = 'INSTITUTO TRANSFORMA BRASIL',
   watermarkLogoUrl,
+  watermarkGrayscale = true,
   logoUrl,
   showHeaderLogoLeft = true,
   showHeaderLogoRight = false,
@@ -181,7 +182,7 @@ export function StudentReportCardView({
 
       {/* PRINTABLE BOLETIM SHEET */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-2xs print:border-none print:p-0 print:shadow-none print:w-full flex flex-col gap-6 relative overflow-hidden">
-        <PrintWatermark text={watermarkText} logoUrl={watermarkLogoUrl} />
+        <PrintWatermark text={watermarkText} logoUrl={watermarkLogoUrl} grayscale={watermarkGrayscale} />
         {/* 1. INSTITUTIONAL ITB HEADER */}
         <div className="border-b border-slate-200 pb-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">

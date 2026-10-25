@@ -115,6 +115,7 @@ describe('Branding, API Keys, Sessions and Enrollment Locking', () => {
         appName: 'Instituto Transforma Brasil',
         accentColor: '#0055A5',
         printWatermarkText: 'DOCUMENTO OFICIAL ITB',
+        printWatermarkGrayscale: false,
         showHeaderLogoLeft: true,
         showHeaderLogoRight: true,
       },
@@ -122,6 +123,7 @@ describe('Branding, API Keys, Sessions and Enrollment Locking', () => {
     expect(updateBrandingRes.status).toBe(200);
     expect(updateBrandingRes.data.appName).toBe('Instituto Transforma Brasil');
     expect(updateBrandingRes.data.accentColor).toBe('#0055A5');
+    expect(updateBrandingRes.data.printWatermarkGrayscale).toBe(false);
 
     // Branding: Contrast rejection (too light)
     const badContrastRes = await request(env, '/api/v1/admin/branding', {

@@ -13,6 +13,7 @@ export function ReportResult({ view }: { view: ReportView }) {
         data={view.boletimData}
         logoUrl={branding?.loginLogoUrl}
         watermarkLogoUrl={branding?.printWatermarkLogoUrl}
+        watermarkGrayscale={branding?.printWatermarkGrayscale ?? true}
       />
     );
   }
@@ -23,6 +24,7 @@ export function ReportResult({ view }: { view: ReportView }) {
         data={view.classBoletimData}
         logoUrl={branding?.loginLogoUrl}
         watermarkLogoUrl={branding?.printWatermarkLogoUrl}
+        watermarkGrayscale={branding?.printWatermarkGrayscale ?? true}
       />
     );
   }

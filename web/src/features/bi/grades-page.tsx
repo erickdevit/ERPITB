@@ -226,6 +226,7 @@ export function BiGradesPage() {
               onDownloadPdf={() => void handleDownloadClassPdf()}
               logoUrl={branding?.loginLogoUrl}
               watermarkLogoUrl={branding?.printWatermarkLogoUrl}
+              watermarkGrayscale={branding?.printWatermarkGrayscale ?? true}
             />
           ) : (
             <div className="bg-white border border-slate-200/90 rounded-2xl p-8 text-center shadow-2xs max-w-xl mx-auto my-6 print:border-none">
@@ -358,6 +359,7 @@ export function BiGradesPage() {
               data={studentBoletimData}
               logoUrl={branding?.loginLogoUrl}
               watermarkLogoUrl={branding?.printWatermarkLogoUrl}
+              watermarkGrayscale={branding?.printWatermarkGrayscale ?? true}
             />
           </div>
         </div>

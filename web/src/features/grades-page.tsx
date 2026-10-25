@@ -1222,6 +1222,7 @@ export function GradesPage() {
               showSearch={false}
               logoUrl={branding?.loginLogoUrl}
               watermarkLogoUrl={branding?.printWatermarkLogoUrl}
+              watermarkGrayscale={branding?.printWatermarkGrayscale ?? true}
             />
           )}
         </div>
@@ -1602,6 +1603,7 @@ export function GradesPage() {
                   data={studentBoletimData}
                   logoUrl={branding?.loginLogoUrl}
                   watermarkLogoUrl={branding?.printWatermarkLogoUrl}
+                  watermarkGrayscale={branding?.printWatermarkGrayscale ?? true}
                 />
               </ErrorBoundary>
             ) : (

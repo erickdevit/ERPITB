@@ -34,6 +34,7 @@ export interface ClassBoletimViewProps {
   showSearch?: boolean;
   watermarkText?: string;
   watermarkLogoUrl?: string;
+  watermarkGrayscale?: boolean;
   logoUrl?: string;
   showHeaderLogoLeft?: boolean;
   showHeaderLogoRight?: boolean;
@@ -48,6 +49,7 @@ export function ClassBoletimView({
   showSearch = true,
   watermarkText = 'INSTITUTO TRANSFORMA BRASIL',
   watermarkLogoUrl,
+  watermarkGrayscale = true,
   logoUrl,
   showHeaderLogoLeft = true,
   showHeaderLogoRight = false,
@@ -103,7 +105,7 @@ export function ClassBoletimView({
 
   return (
     <div className="flex flex-col gap-3 text-left w-full print-landscape relative">
-      <PrintWatermark text={watermarkText} logoUrl={watermarkLogoUrl} />
+      <PrintWatermark text={watermarkText} logoUrl={watermarkLogoUrl} grayscale={watermarkGrayscale} />
       {/* PRINT-ONLY INSTITUTIONAL HEADER */}
       <div className="hidden print:flex flex-col gap-3 pb-4 border-b border-slate-300">
         <div className="flex items-center justify-between">

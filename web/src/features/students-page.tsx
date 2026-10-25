@@ -652,6 +652,7 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
               data={boletimData}
               logoUrl={branding?.loginLogoUrl}
               watermarkLogoUrl={branding?.printWatermarkLogoUrl}
+              watermarkGrayscale={branding?.printWatermarkGrayscale ?? true}
             />
           </div>
         </div>

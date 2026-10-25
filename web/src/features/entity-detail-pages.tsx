@@ -532,6 +532,7 @@ export function StudentDetailPage() {
           data={boletimData}
           logoUrl={branding?.loginLogoUrl}
           watermarkLogoUrl={branding?.printWatermarkLogoUrl}
+          watermarkGrayscale={branding?.printWatermarkGrayscale ?? true}
         />
       </div>
     )}
@@ -570,6 +571,7 @@ export function StudentDetailPage() {
             data={boletimData}
             logoUrl={branding?.loginLogoUrl}
             watermarkLogoUrl={branding?.printWatermarkLogoUrl}
+            watermarkGrayscale={branding?.printWatermarkGrayscale ?? true}
           />
         </div>
       </div>
