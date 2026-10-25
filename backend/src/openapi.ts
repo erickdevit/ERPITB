@@ -396,7 +396,7 @@ export const openApiSpec = {
       get: {
         summary: 'Lista registros de frequência e chamada da turma',
         parameters: [
-          { name: 'classId', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'classId', in: 'query', required: false, schema: { type: 'string' } },
           { name: 'date', in: 'query', schema: { type: 'string', format: 'date' } },
         ],
         responses: {

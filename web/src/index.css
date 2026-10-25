@@ -178,14 +178,6 @@
     justify-content: center !important;
     pointer-events: none !important;
     z-index: 0 !important;
-    opacity: 0.045 !important;
-    font-size: 36pt !important;
-    font-weight: 900 !important;
-    letter-spacing: 0.12em !important;
-    text-transform: uppercase !important;
-    color: #0f172a !important;
-    transform: rotate(-30deg) !important;
-    white-space: nowrap !important;
     user-select: none !important;
   }
 }

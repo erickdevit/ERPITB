@@ -900,13 +900,23 @@ export async function listAttendance(url: URL, env: Env, user: AuthUser): Promis
   if (user.role === 'financeiro') {
     throw new AppError(403, 'Acesso restrito ao corpo docente e pedagógico.', 'FORBIDDEN');
   }
-  const classId = requireString(url.searchParams.get('classId'), 'classId', { max: 36 });
-  await requireClassAccess(env, user, classId);
+  const rawClassId = url.searchParams.get('classId');
+  const classId = rawClassId ? requireString(rawClassId, 'classId', { max: 36 }) : undefined;
+  if (classId) {
+    await requireClassAccess(env, user, classId);
+  }
   const date = url.searchParams.get('date');
   const from = url.searchParams.get('from');
   const to = url.searchParams.get('to');
-  let sql = `SELECT a.*, s.encrypted_name, s.registration_number FROM attendance_records a JOIN students s ON s.id = a.student_id WHERE a.class_id = ? AND a.deleted_at IS NULL`;
-  const binds: unknown[] = [classId];
+  let sql = `SELECT a.*, s.encrypted_name, s.registration_number FROM attendance_records a JOIN students s ON s.id = a.student_id WHERE a.deleted_at IS NULL`;
+  const binds: unknown[] = [];
+  if (classId) {
+    sql += ` AND a.class_id = ?`;
+    binds.push(classId);
+  } else if (user.role === 'professor') {
+    sql += ` AND a.class_id IN (SELECT class_id FROM class_teachers WHERE user_id = ? AND deleted_at IS NULL)`;
+    binds.push(user.id);
+  }
   if (date) { sql += ` AND a.date = ?`; binds.push(parseDate(date)); }
   if (from) { sql += ` AND a.date >= ?`; binds.push(parseDate(from, 'data inicial')); }
   if (to) { sql += ` AND a.date <= ?`; binds.push(parseDate(to, 'data final')); }
@@ -922,7 +932,7 @@ export async function listAttendance(url: URL, env: Env, user: AuthUser): Promis
     }
     return { ...item, student_name };
   }));
-  const generalNote = date ? await env.DB.prepare(`SELECT notes FROM class_notes WHERE class_id = ? AND date = ? AND deleted_at IS NULL`).bind(classId, parseDate(date)).first<{ notes: string | null }>() : null;
+  const generalNote = classId && date ? await env.DB.prepare(`SELECT notes FROM class_notes WHERE class_id = ? AND date = ? AND deleted_at IS NULL`).bind(classId, parseDate(date)).first<{ notes: string | null }>() : null;
   return { items, generalNotes: generalNote?.notes ?? null };
 }
 

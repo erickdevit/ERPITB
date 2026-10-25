@@ -101,13 +101,15 @@ export function StudentReportCardView({
     }
   };
 
-  const totalClassesHeld = data.modules.reduce((sum, m) => sum + m.classesHeld, 0);
-  const totalPresences = data.modules.reduce((sum, m) => sum + m.presences, 0);
-  const totalAbsences = data.modules.reduce((sum, m) => sum + m.absences, 0);
-  const totalJustified = data.modules.reduce((sum, m) => sum + m.justified, 0);
+  const modules = data?.modules ?? [];
+  const totalClassesHeld = modules.reduce((sum, m) => sum + (Number(m.classesHeld) || 0), 0);
+  const totalPresences = modules.reduce((sum, m) => sum + (Number(m.presences) || 0), 0);
+  const totalAbsences = modules.reduce((sum, m) => sum + (Number(m.absences) || 0), 0);
+  const totalJustified = modules.reduce((sum, m) => sum + (Number(m.justified) || 0), 0);
 
   const formattedEmissionDate = (() => {
     try {
+      if (!data?.issueDate) return '';
       const d = new Date(data.issueDate);
       if (Number.isNaN(d.getTime())) return data.issueDate;
       return d.toLocaleDateString('pt-BR', {
@@ -118,12 +120,14 @@ export function StudentReportCardView({
         minute: '2-digit',
       });
     } catch {
-      return data.issueDate;
+      return data?.issueDate || '';
     }
   })();
 
-  const classTitle = data.student.classNames.length > 0 ? data.student.classNames.join(', ') : 'Turma';
-  const portalCode = data.student.registrationNumber || data.student.id;
+  const student = data?.student ?? { name: 'Aluno', id: '', classNames: [] };
+  const classNames = student.classNames ?? [];
+  const classTitle = classNames.length > 0 ? classNames.join(', ') : 'Turma';
+  const portalCode = student.registrationNumber || student.id || '';
   const publicPortalUrl =
     portalUrl ||
     (typeof window !== 'undefined' && window.location?.origin
@@ -132,7 +136,6 @@ export function StudentReportCardView({
 
   return (
     <div className="flex flex-col gap-4 text-left w-full max-w-5xl mx-auto print-landscape print:max-w-none print:w-full print:mx-0 relative">
-      <PrintWatermark text={watermarkText} logoUrl={watermarkLogoUrl} />
       {/* ACTION BAR (Hidden in print) */}
       <div
         data-testid="print-hidden"
@@ -176,7 +179,8 @@ export function StudentReportCardView({
       </div>
 
       {/* PRINTABLE BOLETIM SHEET */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-2xs print:border-none print:p-0 print:shadow-none print:w-full flex flex-col gap-6">
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-2xs print:border-none print:p-0 print:shadow-none print:w-full flex flex-col gap-6 relative overflow-hidden">
+        <PrintWatermark text={watermarkText} logoUrl={watermarkLogoUrl} />
         {/* 1. INSTITUTIONAL ITB HEADER */}
         <div className="border-b border-slate-200 pb-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -304,8 +308,10 @@ export function StudentReportCardView({
                         >
                           <span className="font-medium text-slate-700 truncate max-w-[60%]">{grade.name}</span>
                           <span className="font-mono font-bold text-slate-900">
-                            {grade.score !== null ? grade.score.toFixed(1).replace('.', ',') : '—'}
-                            <span className="text-[10px] font-normal text-slate-400 ml-1">/ {grade.maxScore}</span>
+                            {typeof grade.score === 'number' && !Number.isNaN(grade.score)
+                              ? grade.score.toFixed(1).replace('.', ',')
+                              : '—'}
+                            <span className="text-[10px] font-normal text-slate-400 ml-1">/ {grade.maxScore ?? 10}</span>
                           </span>
                         </div>
                       ))}
@@ -328,10 +334,10 @@ export function StudentReportCardView({
               Critérios de Avaliação e Legenda
             </h4>
             <p className="text-[11px] text-slate-500">
-              • <strong>Frequência Mínima:</strong> {data.criteria.minAttendanceRate.toFixed(1)}% das aulas ministradas para aprovação.
+              • <strong>Frequência Mínima:</strong> {(data?.criteria?.minAttendanceRate != null ? data.criteria.minAttendanceRate : 75).toFixed(1)}% das aulas ministradas para aprovação.
             </p>
             <p className="text-[11px] text-slate-500">
-              • <strong>Média de Aprovação:</strong> Nota igual ou superior a {data.criteria.minPassingGrade.toFixed(1)} na escala de 0,0 a 10,0.
+              • <strong>Média de Aprovação:</strong> Nota igual ou superior a {(data?.criteria?.minPassingGrade != null ? data.criteria.minPassingGrade : 6).toFixed(1)} na escala de 0,0 a 10,0.
             </p>
           </div>
 
@@ -401,7 +407,7 @@ export function StudentReportCardView({
               target="_blank"
               rel="noopener noreferrer"
               aria-label="Abrir boletim virtual público do aluno"
-              className="p-1 bg-white border border-slate-200 rounded-lg shadow-2xs hover:border-sky-300 transition-colors inline-block"
+              className="inline-block transition-opacity hover:opacity-80 p-0 m-0 bg-transparent border-0 shadow-none"
             >
               <QrCodeImage value={publicPortalUrl} size={64} alt={`QR Code Boletim de ${data.student.name}`} />
             </a>

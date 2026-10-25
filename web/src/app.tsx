@@ -143,8 +143,12 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={isFinanceOnly ? <Navigate to="/financeiro/dashboard" replace /> : deferred(<DashboardPage />)} />
-      <Route path="/financeiro" element={financeAllowed ? deferred(<FinancePage />) : <Navigate to="/" replace />} />
-      <Route path="/financeiro/:tab" element={financeAllowed ? deferred(<FinancePage />) : <Navigate to="/" replace />} />
+      <Route path="/financeiro" element={<Navigate to="/financeiro/dashboard" replace />} />
+      <Route path="/financeiro/dashboard" element={financeAllowed ? deferred(<FinancePage />) : <Navigate to="/" replace />} />
+      <Route path="/financeiro/mensalidades" element={financeAllowed ? deferred(<FinancePage />) : <Navigate to="/" replace />} />
+      <Route path="/financeiro/caixa" element={financeAllowed ? deferred(<FinancePage />) : <Navigate to="/" replace />} />
+      <Route path="/financeiro/entradas" element={financeAllowed ? deferred(<FinancePage />) : <Navigate to="/" replace />} />
+      <Route path="/financeiro/saidas" element={financeAllowed ? deferred(<FinancePage />) : <Navigate to="/" replace />} />
       <Route path="/turmas" element={!isFinanceOnly ? deferred(<ClassesPage />) : <Navigate to="/financeiro/dashboard" replace />} />
       <Route path="/turmas/:classId" element={!isFinanceOnly ? deferred(<ClassDetailPage />) : <Navigate to="/financeiro/dashboard" replace />} />
       <Route path="/alunos" element={deferred(<StudentsPage />)} />

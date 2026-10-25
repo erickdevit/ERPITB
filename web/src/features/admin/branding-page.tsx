@@ -105,12 +105,12 @@ export function BrandingPage() {
       else if (target === 'bg') setLoginBgUrl(res.url);
 
       setStatusMessage({
-        text: 'Imagem enviada e armazenada com sucesso no bucket R2 do ERP!',
+        text: 'Imagem enviada com sucesso!',
         type: 'success',
       });
     } catch (err: any) {
       setStatusMessage({
-        text: err.message || 'Erro ao enviar imagem para o bucket R2.',
+        text: err.message || 'Erro ao enviar imagem.',
         type: 'error',
       });
     } finally {
@@ -326,14 +326,14 @@ export function BrandingPage() {
             </div>
           </div>
 
-          {/* Section: Logotipos & Imagens (Upload R2 Exclusivo) */}
+          {/* Section: Logotipos & Imagens */}
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-4">
             <div>
               <h2 className="text-sm font-bold text-slate-900">
-                Identidade Visual &amp; Upload de Imagens
+                Identidade Visual &amp; Imagens Oficiais
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Todos os elementos visuais são salvos diretamente no armazenamento seguro Cloudflare R2 (sem base64 no banco de dados).
+                Personalize os logotipos da instituição para cabeçalhos, documentos impressos e tela de acesso.
               </p>
             </div>
 
@@ -366,7 +366,7 @@ export function BrandingPage() {
                     ) : (
                       <Upload className="w-3.5 h-3.5 text-slate-500" />
                     )}
-                    <span>{loginLogoUrl ? 'Substituir' : 'Upload R2'}</span>
+                    <span>{loginLogoUrl ? 'Substituir' : 'Enviar Imagem'}</span>
                   </label>
                   <input
                     id={fileInputLogoId}
@@ -417,7 +417,7 @@ export function BrandingPage() {
                     ) : (
                       <Upload className="w-3.5 h-3.5 text-slate-500" />
                     )}
-                    <span>{printWatermarkLogoUrl ? 'Substituir' : 'Upload R2'}</span>
+                    <span>{printWatermarkLogoUrl ? 'Substituir' : 'Enviar Imagem'}</span>
                   </label>
                   <input
                     id={fileInputWatermarkId}
@@ -471,7 +471,7 @@ export function BrandingPage() {
                     ) : (
                       <Upload className="w-3.5 h-3.5 text-slate-500" />
                     )}
-                    <span>{loginBgUrl ? 'Substituir' : 'Upload R2'}</span>
+                    <span>{loginBgUrl ? 'Substituir' : 'Enviar Imagem'}</span>
                   </label>
                   <input
                     id={fileInputBgId}

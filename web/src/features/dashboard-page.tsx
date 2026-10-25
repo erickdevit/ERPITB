@@ -27,7 +27,7 @@ import {
 } from 'recharts';
 import { useApp } from '../app-context';
 import { DateField } from '../components';
-import { buildAnalytics } from '../lib/analytics';
+import { buildAnalytics, type AnalyticsResult } from '../lib/analytics';
 import { formatDate, parseBrazilDate, todayInSaoPaulo } from '../lib/date';
 import { useEntity } from '../lib/use-entity';
 import type { LocalRecord } from '../types';
@@ -254,12 +254,24 @@ export function DashboardPage() {
   const to = safeCanonicalDate(range.to);
   const validRange = Boolean(from && to && from <= to);
 
+  const [serverAnalytics, setServerAnalytics] = useState<any>(null);
+
   useEffect(() => {
     if (!validRange || typeof api.getAnalytics !== 'function') return;
-    void api.getAnalytics({ from: from!, to: to! }).catch(() => undefined);
+    let active = true;
+    api.getAnalytics({ from: from!, to: to! })
+      .then((res) => {
+        if (active && res && typeof res === 'object') {
+          setServerAnalytics(res);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
   }, [api, from, to, validRange]);
 
-  const analytics = useMemo(
+  const localAnalytics = useMemo(
     () =>
       buildAnalytics(
         {
@@ -274,8 +286,28 @@ export function DashboardPage() {
     [attendance.items, classTeachers.items, classes.items, enrollments.items, from, students.items, to, validRange],
   );
 
+  const analytics: AnalyticsResult = useMemo(() => {
+    if (!serverAnalytics) return localAnalytics;
+    return {
+      attendanceRate: typeof serverAnalytics.attendanceRate === 'number' ? serverAnalytics.attendanceRate : localAnalytics.attendanceRate,
+      distinctCalls: typeof serverAnalytics.distinctCalls === 'number' ? serverAnalytics.distinctCalls : localAnalytics.distinctCalls,
+      activeStudents: typeof serverAnalytics.activeStudents === 'number' ? serverAnalytics.activeStudents : localAnalytics.activeStudents,
+      riskStudents: typeof serverAnalytics.riskStudents === 'number' ? serverAnalytics.riskStudents : localAnalytics.riskStudents,
+      records: typeof serverAnalytics.records === 'number' ? serverAnalytics.records : localAnalytics.records,
+      present: typeof serverAnalytics.present === 'number' ? serverAnalytics.present : localAnalytics.present,
+      absent: typeof serverAnalytics.absent === 'number' ? serverAnalytics.absent : localAnalytics.absent,
+      justified: typeof serverAnalytics.justified === 'number' ? serverAnalytics.justified : localAnalytics.justified,
+      delayed: typeof serverAnalytics.delayed === 'number' ? serverAnalytics.delayed : localAnalytics.delayed,
+      replacements: typeof serverAnalytics.replacements === 'number' ? serverAnalytics.replacements : localAnalytics.replacements,
+      evolution: Array.isArray(serverAnalytics.evolution) && serverAnalytics.evolution.length > 0 ? (serverAnalytics.evolution as AnalyticsResult['evolution']) : localAnalytics.evolution,
+      byClass: Array.isArray(serverAnalytics.byClass) && serverAnalytics.byClass.length > 0 ? (serverAnalytics.byClass as AnalyticsResult['byClass']) : localAnalytics.byClass,
+      teacherWorkload: localAnalytics.teacherWorkload,
+      topAbsentees: Array.isArray(serverAnalytics.topAbsentees) && serverAnalytics.topAbsentees.length > 0 ? (serverAnalytics.topAbsentees as AnalyticsResult['topAbsentees']) : localAnalytics.topAbsentees,
+    };
+  }, [serverAnalytics, localAnalytics]);
+
   const loading =
-    attendance.loading || classes.loading || students.loading || enrollments.loading || classTeachers.loading;
+    (attendance.loading || classes.loading || students.loading || enrollments.loading || classTeachers.loading) && !serverAnalytics;
 
   const distribution = [
     { key: 'P', name: 'P · Presenças', value: analytics.present },

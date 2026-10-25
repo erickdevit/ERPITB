@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { useApp } from '../app-context';
-import { PageDialog, SelectField } from '../components';
+import { PageDialog, SelectField, ErrorBoundary } from '../components';
 import { latestAttendance } from '../lib/attendance';
 import { buildUnifiedBoletimData, type ClassBoletimData } from '../lib/boletim';
 import {
@@ -1570,7 +1570,7 @@ export function GradesPage() {
       </PageDialog>
 
       {/* Modal: Student Individual Boletim */}
-      {selectedStudentForBoletim && studentBoletimData && (
+      {selectedStudentForBoletim && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 print:p-0">
           <div
             className="fixed inset-0 bg-slate-950/50 backdrop-blur-xs transition-opacity print:hidden"
@@ -1580,12 +1580,12 @@ export function GradesPage() {
           <div
             role="dialog"
             aria-modal="true"
-            aria-label={`Boletim Escolar de ${studentBoletimData.student.name}`}
+            aria-label={studentBoletimData ? `Boletim Escolar de ${studentBoletimData.student.name}` : 'Boletim Individual'}
             className="relative w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-2xl p-4 sm:p-6 z-10 transition-all text-left print:max-w-none print:max-h-none print:overflow-visible print:p-0 print:border-none print:shadow-none"
           >
             <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 print:hidden">
               <span className="text-xs font-bold text-slate-900">
-                Boletim Individual — {studentBoletimData.student.name}
+                {studentBoletimData ? `Boletim Individual — ${studentBoletimData.student.name}` : 'Boletim Individual'}
               </span>
               <button
                 type="button"
@@ -1596,11 +1596,20 @@ export function GradesPage() {
                 ✕
               </button>
             </div>
-            <StudentReportCardView
-              data={studentBoletimData}
-              logoUrl={branding?.loginLogoUrl}
-              watermarkLogoUrl={branding?.printWatermarkLogoUrl}
-            />
+            {studentBoletimData ? (
+              <ErrorBoundary fallbackTitle="Erro ao carregar o boletim do aluno">
+                <StudentReportCardView
+                  data={studentBoletimData}
+                  logoUrl={branding?.loginLogoUrl}
+                  watermarkLogoUrl={branding?.printWatermarkLogoUrl}
+                />
+              </ErrorBoundary>
+            ) : (
+              <div className="p-8 text-center text-slate-500">
+                <p className="text-sm font-semibold text-slate-700">Carregando dados acadêmicos do aluno...</p>
+                <p className="text-xs text-slate-400 mt-1">Verificando matrículas, frequências e notas registradas.</p>
+              </div>
+            )}
           </div>
         </div>
       )}
