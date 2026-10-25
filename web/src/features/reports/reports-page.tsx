@@ -48,7 +48,7 @@ export function ReportsCenterPage() {
       />
 
       {/* Line 2: Quantities Ribbon + Export Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-white border border-slate-200/90 rounded-2xl p-2 sm:p-2.5 px-3 sm:px-3.5 shadow-2xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-white border border-slate-200/90 rounded-2xl p-2 sm:p-2.5 px-3 sm:px-3.5 shadow-2xs print:hidden">
         {/* Metric Badges */}
         <div className="flex items-center gap-2 flex-wrap min-h-[32px]">
           {metrics.length > 0 ? (

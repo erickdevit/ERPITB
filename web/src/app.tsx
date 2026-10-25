@@ -27,6 +27,9 @@ import {
   ShieldCheck,
   Award,
   Wallet,
+  DollarSign,
+  ArrowDownCircle,
+  ArrowUpCircle,
   Palette,
   KeyRound,
 } from 'lucide-react';
@@ -37,7 +40,7 @@ import { ErrorBoundary } from './components';
 import { Login } from './login';
 import { canManage, canManageFinance, roleLabel, type Role } from './types';
 
-type Parent = 'replacements' | 'bi';
+type Parent = 'finance' | 'replacements' | 'bi';
 type Destination = {
   path: string;
   label: string;
@@ -54,7 +57,11 @@ const allDestinations: Destination[] = [
   { path: '/', label: 'Visão geral', section: 'PRINCIPAL', icon: LayoutDashboard },
   { path: '/frequencia', label: 'Chamada', shortLabel: 'Frequência', section: 'PRINCIPAL', icon: ClipboardCheck },
   { path: '/notas', label: 'Notas', section: 'PRINCIPAL', icon: Award },
-  { path: '/financeiro', label: 'Financeiro', section: 'FINANCEIRO', icon: Wallet, finance: true },
+  { path: '/financeiro/dashboard', label: 'Dashboard Financeiro', icon: LayoutDashboard, parent: 'finance', finance: true },
+  { path: '/financeiro/mensalidades', label: 'Mensalidades', icon: DollarSign, parent: 'finance', finance: true },
+  { path: '/financeiro/caixa', label: 'Controle de Caixa', icon: Wallet, parent: 'finance', finance: true },
+  { path: '/financeiro/entradas', label: 'Entradas', icon: ArrowDownCircle, parent: 'finance', finance: true },
+  { path: '/financeiro/saidas', label: 'Saídas', icon: ArrowUpCircle, parent: 'finance', finance: true },
   { path: '/turmas', label: 'Turmas', section: 'ACADÊMICO', icon: Users },
   { path: '/alunos', label: 'Alunos', section: 'ACADÊMICO', icon: GraduationCap },
   { path: '/relatorios', label: 'Relatórios', section: 'ACADÊMICO', icon: FileText },
@@ -79,7 +86,7 @@ const allDestinations: Destination[] = [
 
 function allowed(item: Destination, role: Role) {
   if (role === 'financeiro') {
-    return item.path === '/financeiro' || item.path === '/alunos' || item.path === '/relatorios';
+    return item.parent === 'finance' || item.path.startsWith('/financeiro') || item.path === '/alunos' || item.path === '/relatorios';
   }
   if (item.finance) {
     return canManageFinance(role);
@@ -135,30 +142,31 @@ function AppRoutes() {
   const isFinanceOnly = session.role === 'financeiro';
   return (
     <Routes>
-      <Route path="/" element={isFinanceOnly ? <Navigate to="/financeiro" replace /> : deferred(<DashboardPage />)} />
+      <Route path="/" element={isFinanceOnly ? <Navigate to="/financeiro/dashboard" replace /> : deferred(<DashboardPage />)} />
       <Route path="/financeiro" element={financeAllowed ? deferred(<FinancePage />) : <Navigate to="/" replace />} />
-      <Route path="/turmas" element={!isFinanceOnly ? deferred(<ClassesPage />) : <Navigate to="/financeiro" replace />} />
-      <Route path="/turmas/:classId" element={!isFinanceOnly ? deferred(<ClassDetailPage />) : <Navigate to="/financeiro" replace />} />
+      <Route path="/financeiro/:tab" element={financeAllowed ? deferred(<FinancePage />) : <Navigate to="/" replace />} />
+      <Route path="/turmas" element={!isFinanceOnly ? deferred(<ClassesPage />) : <Navigate to="/financeiro/dashboard" replace />} />
+      <Route path="/turmas/:classId" element={!isFinanceOnly ? deferred(<ClassDetailPage />) : <Navigate to="/financeiro/dashboard" replace />} />
       <Route path="/alunos" element={deferred(<StudentsPage />)} />
       <Route path="/alunos/:studentId" element={deferred(<StudentDetailPage />)} />
-      <Route path="/frequencia" element={!isFinanceOnly ? deferred(<AttendancePage />) : <Navigate to="/financeiro" replace />} />
-      <Route path="/notas" element={!isFinanceOnly ? deferred(<GradesPage />) : <Navigate to="/financeiro" replace />} />
+      <Route path="/frequencia" element={!isFinanceOnly ? deferred(<AttendancePage />) : <Navigate to="/financeiro/dashboard" replace />} />
+      <Route path="/notas" element={!isFinanceOnly ? deferred(<GradesPage />) : <Navigate to="/financeiro/dashboard" replace />} />
       <Route path="/relatorios" element={deferred(<ReportsCenterPage />)} />
-      <Route path="/reposicoes" element={!isFinanceOnly ? <Navigate to="/reposicoes/abertas" replace /> : <Navigate to="/financeiro" replace />} />
-      <Route path="/reposicoes/abertas" element={!isFinanceOnly ? deferred(<ReplacementsPage />) : <Navigate to="/financeiro" replace />} />
-      <Route path="/reposicoes/historico" element={!isFinanceOnly ? deferred(<ReplacementsPage history />) : <Navigate to="/financeiro" replace />} />
+      <Route path="/reposicoes" element={!isFinanceOnly ? <Navigate to="/reposicoes/abertas" replace /> : <Navigate to="/financeiro/dashboard" replace />} />
+      <Route path="/reposicoes/abertas" element={!isFinanceOnly ? deferred(<ReplacementsPage />) : <Navigate to="/financeiro/dashboard" replace />} />
+      <Route path="/reposicoes/historico" element={!isFinanceOnly ? deferred(<ReplacementsPage history />) : <Navigate to="/financeiro/dashboard" replace />} />
       <Route path="/cursos" element={manager ? deferred(<CoursesPage />) : <Navigate to="/" replace />} />
       <Route path="/cursos/:courseId" element={manager ? deferred(<CourseDetailPage />) : <Navigate to="/" replace />} />
       <Route path="/laboratorios" element={manager ? deferred(<LaboratoriesPage />) : <Navigate to="/" replace />} />
-      <Route path="/bi" element={!isFinanceOnly ? <Navigate to="/bi/institucional" replace /> : <Navigate to="/financeiro" replace />} />
-      <Route path="/bi/institucional" element={!isFinanceOnly ? deferred(<BiInstitutionalPage />) : <Navigate to="/financeiro" replace />} />
-      <Route path="/bi/frequencia" element={!isFinanceOnly ? deferred(<BiAttendancePage />) : <Navigate to="/financeiro" replace />} />
-      <Route path="/bi/notas" element={!isFinanceOnly ? deferred(<BiGradesPage />) : <Navigate to="/financeiro" replace />} />
-      <Route path="/bi/risco" element={!isFinanceOnly ? deferred(<BiRiskPage />) : <Navigate to="/financeiro" replace />} />
-      <Route path="/bi/reposicoes" element={!isFinanceOnly ? deferred(<BiReplacementsPage />) : <Navigate to="/financeiro" replace />} />
-      <Route path="/bi/cursos-turmas" element={!isFinanceOnly ? deferred(<BiCoursesClassesPage />) : <Navigate to="/financeiro" replace />} />
-      <Route path="/bi/professores" element={!isFinanceOnly ? deferred(<BiTeachersPage />) : <Navigate to="/financeiro" replace />} />
-      <Route path="/bi/laboratorios" element={!isFinanceOnly ? deferred(<BiLaboratoriesPage />) : <Navigate to="/financeiro" replace />} />
+      <Route path="/bi" element={!isFinanceOnly ? <Navigate to="/bi/institucional" replace /> : <Navigate to="/financeiro/dashboard" replace />} />
+      <Route path="/bi/institucional" element={!isFinanceOnly ? deferred(<BiInstitutionalPage />) : <Navigate to="/financeiro/dashboard" replace />} />
+      <Route path="/bi/frequencia" element={!isFinanceOnly ? deferred(<BiAttendancePage />) : <Navigate to="/financeiro/dashboard" replace />} />
+      <Route path="/bi/notas" element={!isFinanceOnly ? deferred(<BiGradesPage />) : <Navigate to="/financeiro/dashboard" replace />} />
+      <Route path="/bi/risco" element={!isFinanceOnly ? deferred(<BiRiskPage />) : <Navigate to="/financeiro/dashboard" replace />} />
+      <Route path="/bi/reposicoes" element={!isFinanceOnly ? deferred(<BiReplacementsPage />) : <Navigate to="/financeiro/dashboard" replace />} />
+      <Route path="/bi/cursos-turmas" element={!isFinanceOnly ? deferred(<BiCoursesClassesPage />) : <Navigate to="/financeiro/dashboard" replace />} />
+      <Route path="/bi/professores" element={!isFinanceOnly ? deferred(<BiTeachersPage />) : <Navigate to="/financeiro/dashboard" replace />} />
+      <Route path="/bi/laboratorios" element={!isFinanceOnly ? deferred(<BiLaboratoriesPage />) : <Navigate to="/financeiro/dashboard" replace />} />
       <Route path="/bi/qualidade" element={manager ? deferred(<BiDataQualityPage />) : <Navigate to="/" replace />} />
       <Route path="/usuarios" element={session.role === 'admin' ? deferred(<UsersPage />) : <Navigate to="/" replace />} />
       <Route path="/admin/branding" element={session.role === 'admin' ? deferred(<BrandingPage />) : <Navigate to="/" replace />} />
@@ -168,7 +176,7 @@ function AppRoutes() {
       <Route path="/matricula/:code" element={deferred(<PublicStudentPortal />)} />
       <Route path="/portal/:code" element={deferred(<PublicStudentPortal />)} />
       <Route path="/aluno/:code" element={deferred(<PublicStudentPortal />)} />
-      <Route path="*" element={<Navigate to={isFinanceOnly ? '/financeiro' : '/'} replace />} />
+      <Route path="*" element={<Navigate to={isFinanceOnly ? '/financeiro/dashboard' : '/'} replace />} />
     </Routes>
   );
 }
@@ -260,8 +268,15 @@ function Shell() {
   const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => getMigratedLocalStorageItem('erpitb-menu-collapsed', 'frequencia-itb-menu-collapsed') === 'true');
+  const [financeOpen, setFinanceOpen] = useState(location.pathname.startsWith('/financeiro'));
   const [replacementsOpen, setReplacementsOpen] = useState(location.pathname.startsWith('/reposicoes'));
   const [biOpen, setBiOpen] = useState(location.pathname.startsWith('/bi'));
+
+  useEffect(() => {
+    if (location.pathname.startsWith('/financeiro')) {
+      setFinanceOpen(true);
+    }
+  }, [location.pathname]);
 
   const destinations = useMemo(() => allDestinations.filter((item) => allowed(item, session.role)), [session.role]);
   const exact = destinations.find((item) => location.pathname === item.path);
@@ -272,10 +287,13 @@ function Shell() {
     ? 'Detalhes da turma'
     : location.pathname.match(/^\/alunos\//)
     ? 'Detalhes do aluno'
+    : location.pathname === '/financeiro'
+    ? 'Dashboard Financeiro'
     : exact?.label ?? section?.label ?? appTitle;
 
   const isSelected = (item: Destination) =>
     location.pathname === item.path ||
+    (item.path === '/financeiro/dashboard' && location.pathname === '/financeiro') ||
     (item.path !== '/' && !item.parent && location.pathname.startsWith(`${item.path}/`));
 
   const go = (path: string) => {
@@ -322,15 +340,28 @@ function Shell() {
   ) => {
     const items = destinations.filter((item) => item.parent === parent);
     if (items.length === 0) return null;
-    const selected = location.pathname.startsWith(`/${parent === 'bi' ? 'bi' : 'reposicoes'}`);
+    const prefix = parent === 'bi' ? '/bi' : parent === 'finance' ? '/financeiro' : '/reposicoes';
+    const selected = location.pathname.startsWith(prefix);
 
     return (
       <div key={parent} className="flex flex-col gap-0.5">
         <button
           type="button"
           onClick={() => {
-            if (collapsed) go(items[0]?.path ?? '/');
-            else setOpen(!open);
+            if (collapsed) {
+              go(items[0]?.path ?? '/');
+            } else if (parent === 'finance') {
+              if (!open) {
+                setOpen(true);
+                go(items[0]?.path ?? '/financeiro/dashboard');
+              } else if (location.pathname !== '/financeiro/dashboard' && location.pathname !== '/financeiro') {
+                go(items[0]?.path ?? '/financeiro/dashboard');
+              } else {
+                setOpen(false);
+              }
+            } else {
+              setOpen(!open);
+            }
           }}
           aria-expanded={!collapsed ? open : undefined}
           title={collapsed ? label : undefined}
@@ -358,10 +389,17 @@ function Shell() {
   };
 
   const topLevel = destinations.filter((item) => !item.parent);
+  const hasNotas = topLevel.some((item) => item.path === '/notas');
   const navContent = (
     <nav className="flex flex-col gap-1" aria-label="Navegação principal">
+      {!hasNotas && renderTree('finance', 'Financeiro', Wallet, financeOpen, setFinanceOpen)}
       {topLevel.map((item) =>
-        item.path === '/relatorios' ? (
+        item.path === '/notas' ? (
+          <React.Fragment key="notas-and-finance">
+            {renderNavItem(item)}
+            {renderTree('finance', 'Financeiro', Wallet, financeOpen, setFinanceOpen)}
+          </React.Fragment>
+        ) : item.path === '/relatorios' ? (
           <React.Fragment key="reports-and-replacements">
             {renderNavItem(item)}
             {renderTree('replacements', 'Reposições', Clock, replacementsOpen, setReplacementsOpen)}

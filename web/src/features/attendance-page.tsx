@@ -115,6 +115,11 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   const [replacementDialog, setReplacementDialog] = useState<ReplacementDialogState>();
   const [quickEditStudent, setQuickEditStudent] = useState<QuickEditStudentState>();
   const [quickAddStudent, setQuickAddStudent] = useState<QuickAddStudentState>();
+  const [confirmActionModal, setConfirmActionModal] = useState<{
+    type: 'lock' | 'archive';
+    studentId: string;
+    studentName: string;
+  }>();
   const [taughtSessionsCount, setTaughtSessionsCount] = useState<number>(0);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ severity: 'success' | 'error'; message: string }>();
@@ -326,54 +331,50 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
     }
   };
 
-  const handleQuickLockEnrollment = async (studentId: string, studentName: string) => {
+  const handleQuickLockEnrollment = (studentId: string, studentName: string) => {
     if (!classId) return;
-    if (
-      typeof window !== 'undefined' &&
-      typeof window.confirm === 'function' &&
-      !window.confirm(
-        `Deseja trancar a matrícula de "${studentName}" nesta turma?\n\nO histórico de presenças, notas e financeiro será preservado, e o aluno não aparecerá em chamadas futuras.`,
-      )
-    ) {
-      return;
-    }
-    try {
-      if (api && typeof api.lockStudentEnrollment === 'function') {
-        await api.lockStudentEnrollment(studentId);
-      } else {
-        const enr = enrollments.items.find(
-          (e) => !e.deleted_at && e.class_id === classId && e.student_id === studentId && e.status === 'ativa',
-        );
-        if (enr) {
-          await store.mutateBatch([
-            {
-              entity: 'enrollments',
-              data: { ...enr, status: 'trancada', left_at: canonicalDate || today },
-            },
-          ]);
-        }
-      }
-      await Promise.all([enrollments.reload(), students.reload()]);
-      setNotice({ severity: 'success', message: `Matrícula de ${studentName} trancada com sucesso.` });
-      void sync();
-    } catch (error) {
-      setNotice({
-        severity: 'error',
-        message: error instanceof Error ? error.message : 'Não foi possível trancar a matrícula.',
-      });
-    }
+    setConfirmActionModal({ type: 'lock', studentId, studentName });
   };
 
-  const handleSafeArchiveStudent = async (studentId: string, studentName: string) => {
-    if (
-      typeof window !== 'undefined' &&
-      typeof window.confirm === 'function' &&
-      !window.confirm(
-        `Deseja arquivar o cadastro de "${studentName}"?\n\nNenhum registro físico será excluído (DELETE físico bloqueado): todo o histórico acadêmico (frequência, notas, boletins) e financeiro é integralmente preservado, e a matrícula ativa é encerrada com segurança.`,
-      )
-    ) {
+  const handleSafeArchiveStudent = (studentId: string, studentName: string) => {
+    setConfirmActionModal({ type: 'archive', studentId, studentName });
+  };
+
+  const executeConfirmedStudentAction = async () => {
+    if (!confirmActionModal) return;
+    const { type, studentId, studentName } = confirmActionModal;
+    setConfirmActionModal(undefined);
+
+    if (type === 'lock') {
+      if (!classId) return;
+      try {
+        if (api && typeof api.lockStudentEnrollment === 'function') {
+          await api.lockStudentEnrollment(studentId);
+        } else {
+          const enr = enrollments.items.find(
+            (e) => !e.deleted_at && e.class_id === classId && e.student_id === studentId && e.status === 'ativa',
+          );
+          if (enr) {
+            await store.mutateBatch([
+              {
+                entity: 'enrollments',
+                data: { ...enr, status: 'trancada', left_at: canonicalDate || today },
+              },
+            ]);
+          }
+        }
+        await Promise.all([enrollments.reload(), students.reload()]);
+        setNotice({ severity: 'success', message: `Matrícula de ${studentName} trancada com sucesso.` });
+        void sync();
+      } catch (error) {
+        setNotice({
+          severity: 'error',
+          message: error instanceof Error ? error.message : 'Não foi possível trancar a matrícula.',
+        });
+      }
       return;
     }
+
     try {
       const existing = students.items.find((s) => s.id === studentId);
       const batch: { entity: 'students' | 'enrollments'; data: Record<string, unknown> }[] = [
@@ -614,11 +615,11 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3">
                     {/* Student Info */}
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-800 font-bold text-xs flex items-center justify-center shrink-0 border border-slate-200">
+                      <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-800 font-bold text-xs sm:text-sm flex items-center justify-center shrink-0 border border-slate-200">
                         {text(row.student, 'name').slice(0, 1).toUpperCase()}
                       </div>
                       <div className="min-w-0 text-left">
-                        <p className="text-xs sm:text-sm font-bold text-slate-900 truncate">
+                        <p className="text-sm sm:text-base font-bold text-slate-900 truncate">
                           {text(row.student, 'name')}
                         </p>
                       </div>
@@ -638,7 +639,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                               disabled={!access.editable}
                               aria-pressed={selected}
                               onClick={() => selectStatus(rowIndex, statusKey)}
-                              className={`w-11 h-11 sm:w-8 sm:h-8 min-w-[44px] min-h-[44px] sm:min-w-[32px] sm:min-h-[32px] rounded-md text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
+                              className={`w-11 h-11 lg:w-9 lg:h-9 min-w-[44px] min-h-[44px] lg:min-w-[36px] lg:min-h-[36px] rounded-md text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center ${
                                 selected
                                   ? `${cfg.activeBg} ${cfg.activeText} shadow-xs scale-105`
                                   : `text-slate-600 ${cfg.hoverBg}`
@@ -655,9 +656,9 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                         <button
                           type="button"
                           onClick={access.editable ? () => openReplacement(rowIndex) : undefined}
-                          className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-purple-200 bg-purple-50 text-purple-700 text-xs font-semibold hover:bg-purple-100 transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-purple-200 bg-purple-50 text-purple-700 text-xs font-semibold hover:bg-purple-100 transition-colors cursor-pointer"
                         >
-                          <Calendar className="w-3 h-3" />
+                          <Calendar className="w-3.5 h-3.5" />
                           <span>
                             {row.replacement
                               ? `${formatDate(row.replacement.scheduledDate)} às ${row.replacement.scheduledTime}`
@@ -678,13 +679,13 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                             return next;
                           })
                         }
-                        className={`p-1.5 min-w-[32px] min-h-[32px] flex items-center justify-center rounded-lg border transition-colors cursor-pointer ${
+                        className={`p-2 min-w-[40px] min-h-[40px] lg:min-w-[34px] lg:min-h-[34px] flex items-center justify-center rounded-lg border transition-colors cursor-pointer ${
                           row.notes.trim()
                             ? 'bg-sky-50 border-sky-200 text-sky-700'
                             : 'bg-white border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-50'
                         }`}
                       >
-                        <Edit3 className="w-3.5 h-3.5" />
+                        <Edit3 className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
                       </button>
 
                       {/* Quick Edit Student Button */}
@@ -700,9 +701,9 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                             contact: text(row.student, 'contact'),
                           })
                         }
-                        className="p-1.5 min-w-[32px] min-h-[32px] flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                        className="p-2 min-w-[40px] min-h-[40px] lg:min-w-[34px] lg:min-h-[34px] flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
                       >
-                        <UserCog className="w-3.5 h-3.5" />
+                        <UserCog className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
                       </button>
 
                       {/* Quick Lock Enrollment Button */}
@@ -710,21 +711,21 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                         type="button"
                         aria-label={`Trancar matrícula de ${text(row.student, 'name')}`}
                         title="Trancar matrícula nesta turma"
-                        onClick={() => void handleQuickLockEnrollment(row.student.id, text(row.student, 'name'))}
-                        className="p-1.5 min-w-[32px] min-h-[32px] flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-amber-700 hover:bg-amber-50 hover:border-amber-200 transition-colors cursor-pointer"
+                        onClick={() => handleQuickLockEnrollment(row.student.id, text(row.student, 'name'))}
+                        className="p-2 min-w-[40px] min-h-[40px] lg:min-w-[34px] lg:min-h-[34px] flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-amber-700 hover:bg-amber-50 hover:border-amber-200 transition-colors cursor-pointer"
                       >
-                        <UserMinus className="w-3.5 h-3.5" />
+                        <UserMinus className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
                       </button>
 
                       {/* Safe Archive Student Button (no physical DELETE; preserves academic & financial history) */}
                       <button
                         type="button"
                         aria-label={`Arquivar cadastro de ${text(row.student, 'name')}`}
-                        title="Arquivar aluno com preservação de histórico acadêmico e financeiro"
-                        onClick={() => void handleSafeArchiveStudent(row.student.id, text(row.student, 'name'))}
-                        className="p-1.5 min-w-[32px] min-h-[32px] flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-rose-700 hover:bg-rose-50 hover:border-rose-200 transition-colors cursor-pointer"
+                        title="Excluir ou arquivar aluno com preservação de histórico acadêmico e financeiro"
+                        onClick={() => handleSafeArchiveStudent(row.student.id, text(row.student, 'name'))}
+                        className="p-2 min-w-[40px] min-h-[40px] lg:min-w-[34px] lg:min-h-[34px] flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-rose-700 hover:bg-rose-50 hover:border-rose-200 transition-colors cursor-pointer"
                       >
-                        <Archive className="w-3.5 h-3.5" />
+                        <Archive className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
                       </button>
                     </div>
                   </div>
@@ -761,12 +762,12 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
             })}
           </div>
 
-          {/* Discrete Quick Add/Enroll Student Button Below Roster */}
-          <div className="flex justify-center pt-1">
+          {/* Quick Add/Enroll Student '+' Pill Button Aligned Left with Student Names */}
+          <div className="flex justify-start pt-1 pl-2.5 sm:pl-3">
             <button
               type="button"
               aria-label="Incluir aluno na turma"
-              title="Matricular aluno existente ou cadastrar novo aluno nesta turma"
+              title="Incluir aluno na turma"
               onClick={() =>
                 setQuickAddStudent({
                   mode: unenrolledStudents.length > 0 ? 'existing' : 'new',
@@ -776,14 +777,52 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                   contact: '',
                 })
               }
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-dashed border-slate-300 bg-white/80 hover:bg-slate-100 text-slate-600 hover:text-slate-900 text-xs font-semibold transition-all cursor-pointer shadow-2xs"
+              className="inline-flex items-center justify-center h-9 px-4 rounded-full border border-slate-300 bg-white hover:bg-slate-950 hover:text-white hover:border-slate-950 text-slate-700 font-bold text-sm transition-all cursor-pointer shadow-2xs"
             >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Incluir aluno na turma</span>
+              <Plus className="w-4 h-4 stroke-[2.5]" />
             </button>
           </div>
         </>
       )}
+
+      {/* Confirm Lock / Archive Student Modal (Replaces Browser window.confirm) */}
+      <PageDialog
+        open={Boolean(confirmActionModal)}
+        title={
+          confirmActionModal?.type === 'lock'
+            ? 'Trancar matrícula do aluno'
+            : 'Excluir / Arquivar aluno da turma'
+        }
+        onClose={() => setConfirmActionModal(undefined)}
+        onSave={() => void executeConfirmedStudentAction()}
+        saveText={
+          confirmActionModal?.type === 'lock' ? 'Confirmar trancamento' : 'Confirmar exclusão'
+        }
+      >
+        {confirmActionModal?.type === 'lock' ? (
+          <div className="space-y-3 text-left text-xs sm:text-sm text-slate-700">
+            <p>
+              Deseja trancar a matrícula de{' '}
+              <strong className="text-slate-900">{confirmActionModal.studentName}</strong> nesta turma?
+            </p>
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
+              O histórico de presenças, notas e registros financeiros será integralmente preservado, e o aluno não
+              aparecerá nas chamadas futuras desta turma.
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3 text-left text-xs sm:text-sm text-slate-700">
+            <p>
+              Deseja excluir/arquivar o cadastro de{' '}
+              <strong className="text-slate-900">{confirmActionModal?.studentName}</strong>?
+            </p>
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-900">
+              Por segurança e conformidade acadêmica/financeira, nenhum registro histórico é destruído fisicamente: a
+              matrícula ativa é encerrada e o histórico de chamadas, notas e financeiro permanece preservado.
+            </div>
+          </div>
+        )}
+      </PageDialog>
 
       {/* Quick Edit Student Dialog */}
       <PageDialog

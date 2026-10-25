@@ -396,7 +396,7 @@ export function StudentDetailPage() {
 
   return (
     <>
-      <div className={`flex flex-col gap-5 text-left ${boletimOpen ? 'print:hidden' : ''}`}>
+      <div className="flex flex-col gap-5 text-left print:hidden">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <button
@@ -429,10 +429,7 @@ export function StudentDetailPage() {
 
             <button
               type="button"
-              onClick={() => {
-                setBoletimOpen(true);
-                setTimeout(() => window.print(), 100);
-              }}
+              onClick={() => window.print()}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer"
               aria-label="Imprimir Boletim"
             >
@@ -527,6 +524,12 @@ export function StudentDetailPage() {
         filter={{ studentId }}
       />
     </div>
+
+    {!boletimOpen && boletimData && (
+      <div className="hidden print:block print:w-full">
+        <StudentReportCardView data={boletimData} />
+      </div>
+    )}
 
     {boletimOpen && boletimData && (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 print:p-0">

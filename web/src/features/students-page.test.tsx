@@ -47,15 +47,15 @@ describe('StudentsPage', () => {
 
   it('inativa por atualização para o pedagógico, sem expor exclusão', async () => {
     mocks.app.session = { id: 'staff-1', name: 'Pedagógico', email: 'staff@itb.test', role: 'pedagogico' };
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
     const user = userEvent.setup();
     render(<MemoryRouter><StudentsPage /></MemoryRouter>);
 
     expect(screen.getByRole('button', { name: /Novo aluno/i })).toBeInTheDocument();
     await user.click(screen.getByLabelText(/Inativar Aluno Teste/i));
     expect(screen.queryByLabelText(/Excluir Aluno Teste/i)).not.toBeInTheDocument();
+    const confirmBtn = await screen.findByRole('button', { name: /Confirmar inativação/i });
+    await user.click(confirmBtn);
     await waitFor(() => expect(mocks.app.store.mutate).toHaveBeenCalledWith('students', expect.objectContaining({ id: 'student-1', active: 0 })));
-    confirm.mockRestore();
   });
 
   it('cadastra offline e vincula a turma pelo fluxo atômico de movimentação', async () => {

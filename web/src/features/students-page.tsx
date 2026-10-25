@@ -255,39 +255,54 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
     }
   };
 
-  const inactivateStudent = async (row: StudentView) => {
-    if (!window.confirm(`Deseja realmente inativar o cadastro do aluno "${row.name}"?`)) return;
-    try {
-      await store.mutate('students', { id: row.id, active: 0 });
-      await students.reload();
-      void sync();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'Erro ao inativar aluno.');
-    }
+  const [confirmAction, setConfirmAction] = useState<{
+    type: 'inactivate' | 'delete';
+    student: StudentView;
+  } | null>(null);
+
+  const inactivateStudent = (row: StudentView) => {
+    setConfirmAction({ type: 'inactivate', student: row });
   };
 
-  const deleteStudent = async (row: StudentView) => {
-    if (!window.confirm(`Deseja realmente excluir o cadastro do aluno "${row.name}"?`)) return;
+  const deleteStudent = (row: StudentView) => {
+    setConfirmAction({ type: 'delete', student: row });
+  };
+
+  const executeConfirmedStudentAction = async () => {
+    if (!confirmAction) return;
+    const { type, student: row } = confirmAction;
+    setConfirmAction(null);
     try {
-      await store.mutate('students', { id: row.id }, 'delete');
+      if (type === 'inactivate') {
+        await store.mutate('students', { id: row.id, active: 0 });
+      } else {
+        await store.mutate('students', { id: row.id }, 'delete');
+      }
       await students.reload();
       void sync();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Erro ao excluir aluno.');
+      setFormError(
+        e instanceof Error
+          ? e.message
+          : type === 'inactivate'
+            ? 'Erro ao inativar aluno.'
+            : 'Erro ao excluir aluno.',
+      );
     }
   };
 
   return (
     <div className="flex flex-col gap-3.5 text-left">
-      {session.role === 'professor' && (
-        <div className="flex items-center gap-2.5 p-3 rounded-xl bg-sky-50 border border-sky-200 text-xs text-sky-800">
-          <Info className="w-4 h-4 text-sky-600 shrink-0" />
-          <span>Exibindo somente os alunos das turmas atribuídas a você.</span>
-        </div>
-      )}
+      <div className={`flex flex-col gap-3.5 ${selectedBoletimStudentId ? 'print:hidden' : ''}`}>
+        {session.role === 'professor' && (
+          <div className="flex items-center gap-2.5 p-3 rounded-xl bg-sky-50 border border-sky-200 text-xs text-sky-800 print:hidden">
+            <Info className="w-4 h-4 text-sky-600 shrink-0" />
+            <span>Exibindo somente os alunos das turmas atribuídas a você.</span>
+          </div>
+        )}
 
-      {/* Filter Bar */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs">
+        {/* Filter Bar */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs print:hidden">
         <div className="flex flex-col lg:flex-row lg:items-end gap-2.5 sm:gap-3">
           <div className="flex-1 min-w-[200px]">
             <div className="flex flex-col gap-1.5">
@@ -365,7 +380,7 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
                 <th className="py-3 px-4 hidden md:table-cell">Contato</th>
                 <th className="py-3 px-4">Situação</th>
                 <th className="py-3 px-4 hidden sm:table-cell">Taxa</th>
-                <th className="py-3 px-4 text-right">Ações</th>
+                <th className="py-3 px-4 text-right print:hidden">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
@@ -403,7 +418,7 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
                   <td className="py-3 px-4 hidden sm:table-cell">
                     <RateChip row={row} />
                   </td>
-                  <td className="py-3 px-4 text-right">
+                  <td className="py-3 px-4 text-right print:hidden">
                     <div className="inline-flex items-center gap-1 justify-end">
                       {/* Copy Public Link */}
                       <button
@@ -491,6 +506,7 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
           </table>
         </div>
       </div>
+      </div>
 
       {/* Create / Edit Modal */}
       <PageDialog
@@ -563,6 +579,44 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
           </div>
         </div>
       </PageDialog>
+
+      {/* Confirm Inactivate / Delete Modal */}
+      {confirmAction && (
+        <PageDialog
+          open={Boolean(confirmAction)}
+          title={
+            confirmAction.type === 'inactivate'
+              ? 'Inativar cadastro de aluno'
+              : 'Excluir cadastro de aluno'
+          }
+          onClose={() => setConfirmAction(null)}
+          onSave={executeConfirmedStudentAction}
+          saveText={
+            confirmAction.type === 'inactivate'
+              ? 'Confirmar inativação'
+              : 'Confirmar exclusão'
+          }
+        >
+          <div className="flex flex-col gap-3 text-left text-xs text-slate-600 leading-relaxed">
+            <p className="font-semibold text-slate-900 text-sm">
+              {confirmAction.student.name}
+            </p>
+            {confirmAction.type === 'inactivate' ? (
+              <p>
+                Deseja realmente inativar o cadastro do aluno{' '}
+                <strong className="text-slate-900">&ldquo;{confirmAction.student.name}&rdquo;</strong>?
+                O histórico escolar, frequência e notas serão preservados.
+              </p>
+            ) : (
+              <p>
+                Deseja realmente excluir o cadastro do aluno{' '}
+                <strong className="text-slate-900">&ldquo;{confirmAction.student.name}&rdquo;</strong>?
+                Esta ação arquivará o registro do aluno no sistema.
+              </p>
+            )}
+          </div>
+        </PageDialog>
+      )}
 
       {selectedBoletimStudentId && boletimData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 print:p-0">

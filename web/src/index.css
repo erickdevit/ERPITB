@@ -8,6 +8,20 @@
     --brand-accent-subtle: rgba(2, 132, 199, 0.12);
   }
 
+  html {
+    font-size: 16px;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* Scale up base rem proportionally on tablet viewports (iPad / Android tablets 640px - 1180px)
+     so text, badges, controls, and tables never appear tiny or zoomed out. */
+  @media screen and (min-width: 640px) and (max-width: 1180px) {
+    html {
+      font-size: 17.5px;
+    }
+  }
+
   body {
     font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     background-color: #F8FAFC;
@@ -30,17 +44,14 @@
     margin: 8mm 6mm;
   }
 
-  /* Reset global containers with scroll and fixed heights to allow natural multi-page flow in landscape */
-  html, body, #root,
-  div[class*="h-screen"],
-  div[class*="overflow-hidden"],
-  div[class*="overflow-y-auto"],
-  div[class*="overflow-x-auto"],
-  .overflow-x-auto,
-  .overflow-y-auto,
+  /* Reset root & shell containers to allow natural multi-page flow in print */
+  html,
+  body,
+  #root,
   main {
     height: auto !important;
     min-height: 0 !important;
+    max-height: none !important;
     overflow: visible !important;
     position: static !important;
     background: #ffffff !important;
@@ -53,7 +64,24 @@
     print-color-adjust: exact !important;
   }
 
-  /* Expand max-width constraints so printable landscape sheet uses full 297mm width without collapsing */
+  /* Unlock scroll/height containers without stripping card borders, padding, or backgrounds */
+  div[class*="h-screen"],
+  div[class*="max-h-"],
+  div[class*="overflow-hidden"],
+  div[class*="overflow-y-auto"],
+  div[class*="overflow-x-auto"],
+  .overflow-x-auto,
+  .overflow-y-auto {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Expand max-width constraints so printable sheets use full page width without collapsing */
   [class*="max-w-"] {
     max-width: 100% !important;
   }
@@ -64,16 +92,30 @@
   nav,
   button,
   .print\:hidden,
-  [data-testid="print-hidden"],
-  [role="dialog"] > div:first-child {
+  [data-testid="print-hidden"] {
     display: none !important;
+  }
+
+  /* Unwrap fixed modal overlays so dialog content flows naturally from the top of page 1 */
+  div[class*="fixed"][class*="inset-0"] {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
   }
 
   /* Adapt modal containers for full-page print when triggered from inside dialogs */
   [role="dialog"] {
     position: static !important;
+    display: block !important;
     width: 100% !important;
     max-width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
     margin: 0 !important;
     padding: 0 !important;
     box-shadow: none !important;

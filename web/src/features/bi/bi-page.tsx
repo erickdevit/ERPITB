@@ -50,7 +50,7 @@ export function ExportActions({
   const safeContext = context ?? [];
 
   return (
-    <div className="flex items-center gap-2 flex-wrap" aria-label="Opções de exportação">
+    <div className="flex items-center gap-2 flex-wrap print:hidden" aria-label="Opções de exportação">
       <button
         type="button"
         onClick={() => {

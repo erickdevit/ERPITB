@@ -193,29 +193,6 @@ export function BiGradesPage() {
 
         {/* Global Toolbar Actions */}
         <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={handlePrint}
-            aria-label="Imprimir"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
-          >
-            <Printer className="w-3.5 h-3.5 text-slate-700" />
-            <span>Imprimir</span>
-          </button>
-
-          {viewMode === 'boletim' && classBoletimData && (
-            <button
-              type="button"
-              onClick={() => void handleDownloadClassPdf()}
-              disabled={downloadingPdf}
-              aria-label="Baixar PDF do Boletim"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5 text-sky-400" />
-              <span>{downloadingPdf ? 'Gerando...' : 'Baixar PDF'}</span>
-            </button>
-          )}
-
           {viewMode === 'analytics' && (
             <ExportActions
               title={biView.title}

@@ -29,7 +29,7 @@ function formatDate(iso: string): string {
   return `${d}/${m}/${y}`;
 }
 
-export function CashView() {
+export function CashView({ mode = 'all' }: { mode?: 'all' | 'entrada' | 'saida' } = {}) {
   const { api, branding } = useApp();
 
   const [loading, setLoading] = useState(true);
@@ -39,7 +39,7 @@ export function CashView() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
-  const [filterType, setFilterType] = useState<string>('all');
+  const [filterType, setFilterType] = useState<string>(mode === 'all' ? 'all' : mode);
   const [filterMethod, setFilterMethod] = useState<string>('all');
   const [search, setSearch] = useState('');
 
@@ -49,7 +49,7 @@ export function CashView() {
   const [selectedTx, setSelectedTx] = useState<CashTransaction | null>(null);
 
   // Form states
-  const [txType, setTxType] = useState<CashType>('entrada');
+  const [txType, setTxType] = useState<CashType>(mode === 'saida' ? 'saida' : 'entrada');
   const [amountStr, setAmountStr] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [category, setCategory] = useState('');
@@ -63,12 +63,26 @@ export function CashView() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>();
 
+  useEffect(() => {
+    if (mode === 'entrada') {
+      setFilterType('entrada');
+      setTxType('entrada');
+    } else if (mode === 'saida') {
+      setFilterType('saida');
+      setTxType('saida');
+    } else {
+      setFilterType('all');
+    }
+  }, [mode]);
+
+  const effectiveType = mode === 'all' ? filterType : mode;
+
   const loadCash = async () => {
     setLoading(true);
     try {
       const params: Record<string, string> = {};
       if (filterMonth) params.month = filterMonth;
-      if (filterType !== 'all') params.type = filterType;
+      if (effectiveType !== 'all') params.type = effectiveType;
       if (filterMethod !== 'all') params.paymentMethod = filterMethod;
 
       const res = await api.getCash(params);
@@ -83,19 +97,21 @@ export function CashView() {
 
   useEffect(() => {
     void loadCash();
-  }, [filterMonth, filterType, filterMethod]);
+  }, [filterMonth, effectiveType, filterMethod]);
 
   const filteredItems = useMemo(() => {
-    if (!search.trim()) return transactions;
+    const byMode =
+      mode === 'all' ? transactions : transactions.filter((t) => t.type === mode);
+    if (!search.trim()) return byMode;
     const q = search.toLowerCase();
-    return transactions.filter(
+    return byMode.filter(
       (t) =>
         t.description.toLowerCase().includes(q) ||
         t.category.toLowerCase().includes(q) ||
         t.studentName?.toLowerCase().includes(q) ||
         t.reference?.toLowerCase().includes(q),
     );
-  }, [transactions, search]);
+  }, [transactions, search, mode]);
 
   const handleCreateEntry = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -234,15 +250,17 @@ export function CashView() {
             className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
           />
 
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
-          >
-            <option value="all">Todas as movimentações</option>
-            <option value="entrada">Apenas Entradas</option>
-            <option value="saida">Apenas Saídas</option>
-          </select>
+          {mode === 'all' && (
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
+            >
+              <option value="all">Todas as movimentações</option>
+              <option value="entrada">Apenas Entradas</option>
+              <option value="saida">Apenas Saídas</option>
+            </select>
+          )}
 
           <select
             value={filterMethod}
@@ -265,16 +283,32 @@ export function CashView() {
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
           >
             <Printer className="w-3.5 h-3.5" />
-            <span>Imprimir Caixa</span>
+            <span>
+              {mode === 'entrada'
+                ? 'Imprimir Entradas'
+                : mode === 'saida'
+                  ? 'Imprimir Saídas'
+                  : 'Imprimir Caixa'}
+            </span>
           </button>
 
           <button
             type="button"
-            onClick={() => setCreateOpen(true)}
+            onClick={() => {
+              if (mode === 'entrada') setTxType('entrada');
+              else if (mode === 'saida') setTxType('saida');
+              setCreateOpen(true);
+            }}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 transition-colors shadow-2xs cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Nova Movimentação</span>
+            <span>
+              {mode === 'entrada'
+                ? 'Nova Entrada'
+                : mode === 'saida'
+                  ? 'Nova Saída'
+                  : 'Nova Movimentação'}
+            </span>
           </button>
         </div>
       </div>
