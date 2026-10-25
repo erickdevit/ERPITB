@@ -30,6 +30,26 @@ function withHeaders(response: Response, headers: HeadersInit, requestId: string
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers: next });
 }
 
+function buildRefreshCookieHeader(refreshToken: string, env: Env): string {
+  const days = Number(env.REFRESH_TOKEN_TTL_DAYS ?? 30);
+  const maxAge = (Number.isFinite(days) && days > 0 ? days : 30) * 86400;
+  return `erpitb_refresh_token=${encodeURIComponent(refreshToken)}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${maxAge}`;
+}
+
+function clearRefreshCookieHeader(): string {
+  return 'erpitb_refresh_token=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0';
+}
+
+function validateOriginCsrf(request: Request, env: Env): void {
+  const allowed = env.ALLOWED_ORIGIN;
+  if (!allowed || allowed === '*') return;
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) return;
+  const origin = request.headers.get('origin');
+  if (origin && origin !== allowed) {
+    throw new AppError(403, 'Origem da requisição não autorizada (proteção CSRF).', 'CSRF_ORIGIN_MISMATCH');
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const requestId = crypto.randomUUID();
@@ -46,6 +66,7 @@ export default {
       if (url.pathname.length > 1 && url.pathname.endsWith('/')) {
         url.pathname = url.pathname.slice(0, -1);
       }
+      validateOriginCsrf(request, env);
       if (url.pathname === '/health' && request.method === 'GET') {
         return withHeaders(json({ status: 'ok', service: 'ERPITB API' }), commonHeaders, requestId);
       }
@@ -68,13 +89,28 @@ export default {
         );
       }
       if (url.pathname === '/auth/bootstrap' && request.method === 'POST') {
-        return withHeaders(json(await bootstrap(request, env), 201), commonHeaders, requestId);
+        const resData = (await bootstrap(request, env)) as Record<string, unknown>;
+        const headers = { ...commonHeaders } as Record<string, string>;
+        if (typeof resData?.refreshToken === 'string') {
+          headers['set-cookie'] = buildRefreshCookieHeader(resData.refreshToken, env);
+        }
+        return withHeaders(json(resData, 201), headers, requestId);
       }
       if (url.pathname === '/auth/login' && request.method === 'POST') {
-        return withHeaders(json(await login(request, env)), commonHeaders, requestId);
+        const resData = (await login(request, env)) as Record<string, unknown>;
+        const headers = { ...commonHeaders } as Record<string, string>;
+        if (typeof resData?.refreshToken === 'string') {
+          headers['set-cookie'] = buildRefreshCookieHeader(resData.refreshToken, env);
+        }
+        return withHeaders(json(resData), headers, requestId);
       }
       if (url.pathname === '/auth/refresh' && request.method === 'POST') {
-        return withHeaders(json(await refresh(request, env)), commonHeaders, requestId);
+        const resData = (await refresh(request, env)) as Record<string, unknown>;
+        const headers = { ...commonHeaders } as Record<string, string>;
+        if (typeof resData?.refreshToken === 'string') {
+          headers['set-cookie'] = buildRefreshCookieHeader(resData.refreshToken, env);
+        }
+        return withHeaders(json(resData), headers, requestId);
       }
       const publicStudent = url.pathname.match(/^\/(?:public\/students|portal|matricula|aluno)\/([^/]+)$/);
       if (publicStudent && request.method === 'GET') {
@@ -82,7 +118,9 @@ export default {
       }
       const user = await authenticate(request, env);
       if (url.pathname === '/auth/logout' && request.method === 'POST') {
-        return withHeaders(json(await logout(request, env, user)), commonHeaders, requestId);
+        const resData = await logout(request, env, user);
+        const headers = { ...commonHeaders, 'set-cookie': clearRefreshCookieHeader() };
+        return withHeaders(json(resData), headers, requestId);
       }
       if (url.pathname === '/sync/push' && request.method === 'POST') {
         return withHeaders(json(await push(request, env, user)), commonHeaders, requestId);

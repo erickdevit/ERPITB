@@ -8,7 +8,6 @@ import {
 } from 'lucide-react';
 import type { ClassBoletimData } from '../../lib/boletim';
 import { PrintWatermark } from '../../components';
-import { exportClassBoletimPdf } from '../../lib/boletim-pdf';
 import { formatGrade, type GradeStatus } from '../../lib/grades';
 
 export function statusBadgeStyle(status: GradeStatus): string {
@@ -34,6 +33,8 @@ export interface ClassBoletimViewProps {
   onDownloadPdf?: () => void;
   showSearch?: boolean;
   watermarkText?: string;
+  showHeaderLogoLeft?: boolean;
+  showHeaderLogoRight?: boolean;
 }
 
 export function ClassBoletimView({
@@ -44,6 +45,8 @@ export function ClassBoletimView({
   onDownloadPdf,
   showSearch = true,
   watermarkText = 'INSTITUTO TRANSFORMA BRASIL',
+  showHeaderLogoLeft = true,
+  showHeaderLogoRight = true,
 }: ClassBoletimViewProps) {
   const [search, setSearch] = useState('');
   const [downloading, setDownloading] = useState(false);
@@ -63,6 +66,7 @@ export function ClassBoletimView({
     }
     try {
       setDownloading(true);
+      const { exportClassBoletimPdf } = await import('../../lib/boletim-pdf');
       await exportClassBoletimPdf(data);
     } finally {
       setDownloading(false);
@@ -100,9 +104,14 @@ export function ClassBoletimView({
       <div className="hidden print:flex flex-col gap-3 pb-4 border-b border-slate-300">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-slate-950 flex items-center justify-center text-white font-black text-sm">
-              ITB
-            </div>
+            {showHeaderLogoLeft && (
+              <div
+                data-testid="print-logo-left"
+                className="w-10 h-10 rounded-lg bg-slate-950 flex items-center justify-center text-white font-black text-sm"
+              >
+                ITB
+              </div>
+            )}
             <div>
               <span className="text-[10px] font-black uppercase tracking-widest text-sky-600 block">
                 Instituto Transforma Brasil
@@ -112,9 +121,19 @@ export function ClassBoletimView({
               </h1>
             </div>
           </div>
-          <div className="text-right text-[11px] text-slate-500">
-            <span className="block font-semibold">Data de Emissão</span>
-            <span className="font-mono text-slate-800">{formattedEmissionDate}</span>
+          <div className="flex items-center gap-3">
+            <div className="text-right text-[11px] text-slate-500">
+              <span className="block font-semibold">Data de Emissão</span>
+              <span className="font-mono text-slate-800">{formattedEmissionDate}</span>
+            </div>
+            {showHeaderLogoRight && (
+              <div
+                data-testid="print-logo-right"
+                className="w-8 h-8 rounded-lg border border-slate-900 flex items-center justify-center text-slate-900 font-black text-xs"
+              >
+                ITB
+              </div>
+            )}
           </div>
         </div>
         <div className="grid grid-cols-3 gap-2 text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-200">

@@ -31,6 +31,18 @@ export default defineConfig(({ mode }) => {
         },
       }),
     ],
+    build: {
+      chunkSizeWarningLimit: 950,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules/exceljs')) return 'vendor-excel';
+            if (id.includes('node_modules/jspdf') || id.includes('node_modules/html2canvas')) return 'vendor-pdf';
+            if (id.includes('node_modules/recharts') || id.includes('node_modules/d3-')) return 'vendor-charts';
+          },
+        },
+      },
+    },
     server: {
       host: true,
       port: 5173,

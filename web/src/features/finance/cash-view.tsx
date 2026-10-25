@@ -30,7 +30,7 @@ function formatDate(iso: string): string {
 }
 
 export function CashView() {
-  const { api } = useApp();
+  const { api, branding } = useApp();
 
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<CashTransaction[]>([]);
@@ -541,6 +541,10 @@ export function CashView() {
         transactions={filteredItems}
         summary={summary}
         periodLabel={filterMonth}
+        appName={branding?.appName}
+        watermarkText={branding?.printWatermarkText}
+        showHeaderLogoLeft={branding?.showHeaderLogoLeft ?? true}
+        showHeaderLogoRight={branding?.showHeaderLogoRight ?? true}
       />
     </>
   );

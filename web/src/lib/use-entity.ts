@@ -4,18 +4,18 @@ import type { Entity, LocalRecord } from '../types';
 import { latestAttendance } from './attendance';
 
 const entityEndpointMap: Record<Entity, string> = {
-  laboratories: '/laboratories',
-  courses: '/courses',
-  classes: '/classes',
-  class_teachers: '/class-teachers',
-  students: '/students',
-  enrollments: '/enrollments',
-  attendance_records: '/attendance',
-  class_notes: '/class-notes',
-  replacements: '/replacements',
-  grade_tables: '/grade-tables',
-  grade_items: '/grade-items',
-  student_grades: '/student-grades',
+  laboratories: '/v1/laboratories',
+  courses: '/v1/courses',
+  classes: '/v1/classes',
+  class_teachers: '/v1/class-teachers',
+  students: '/v1/students',
+  enrollments: '/v1/enrollments',
+  attendance_records: '/v1/attendance',
+  class_notes: '/v1/class-notes',
+  replacements: '/v1/replacements',
+  grade_tables: '/v1/grade-tables',
+  grade_items: '/v1/grade-items',
+  student_grades: '/v1/student-grades',
 };
 
 // In-memory transient cache to prevent redundant HTTP roundtrips across components

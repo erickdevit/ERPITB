@@ -251,7 +251,7 @@ export class LocalStore {
         };
       }));
 
-      // When API is available (live online application), persist directly to the server immediately:
+      // When API is available (live online application), persist directly to the canonical /v1 REST endpoint:
       if (this.api) {
         const deviceId = getDeviceId();
 
@@ -263,33 +263,15 @@ export class LocalStore {
             code?: string;
             message?: string;
           }>;
-        }>('/sync/push', { deviceId, operations: prepared.map((p) => p.operation) });
+        }>('/v1/entities/batch', { deviceId, operations: prepared.map((p) => p.operation) });
 
-        for (const res of result.results) {
+        for (const res of result.results ?? []) {
           if (res.status === 'rejected') {
             throw new Error(res.message || 'Operação rejeitada pelo servidor.');
           }
         }
 
-        const versionMap = new Map(result.results.map((r) => [r.operationId, r.version ?? 1]));
-        const syncedRows = await Promise.all(
-          prepared.map(async (p) => {
-            const version = versionMap.get(p.operation.operationId) ?? (Number(p.rawRecord.sync_version ?? 0) + 1);
-            const syncedData: LocalRecord = { ...p.rawRecord, sync_status: 'SYNCED', sync_version: version };
-            const cipher = await encrypt(key, syncedData);
-            return {
-              ...cipher,
-              id: recordId(this.accountId, p.operation.entity, p.operation.id),
-              accountId: this.accountId,
-              entity: p.operation.entity,
-              entityId: p.operation.id,
-              updatedAt: now,
-            } as CipherRow;
-          }),
-        );
-
-        // Put directly into records without writing to queue!
-        await database.records.bulkPut(syncedRows);
+        // Canonical state resides on D1; do not persist business entities in IndexedDB during online runtime
         return;
       }
 

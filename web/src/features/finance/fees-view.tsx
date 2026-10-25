@@ -31,7 +31,7 @@ function formatDate(iso: string): string {
 }
 
 export function FeesView() {
-  const { api, session } = useApp();
+  const { api, session, branding } = useApp();
   const classes = useEntity('classes');
   const students = useEntity('students');
 
@@ -656,6 +656,10 @@ export function FeesView() {
         filterMonth={filterMonth}
         filterYear={filterYear}
         className={classes.items.find((c: LocalRecord) => c.id === filterClassId)?.name as string | undefined}
+        appName={branding?.appName}
+        watermarkText={branding?.printWatermarkText}
+        showHeaderLogoLeft={branding?.showHeaderLogoLeft ?? true}
+        showHeaderLogoRight={branding?.showHeaderLogoRight ?? true}
       />
     </>
   );

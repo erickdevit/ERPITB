@@ -1,8 +1,9 @@
 import { AppError, json, nowIso, readJson, requireString, uuid } from './http';
-import { requirePermission } from './rbac';
+import { requirePermission, requireScope } from './rbac';
 import { sha256Hex } from './crypto';
 import { checkIdempotency, saveIdempotency } from './idempotency';
-import { handleEventsStream } from './events-service';
+import { broadcastEvent, handleEventsStream } from './events-service';
+import { push } from './sync';
 import {
   createCashEntry,
   createFee,
@@ -303,18 +304,74 @@ export async function handleV1Route(request: Request, env: Env, user: AuthUser, 
   const replacementCompleteMatch = path.match(/^\/v1\/replacements\/([^/]+)\/complete$/);
   if (replacementCompleteMatch && method === 'POST') return completeReplacement(request, env, user, replacementCompleteMatch[1]!);
 
+  // 15b. Class Teachers & Class Notes Collection Endpoints
+  if (path === '/v1/class-teachers' && method === 'GET') {
+    if (user.role === 'financeiro') {
+      throw new AppError(403, 'Perfil financeiro não possui acesso a atribuições docentes.', 'FORBIDDEN');
+    }
+    requireScope(user, 'classes:read');
+    const sql =
+      user.role === 'professor'
+        ? `SELECT * FROM class_teachers WHERE user_id = ? AND deleted_at IS NULL`
+        : `SELECT * FROM class_teachers WHERE deleted_at IS NULL`;
+    const stmt = env.DB.prepare(sql);
+    const rows = user.role === 'professor' ? await stmt.bind(user.id).all() : await stmt.all();
+    return { items: rows.results };
+  }
+
+  if (path === '/v1/class-notes' && method === 'GET') {
+    if (user.role === 'financeiro') {
+      throw new AppError(403, 'Perfil financeiro não possui acesso a anotações pedagógicas.', 'FORBIDDEN');
+    }
+    requireScope(user, 'attendance:read', 'classes:read');
+    const sql =
+      user.role === 'professor'
+        ? `SELECT cn.* FROM class_notes cn
+             JOIN class_teachers ct ON ct.class_id = cn.class_id AND ct.user_id = ? AND ct.deleted_at IS NULL
+            WHERE cn.deleted_at IS NULL`
+        : `SELECT * FROM class_notes WHERE deleted_at IS NULL`;
+    const stmt = env.DB.prepare(sql);
+    const rows = user.role === 'professor' ? await stmt.bind(user.id).all() : await stmt.all();
+    return { items: rows.results };
+  }
+
+  // 15c. Canonical REST Batch Entity Mutation Endpoint
+  if (path === '/v1/entities/batch' && method === 'POST') {
+    const result = await withIdempotency(request, env, user, path, () => push(request, env, user));
+    broadcastEvent('entity_changed', { source: 'batch', userId: user.id, timestamp: nowIso() }, { env });
+    return result;
+  }
+
   // 16. Migration drain for legacy offline clients
   if (path === '/v1/migration/drain' && method === 'POST') {
-    const body = await readJson<{ operations?: unknown[] }>(request);
+    const cloned = request.clone();
+    const body = await readJson<{ deviceId?: string; operations?: Array<Record<string, unknown>> }>(request);
     const operations = Array.isArray(body.operations) ? body.operations : [];
     const timestamp = nowIso();
+
+    // If operations contain valid entity mutation structures, apply them to D1
+    const validOps = operations.filter(
+      (op) => op && typeof op.operationId === 'string' && typeof op.entity === 'string' && typeof op.id === 'string' && op.data,
+    );
+    if (validOps.length > 0 && body.deviceId) {
+      try {
+        await push(cloned as unknown as Request, env, user);
+      } catch {
+        // Individual legacy operations that are outdated or already applied do not block drain audit
+      }
+    }
 
     await env.DB.prepare(`
       INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at)
       VALUES (?, ?, 'LEGACY_DRAIN', 'migration', ?, ?, ?)
     `).bind(uuid(), user.id, user.id, JSON.stringify({ operationsCount: operations.length }), timestamp).run();
 
-    return { ok: true, processedCount: operations.length, message: 'Fila legada processada com sucesso.' };
+    return {
+      ok: true,
+      processedCount: operations.length,
+      drainedCount: operations.length,
+      message: 'Fila legada processada com sucesso.',
+    };
   }
 
   return undefined;

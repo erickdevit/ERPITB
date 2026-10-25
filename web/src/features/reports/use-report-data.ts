@@ -20,6 +20,7 @@ export function useReportData(filters: ReportFilters) {
   const studentGrades = useEntity('student_grades', true);
   const [directory, setDirectory] = useState<LocalRecord[]>([{ id: session.id, name: session.name, role: session.role, active: 1 }]);
   const [directoryError, setDirectoryError] = useState('');
+  const [serverReport, setServerReport] = useState<Record<string, unknown> | null>(null);
 
   useEffect(() => {
     if (!canManage(session.role)) return;
@@ -35,6 +36,26 @@ export function useReportData(filters: ReportFilters) {
     ...filters,
     teacherId: canManage(session.role) ? filters.teacherId : session.id,
   }), [filters, session.id, session.role]);
+
+  useEffect(() => {
+    if (typeof api.getReport !== 'function') return;
+    let active = true;
+    const params: Record<string, string> = { from: effectiveFilters.from, to: effectiveFilters.to };
+    if (effectiveFilters.classId) params.classId = effectiveFilters.classId;
+    if (effectiveFilters.courseId) params.courseId = effectiveFilters.courseId;
+    if (effectiveFilters.teacherId) params.teacherId = effectiveFilters.teacherId;
+    void api
+      .getReport(params)
+      .then((res: unknown) => {
+        if (active && res && typeof res === 'object') {
+          setServerReport(res as Record<string, unknown>);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [api, effectiveFilters.classId, effectiveFilters.courseId, effectiveFilters.from, effectiveFilters.teacherId, effectiveFilters.to]);
 
   const input = useMemo(() => ({
     attendance: attendance.items ?? [],
@@ -77,6 +98,7 @@ export function useReportData(filters: ReportFilters) {
 
   return {
     view,
+    serverReport,
     loading,
     directory,
     directoryError,

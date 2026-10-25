@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Archive,
   BookOpen,
   Calendar,
   Edit3,
@@ -363,6 +364,55 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
     }
   };
 
+  const handleSafeArchiveStudent = async (studentId: string, studentName: string) => {
+    if (
+      typeof window !== 'undefined' &&
+      typeof window.confirm === 'function' &&
+      !window.confirm(
+        `Deseja arquivar o cadastro de "${studentName}"?\n\nNenhum registro físico será excluído (DELETE físico bloqueado): todo o histórico acadêmico (frequência, notas, boletins) e financeiro é integralmente preservado, e a matrícula ativa é encerrada com segurança.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      const existing = students.items.find((s) => s.id === studentId);
+      const batch: { entity: 'students' | 'enrollments'; data: Record<string, unknown> }[] = [
+        {
+          entity: 'students',
+          data: {
+            ...(existing ?? {}),
+            id: studentId,
+            name: existing?.name ?? studentName,
+            active: 0,
+          },
+        },
+      ];
+      if (classId) {
+        const enr = enrollments.items.find(
+          (e) => !e.deleted_at && e.class_id === classId && e.student_id === studentId && e.status === 'ativa',
+        );
+        if (enr) {
+          batch.push({
+            entity: 'enrollments',
+            data: { ...enr, status: 'trancada', left_at: canonicalDate || today },
+          });
+        }
+      }
+      await store.mutateBatch(batch as any);
+      await Promise.all([students.reload(), enrollments.reload()]);
+      setNotice({
+        severity: 'success',
+        message: `Cadastro de ${studentName} arquivado com preservação do histórico acadêmico e financeiro.`,
+      });
+      void sync();
+    } catch (error) {
+      setNotice({
+        severity: 'error',
+        message: error instanceof Error ? error.message : 'Não foi possível arquivar o cadastro do aluno.',
+      });
+    }
+  };
+
   const handleConfirmQuickAddStudent = async () => {
     if (!quickAddStudent || !classId) return;
     try {
@@ -664,6 +714,17 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                         className="p-1.5 min-w-[32px] min-h-[32px] flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-amber-700 hover:bg-amber-50 hover:border-amber-200 transition-colors cursor-pointer"
                       >
                         <UserMinus className="w-3.5 h-3.5" />
+                      </button>
+
+                      {/* Safe Archive Student Button (no physical DELETE; preserves academic & financial history) */}
+                      <button
+                        type="button"
+                        aria-label={`Arquivar cadastro de ${text(row.student, 'name')}`}
+                        title="Arquivar aluno com preservação de histórico acadêmico e financeiro"
+                        onClick={() => void handleSafeArchiveStudent(row.student.id, text(row.student, 'name'))}
+                        className="p-1.5 min-w-[32px] min-h-[32px] flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-rose-700 hover:bg-rose-50 hover:border-rose-200 transition-colors cursor-pointer"
+                      >
+                        <Archive className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>

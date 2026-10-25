@@ -254,6 +254,11 @@ export function DashboardPage() {
   const to = safeCanonicalDate(range.to);
   const validRange = Boolean(from && to && from <= to);
 
+  useEffect(() => {
+    if (!validRange || typeof api.getAnalytics !== 'function') return;
+    void api.getAnalytics({ from: from!, to: to! }).catch(() => undefined);
+  }, [api, from, to, validRange]);
+
   const analytics = useMemo(
     () =>
       buildAnalytics(

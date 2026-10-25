@@ -7,7 +7,6 @@ import {
 } from 'lucide-react';
 import type { AcademicStatus, UnifiedBoletimData } from '../../lib/boletim';
 import { PrintWatermark } from '../../components';
-import { exportBoletimPdf } from '../../lib/boletim-pdf';
 import { formatGrade } from '../../lib/grades';
 
 export function statusBadgeStyle(status: string): string {
@@ -60,6 +59,8 @@ export interface StudentReportCardViewProps {
   onPrint?: () => void;
   onDownloadPdf?: () => void;
   watermarkText?: string;
+  showHeaderLogoLeft?: boolean;
+  showHeaderLogoRight?: boolean;
 }
 
 export function StudentReportCardView({
@@ -67,6 +68,8 @@ export function StudentReportCardView({
   onPrint,
   onDownloadPdf,
   watermarkText = 'INSTITUTO TRANSFORMA BRASIL',
+  showHeaderLogoLeft = true,
+  showHeaderLogoRight = true,
 }: StudentReportCardViewProps) {
   const [downloading, setDownloading] = useState(false);
 
@@ -85,6 +88,7 @@ export function StudentReportCardView({
     }
     try {
       setDownloading(true);
+      const { exportBoletimPdf } = await import('../../lib/boletim-pdf');
       await exportBoletimPdf(data);
     } finally {
       setDownloading(false);
@@ -164,9 +168,14 @@ export function StudentReportCardView({
         {/* 1. INSTITUTIONAL ITB HEADER */}
         <div className="border-b border-slate-200 pb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-xl bg-slate-950 flex items-center justify-center text-white font-black text-lg tracking-wider shadow-xs shrink-0">
-              ITB
-            </div>
+            {showHeaderLogoLeft && (
+              <div
+                data-testid="print-logo-left"
+                className="w-12 h-12 rounded-xl bg-slate-950 flex items-center justify-center text-white font-black text-lg tracking-wider shadow-xs shrink-0"
+              >
+                ITB
+              </div>
+            )}
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black uppercase tracking-widest text-sky-600">
@@ -182,13 +191,23 @@ export function StudentReportCardView({
             </div>
           </div>
 
-          <div className="text-left sm:text-right shrink-0">
-            <span className="text-[11px] font-semibold text-slate-400 block">
-              Data de Emissão
-            </span>
-            <span className="text-xs font-bold text-slate-800">
-              {formattedEmissionDate}
-            </span>
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="text-left sm:text-right">
+              <span className="text-[11px] font-semibold text-slate-400 block">
+                Data de Emissão
+              </span>
+              <span className="text-xs font-bold text-slate-800">
+                {formattedEmissionDate}
+              </span>
+            </div>
+            {showHeaderLogoRight && (
+              <div
+                data-testid="print-logo-right"
+                className="hidden print:flex w-9 h-9 rounded-lg border border-slate-900 items-center justify-center text-slate-900 font-black text-xs tracking-wider shrink-0"
+              >
+                ITB
+              </div>
+            )}
           </div>
         </div>
 

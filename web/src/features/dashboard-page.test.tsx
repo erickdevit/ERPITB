@@ -2,6 +2,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { todayInSaoPaulo } from '../lib/date';
 import { DashboardPage } from './dashboard-page';
 
 const mocks = vi.hoisted(() => {
@@ -121,9 +122,10 @@ describe('DashboardPage', () => {
 
   it('renders exact real data in KPIs, badges, top absentees with className, and distinguishes 0-record classes', async () => {
     // Current date range covers 30 days ending todayInSaoPaulo
-    const today = new Date().toISOString().slice(0, 10);
-    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-    const twoDaysAgo = new Date(Date.now() - 172800000).toISOString().slice(0, 10);
+    const today = todayInSaoPaulo();
+    const [y, m, d] = today.split('-').map(Number);
+    const yesterday = new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10);
+    const twoDaysAgo = new Date(Date.UTC(y, m - 1, d - 2)).toISOString().slice(0, 10);
 
     mocks.entities.classes = {
       items: [

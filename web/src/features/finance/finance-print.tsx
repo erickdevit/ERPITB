@@ -45,6 +45,8 @@ interface FeesPrintDocumentProps {
   className?: string;
   appName?: string;
   watermarkText?: string;
+  showHeaderLogoLeft?: boolean;
+  showHeaderLogoRight?: boolean;
 }
 
 export function FeesPrintDocument({
@@ -55,6 +57,8 @@ export function FeesPrintDocument({
   className,
   appName = 'ERPITB',
   watermarkText = 'INSTITUTO TRANSFORMA BRASIL',
+  showHeaderLogoLeft = true,
+  showHeaderLogoRight = true,
 }: FeesPrintDocumentProps) {
   const emissionDate = new Date().toLocaleString('pt-BR');
 
@@ -84,9 +88,14 @@ export function FeesPrintDocument({
       <div className="border-b-2 border-slate-900 pb-3 mb-4 flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <span className="font-black text-sm tracking-widest uppercase bg-slate-950 text-white px-2 py-0.5 rounded">
-              ITB
-            </span>
+            {showHeaderLogoLeft && (
+              <span
+                data-testid="print-logo-left"
+                className="font-black text-sm tracking-widest uppercase bg-slate-950 text-white px-2 py-0.5 rounded"
+              >
+                ITB
+              </span>
+            )}
             <span className="text-xs font-black uppercase tracking-wider text-slate-700">
               Instituto Transforma Brasil — {appName}
             </span>
@@ -99,9 +108,19 @@ export function FeesPrintDocument({
             {className && <span> &bull; Turma: <strong>{className}</strong></span>}
           </p>
         </div>
-        <div className="text-right text-[10px] text-slate-600">
-          <p className="font-semibold">Emissão: {emissionDate}</p>
-          <p>Total de Registros: <strong>{fees.length}</strong></p>
+        <div className="flex items-center gap-3">
+          <div className="text-right text-[10px] text-slate-600">
+            <p className="font-semibold">Emissão: {emissionDate}</p>
+            <p>Total de Registros: <strong>{fees.length}</strong></p>
+          </div>
+          {showHeaderLogoRight && (
+            <span
+              data-testid="print-logo-right"
+              className="font-black text-xs tracking-widest uppercase border border-slate-900 text-slate-900 px-1.5 py-0.5 rounded"
+            >
+              ITB
+            </span>
+          )}
         </div>
       </div>
 
@@ -206,6 +225,8 @@ interface CashPrintDocumentProps {
   periodLabel?: string;
   appName?: string;
   watermarkText?: string;
+  showHeaderLogoLeft?: boolean;
+  showHeaderLogoRight?: boolean;
 }
 
 export function CashPrintDocument({
@@ -214,6 +235,8 @@ export function CashPrintDocument({
   periodLabel,
   appName = 'ERPITB',
   watermarkText = 'INSTITUTO TRANSFORMA BRASIL',
+  showHeaderLogoLeft = true,
+  showHeaderLogoRight = true,
 }: CashPrintDocumentProps) {
   const emissionDate = new Date().toLocaleString('pt-BR');
 
@@ -235,9 +258,14 @@ export function CashPrintDocument({
       <div className="border-b-2 border-slate-900 pb-3 mb-4 flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <span className="font-black text-sm tracking-widest uppercase bg-slate-950 text-white px-2 py-0.5 rounded">
-              ITB
-            </span>
+            {showHeaderLogoLeft && (
+              <span
+                data-testid="print-logo-left"
+                className="font-black text-sm tracking-widest uppercase bg-slate-950 text-white px-2 py-0.5 rounded"
+              >
+                ITB
+              </span>
+            )}
             <span className="text-xs font-black uppercase tracking-wider text-slate-700">
               Instituto Transforma Brasil — {appName}
             </span>
@@ -249,9 +277,19 @@ export function CashPrintDocument({
             Período: <strong>{periodLabel || 'Mês Atual'}</strong>
           </p>
         </div>
-        <div className="text-right text-[10px] text-slate-600">
-          <p className="font-semibold">Emissão: {emissionDate}</p>
-          <p>Total de Lançamentos: <strong>{transactions.length}</strong></p>
+        <div className="flex items-center gap-3">
+          <div className="text-right text-[10px] text-slate-600">
+            <p className="font-semibold">Emissão: {emissionDate}</p>
+            <p>Total de Lançamentos: <strong>{transactions.length}</strong></p>
+          </div>
+          {showHeaderLogoRight && (
+            <span
+              data-testid="print-logo-right"
+              className="font-black text-xs tracking-widest uppercase border border-slate-900 text-slate-900 px-1.5 py-0.5 rounded"
+            >
+              ITB
+            </span>
+          )}
         </div>
       </div>
 

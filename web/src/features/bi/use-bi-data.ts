@@ -21,6 +21,7 @@ export function useBiData(filters: BiFilters, today: string) {
   const [directory, setDirectory] = useState<LocalRecord[]>([
     { id: session.id, name: session.name, role: session.role, active: 1 },
   ]);
+  const [serverAnalytics, setServerAnalytics] = useState<Record<string, unknown> | null>(null);
 
   useEffect(() => {
     if (!canManage(session.role)) return;
@@ -35,6 +36,26 @@ export function useBiData(filters: BiFilters, today: string) {
       active = false;
     };
   }, [api, session.role]);
+
+  useEffect(() => {
+    if (typeof api.getAnalytics !== 'function') return;
+    let active = true;
+    const params: Record<string, string> = { from: filters.from, to: filters.to };
+    if (filters.classId) params.classId = filters.classId;
+    if (filters.courseId) params.courseId = filters.courseId;
+    if (filters.teacherId) params.teacherId = filters.teacherId;
+    void api
+      .getAnalytics(params)
+      .then((res) => {
+        if (active && res && typeof res === 'object') {
+          setServerAnalytics(res as Record<string, unknown>);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [api, filters.classId, filters.courseId, filters.from, filters.teacherId, filters.to]);
 
   const loading =
     attendance.loading ||
@@ -89,6 +110,7 @@ export function useBiData(filters: BiFilters, today: string) {
 
   return {
     data,
+    serverAnalytics,
     loading,
     directory: directory ?? [],
     options: {
