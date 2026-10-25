@@ -75,19 +75,25 @@ export function Login({
     >
       <div className="w-full max-w-sm">
         <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xl shadow-slate-200/40 p-6 sm:p-8">
-          {branding?.loginLogoUrl && (
-            <div className="flex justify-center mb-3">
+          {/* Logo Institucional (apenas o logo configurado, sem o nome ERPITB) */}
+          <div className="flex justify-center mb-6">
+            {branding?.loginLogoUrl ? (
               <img
                 src={branding.loginLogoUrl}
-                alt={branding.appName || 'ERPITB'}
-                className="max-h-14 w-auto object-contain"
+                alt={branding.appName || 'Logo Institucional'}
+                className="max-h-16 max-w-[220px] w-auto object-contain"
               />
-            </div>
-          )}
-          {/* Title */}
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 text-center mb-6">
-            {branding?.appName || 'ERPITB'}
-          </h1>
+            ) : (
+              <img
+                src="/itb-logo.svg"
+                alt="Logo Institucional"
+                className="max-h-14 max-w-[180px] w-auto object-contain"
+                onError={(e) => {
+                  (e.currentTarget as HTMLElement).style.display = 'none';
+                }}
+              />
+            )}
+          </div>
 
           <form onSubmit={submit} className="flex flex-col gap-4">
             {notice && (

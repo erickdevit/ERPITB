@@ -436,15 +436,33 @@ function Shell() {
       >
         {/* Sidebar Header */}
         <div className="flex items-center justify-between h-14 px-3.5 border-b border-white/5">
-          {!collapsed && (
+          {!collapsed ? (
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-7 h-7 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20 flex items-center justify-center font-bold text-xs">
-                ITB
-              </div>
+              {branding?.loginLogoUrl ? (
+                <img
+                  src={branding.loginLogoUrl}
+                  alt={appTitle}
+                  className="w-7 h-7 object-contain rounded-md shrink-0"
+                />
+              ) : (
+                <div className="w-7 h-7 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20 flex items-center justify-center font-bold text-xs shrink-0">
+                  ITB
+                </div>
+              )}
               <span className="font-bold text-sm tracking-tight text-white truncate">
                 {appTitle}
               </span>
             </div>
+          ) : (
+            branding?.loginLogoUrl ? (
+              <img
+                src={branding.loginLogoUrl}
+                alt={appTitle}
+                className="w-7 h-7 object-contain rounded-md mx-auto cursor-pointer"
+                onClick={toggleCollapsed}
+                title="Expandir menu"
+              />
+            ) : null
           )}
           <button
             type="button"
@@ -471,13 +489,26 @@ function Shell() {
           />
           <div className="relative w-64 max-w-[80vw] bg-[#090D16] text-white flex flex-col h-full z-10 shadow-2xl">
             <div className="p-4 border-b border-white/10 flex items-center justify-between">
-              <div>
-                <h2 className="font-extrabold text-sm tracking-tight text-white">
-                  {appTitle}
-                </h2>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  {session.name} • {roleLabel[session.role]}
-                </p>
+              <div className="flex items-center gap-2.5 min-w-0">
+                {branding?.loginLogoUrl ? (
+                  <img
+                    src={branding.loginLogoUrl}
+                    alt={appTitle}
+                    className="w-8 h-8 object-contain rounded-md shrink-0"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20 flex items-center justify-center font-bold text-xs shrink-0">
+                    ITB
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <h2 className="font-extrabold text-sm tracking-tight text-white truncate">
+                    {appTitle}
+                  </h2>
+                  <p className="text-[11px] text-slate-400 mt-0.5 truncate">
+                    {session.name} • {roleLabel[session.role]}
+                  </p>
+                </div>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-3">

@@ -402,7 +402,13 @@ export function BrandingPage() {
 
                 <div className="h-24 rounded-lg bg-white border border-dashed border-slate-300 flex items-center justify-center p-2 relative overflow-hidden">
                   {printWatermarkLogoUrl ? (
-                    <img src={printWatermarkLogoUrl} alt="Marca d'Água" className="max-h-full max-w-full object-contain opacity-40 grayscale" />
+                    <img
+                      src={printWatermarkLogoUrl}
+                      alt="Marca d'Água"
+                      className={`max-h-full max-w-full object-contain opacity-40 transition-all ${
+                        printWatermarkGrayscale ? 'grayscale' : ''
+                      }`}
+                    />
                   ) : (
                     <div className="flex flex-col items-center text-slate-400 gap-1 text-[11px]">
                       <ImageIcon className="w-5 h-5 text-slate-300" />
@@ -441,6 +447,37 @@ export function BrandingPage() {
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   )}
+                </div>
+
+                {/* Opções de Escala de Cinza ou Colorida */}
+                <div className="pt-2 border-t border-slate-200">
+                  <span className="text-[11px] font-semibold text-slate-700 block mb-1.5">
+                    Modo de Exibição da Marca d'Água:
+                  </span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setPrintWatermarkGrayscale(true)}
+                      className={`px-2 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        printWatermarkGrayscale
+                          ? 'bg-slate-900 text-white shadow-2xs'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      Escala de Cinza
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPrintWatermarkGrayscale(false)}
+                      className={`px-2 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        !printWatermarkGrayscale
+                          ? 'bg-slate-900 text-white shadow-2xs'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      Colorida
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -584,7 +621,13 @@ export function BrandingPage() {
                 <div className="pt-2 border-t border-slate-200 text-[10px] text-slate-400 font-mono flex items-center justify-between">
                   <span>Marca d'água: {printWatermarkText}</span>
                   {printWatermarkLogoUrl && (
-                    <img src={printWatermarkLogoUrl} alt="Marca d'água" className="h-4 object-contain opacity-40 grayscale" />
+                    <img
+                      src={printWatermarkLogoUrl}
+                      alt="Marca d'água"
+                      className={`h-4 object-contain opacity-40 transition-all ${
+                        printWatermarkGrayscale ? 'grayscale' : ''
+                      }`}
+                    />
                   )}
                 </div>
               </div>
