@@ -73,7 +73,11 @@ export function ClassBoletimView({
     try {
       setDownloading(true);
       const { exportClassBoletimPdf } = await import('../../lib/boletim-pdf');
-      await exportClassBoletimPdf(data);
+      await exportClassBoletimPdf(data, undefined, undefined, {
+        watermarkText,
+        watermarkLogoUrl,
+        watermarkGrayscale,
+      });
     } finally {
       setDownloading(false);
     }

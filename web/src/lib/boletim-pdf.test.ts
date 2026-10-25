@@ -6,6 +6,7 @@ import {
   exportBoletimPdf,
   exportClassBoletimPdf,
   getBoletimPdfFilename,
+  urlToDataUrl,
 } from './boletim-pdf';
 import type { ClassBoletimData, UnifiedBoletimData } from './boletim';
 
@@ -205,5 +206,22 @@ describe('Boletim PDF Generator — Native Vector jsPDF', () => {
     await exportClassBoletimPdf(classData, undefined, mockDoc);
     expect(saveMock).toHaveBeenCalledTimes(1);
     expect(saveMock).toHaveBeenCalledWith('Boletim_Consolidado_04_-_SABADO_07-10_LAB1.pdf');
+  });
+
+  it('renders watermark image in PDF if watermarkLogoDataUrl is provided', () => {
+    // 1x1 transparent PNG data url
+    const dummyPngDataUrl =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+    const doc = buildBoletimPdf(mockBoletimData, {
+      watermarkLogoDataUrl: dummyPngDataUrl,
+    });
+    expect(doc).toBeDefined();
+    expect(doc.getNumberOfPages()).toBe(1);
+  });
+
+  it('urlToDataUrl returns data url as-is or null if url is undefined', async () => {
+    expect(await urlToDataUrl(undefined)).toBeNull();
+    const dataUrl = 'data:image/png;base64,abc123';
+    expect(await urlToDataUrl(dataUrl)).toBe(dataUrl);
   });
 });

@@ -1,4 +1,4 @@
-import { jsPDF } from 'jspdf';
+import { jsPDF, GState } from 'jspdf';
 import QRCode from 'qrcode';
 import type { ClassBoletimData, UnifiedBoletimData } from './boletim';
 import { formatGrade } from './grades';
@@ -7,7 +7,75 @@ export interface BoletimPdfOptions {
   qrDataUrl?: string;
   portalUrl?: string;
   watermarkText?: string;
+  watermarkLogoUrl?: string;
+  watermarkLogoDataUrl?: string;
+  watermarkGrayscale?: boolean;
   customFilename?: string;
+}
+
+/**
+ * Converts an image URL into a base64 PNG data URL, applying grayscale if requested.
+ */
+export async function urlToDataUrl(url?: string, grayscale = true): Promise<string | null> {
+  if (!url) return null;
+  if (url.startsWith('data:')) return url;
+  if (typeof window === 'undefined' || typeof Image === 'undefined') return null;
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || img.width || 300;
+        canvas.height = img.naturalHeight || img.height || 300;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(null);
+          return;
+        }
+        if (grayscale) {
+          ctx.filter = 'grayscale(100%)';
+        }
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      } catch {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
+
+/**
+ * Draws the watermark logo (or text fallback) at the center of the PDF page with subtle opacity.
+ */
+function drawWatermark(doc: jsPDF, watermarkImgDataUrl?: string, watermarkText?: string) {
+  if (watermarkImgDataUrl) {
+    try {
+      doc.saveGraphicsState();
+      doc.setGState(new GState({ opacity: 0.08 }));
+      const imgWidth = 90; // mm
+      const imgHeight = 90; // mm
+      const imgX = (297 - imgWidth) / 2;
+      const imgY = (210 - imgHeight) / 2;
+      doc.addImage(watermarkImgDataUrl, 'PNG', imgX, imgY, imgWidth, imgHeight);
+      doc.restoreGraphicsState();
+      return;
+    } catch {
+      // Fall back to text watermark if image rendering fails
+    }
+  }
+
+  const text = watermarkText || 'INSTITUTO TRANSFORMA BRASIL';
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(28);
+  doc.setTextColor(241, 245, 249);
+  doc.text(text, 297 / 2, 210 / 2, {
+    align: 'center',
+    angle: 25,
+  });
 }
 
 /**
@@ -54,16 +122,9 @@ export function buildBoletimPdf(data: UnifiedBoletimData, options?: BoletimPdfOp
   const contentWidth = pageWidth - marginX * 2; // 277mm
 
   // ==========================================
-  // BACKGROUND WATERMARK (Subtle centered background)
+  // BACKGROUND WATERMARK (Centered behind content on PDF)
   // ==========================================
-  const watermarkText = options?.watermarkText || 'INSTITUTO TRANSFORMA BRASIL';
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(28);
-  doc.setTextColor(241, 245, 249);
-  doc.text(watermarkText, pageWidth / 2, pageHeight / 2, {
-    align: 'center',
-    angle: 25,
-  });
+  drawWatermark(doc, options?.watermarkLogoDataUrl, options?.watermarkText);
 
   let currentY = 10;
 
@@ -386,12 +447,10 @@ export function buildBoletimPdf(data: UnifiedBoletimData, options?: BoletimPdfOp
     try {
       doc.addImage(options.qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
     } catch {
-      // Fallback border box if addImage fails in testing environments
       doc.setDrawColor(203, 213, 225);
       doc.rect(qrX, qrY, qrSize, qrSize);
     }
   } else {
-    // Elegant placeholder box with mini QR label
     doc.setDrawColor(203, 213, 225);
     doc.rect(qrX, qrY, qrSize, qrSize);
     doc.setFont('helvetica', 'bold');
@@ -407,7 +466,7 @@ export function buildBoletimPdf(data: UnifiedBoletimData, options?: BoletimPdfOp
  * Builds a vector-based jsPDF A4 document representing the Consolidated Class Boletim
  * matching the exact table in the screenshot.
  */
-export function buildClassBoletimPdf(data: ClassBoletimData, options?: { watermarkText?: string }): jsPDF {
+export function buildClassBoletimPdf(data: ClassBoletimData, options?: BoletimPdfOptions): jsPDF {
   const doc = new jsPDF({
     orientation: 'landscape',
     unit: 'mm',
@@ -419,15 +478,8 @@ export function buildClassBoletimPdf(data: ClassBoletimData, options?: { waterma
   const marginX = 10;
   const contentWidth = pageWidth - marginX * 2;
 
-  // Background Watermark
-  const watermarkText = options?.watermarkText || 'INSTITUTO TRANSFORMA BRASIL';
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(28);
-  doc.setTextColor(241, 245, 249);
-  doc.text(watermarkText, pageWidth / 2, pageHeight / 2, {
-    align: 'center',
-    angle: 25,
-  });
+  // Background Watermark on Page 1
+  drawWatermark(doc, options?.watermarkLogoDataUrl, options?.watermarkText);
 
   let currentY = 10;
 
@@ -541,6 +593,7 @@ export function buildClassBoletimPdf(data: ClassBoletimData, options?: { waterma
   for (const student of data.students) {
     if (currentY > pageHeight - 35) {
       doc.addPage();
+      drawWatermark(doc, options?.watermarkLogoDataUrl, options?.watermarkText);
       currentY = 15;
     }
 
@@ -641,7 +694,13 @@ export async function exportBoletimPdf(
         qrDataUrl = undefined;
       }
     }
-    doc = buildBoletimPdf(data, { ...options, qrDataUrl });
+
+    let watermarkLogoDataUrl = options?.watermarkLogoDataUrl;
+    if (!watermarkLogoDataUrl && options?.watermarkLogoUrl) {
+      watermarkLogoDataUrl = (await urlToDataUrl(options.watermarkLogoUrl, options.watermarkGrayscale ?? true)) ?? undefined;
+    }
+
+    doc = buildBoletimPdf(data, { ...options, qrDataUrl, watermarkLogoDataUrl });
   }
 
   const filename = getBoletimPdfFilename(data, customFilename);
@@ -654,9 +713,17 @@ export async function exportBoletimPdf(
 export async function exportClassBoletimPdf(
   data: ClassBoletimData,
   customFilename?: string,
-  docInstance?: jsPDF
+  docInstance?: jsPDF,
+  options?: BoletimPdfOptions
 ): Promise<void> {
-  const doc = docInstance || buildClassBoletimPdf(data);
+  let doc = docInstance;
+  if (!doc) {
+    let watermarkLogoDataUrl = options?.watermarkLogoDataUrl;
+    if (!watermarkLogoDataUrl && options?.watermarkLogoUrl) {
+      watermarkLogoDataUrl = (await urlToDataUrl(options.watermarkLogoUrl, options.watermarkGrayscale ?? true)) ?? undefined;
+    }
+    doc = buildClassBoletimPdf(data, { ...options, watermarkLogoDataUrl });
+  }
   const filename = customFilename || `Boletim_Consolidado_${safeFilename(data.className)}.pdf`;
   doc.save(filename);
 }

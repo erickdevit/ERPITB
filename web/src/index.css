@@ -117,17 +117,9 @@ div.bg-slate-900.animate-pulse {
   background-color: var(--brand-accent) !important;
 }
 
-/* Screen mode styling for watermark preview */
+/* Watermark is print-only: completely hidden in the web application UI */
 .print-watermark {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-  user-select: none;
-  overflow: hidden;
-  z-index: 0;
+  display: none !important;
 }
 
 .print-watermark .watermark-image {

@@ -25,7 +25,7 @@ function initialFilters(today: string): ReportFilters {
 }
 
 export function ReportsCenterPage() {
-  const { session } = useApp();
+  const { session, branding } = useApp();
   const today = todayInSaoPaulo();
   const defaults = useMemo(() => initialFilters(today), [today]);
   const [filters, setFilters] = useState<ReportFilters>(defaults);
@@ -75,9 +75,17 @@ export function ReportsCenterPage() {
             disabled={!view.ready}
             onClick={() => {
               if (view.type === 'studentBoletim' && view.boletimData) {
-                void exportBoletimPdf(view.boletimData);
+                void exportBoletimPdf(view.boletimData, undefined, undefined, {
+                  watermarkText: branding?.printWatermarkText,
+                  watermarkLogoUrl: branding?.printWatermarkLogoUrl,
+                  watermarkGrayscale: branding?.printWatermarkGrayscale ?? true,
+                });
               } else if (view.type === 'classGrades' && view.classBoletimData) {
-                void exportClassBoletimPdf(view.classBoletimData);
+                void exportClassBoletimPdf(view.classBoletimData, undefined, undefined, {
+                  watermarkText: branding?.printWatermarkText,
+                  watermarkLogoUrl: branding?.printWatermarkLogoUrl,
+                  watermarkGrayscale: branding?.printWatermarkGrayscale ?? true,
+                });
               } else {
                 void exportSimplePdf(filename, view.title, view.context, view.headers, view.rows);
               }

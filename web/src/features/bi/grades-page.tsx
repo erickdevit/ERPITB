@@ -142,7 +142,11 @@ export function BiGradesPage() {
     if (!classBoletimData) return;
     try {
       setDownloadingPdf(true);
-      await exportClassBoletimPdf(classBoletimData);
+      await exportClassBoletimPdf(classBoletimData, undefined, undefined, {
+        watermarkText: branding?.printWatermarkText,
+        watermarkLogoUrl: branding?.printWatermarkLogoUrl,
+        watermarkGrayscale: branding?.printWatermarkGrayscale ?? true,
+      });
     } finally {
       setDownloadingPdf(false);
     }

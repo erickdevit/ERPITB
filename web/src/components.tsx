@@ -302,7 +302,7 @@ export function PrintWatermark({
   return (
     <div
       data-watermark="true"
-      className="print-watermark pointer-events-none select-none"
+      className="print-watermark hidden print:flex pointer-events-none select-none"
       aria-hidden="true"
     >
       {logoUrl ? (

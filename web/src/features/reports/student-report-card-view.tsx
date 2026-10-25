@@ -110,6 +110,8 @@ export function StudentReportCardView({
       await exportBoletimPdf(data, undefined, undefined, {
         portalUrl: publicPortalUrl,
         watermarkText,
+        watermarkLogoUrl,
+        watermarkGrayscale,
       });
     } finally {
       setDownloading(false);
