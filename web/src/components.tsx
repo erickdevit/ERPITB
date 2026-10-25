@@ -301,19 +301,18 @@ export function PrintWatermark({
   if (!text && !logoUrl) return null;
   return (
     <div
-      className="print-watermark absolute inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden z-0 print:fixed print:inset-0 print:flex print:z-0"
+      data-watermark="true"
+      className="print-watermark pointer-events-none select-none"
       aria-hidden="true"
     >
       {logoUrl ? (
         <img
           src={logoUrl}
           alt=""
-          className={`max-w-[340px] max-h-[340px] sm:max-w-[460px] sm:max-h-[460px] object-contain opacity-[0.09] pointer-events-none select-none ${
-            grayscale ? 'grayscale' : ''
-          }`}
+          className={`watermark-image ${grayscale ? 'grayscale' : ''}`}
         />
       ) : (
-        <span className="text-3xl sm:text-5xl font-black uppercase tracking-widest text-slate-900/[0.045] -rotate-30 select-none whitespace-nowrap">
+        <span className="watermark-text">
           {text}
         </span>
       )}

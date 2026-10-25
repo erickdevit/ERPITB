@@ -1,5 +1,13 @@
+export function normalizeHexColor(hex: string): string {
+  const clean = hex.trim();
+  if (/^#[0-9a-fA-F]{3}$/.test(clean)) {
+    return `#${clean[1]}${clean[1]}${clean[2]}${clean[2]}${clean[3]}${clean[3]}`;
+  }
+  return clean;
+}
+
 export function getRelativeLuminance(hex: string): number {
-  const clean = hex.replace('#', '');
+  const clean = normalizeHexColor(hex).replace('#', '');
   if (!/^[0-9a-fA-F]{6}$/.test(clean)) return 0.5;
   const r = parseInt(clean.substring(0, 2), 16) / 255;
   const g = parseInt(clean.substring(2, 4), 16) / 255;
@@ -16,17 +24,18 @@ export function getContrastWithWhite(hex: string): number {
 }
 
 export function applyBrandDesignTokens(hexColor: string, appName?: string): void {
-  if (!/^#[0-9a-fA-F]{6}$/.test(hexColor)) return;
-  const contrastWithWhite = getContrastWithWhite(hexColor);
+  const normalized = normalizeHexColor(hexColor);
+  if (!/^#[0-9a-fA-F]{6}$/.test(normalized)) return;
+  const contrastWithWhite = getContrastWithWhite(normalized);
   const contrastText = contrastWithWhite >= 4.5 ? '#FFFFFF' : '#0F172A';
 
   if (typeof document !== 'undefined') {
     const root = document.documentElement;
-    root.style.setProperty('--brand-accent', hexColor);
-    root.style.setProperty('--color-accent', hexColor);
+    root.style.setProperty('--brand-accent', normalized);
+    root.style.setProperty('--color-accent', normalized);
     root.style.setProperty('--brand-accent-text', contrastText);
-    root.style.setProperty('--brand-accent-subtle', `${hexColor}1a`);
-    root.style.setProperty('--brand-accent-hover', `${hexColor}e6`);
+    root.style.setProperty('--brand-accent-subtle', `${normalized}1a`);
+    root.style.setProperty('--brand-accent-hover', `${normalized}e6`);
     if (appName) {
       document.title = appName;
     }

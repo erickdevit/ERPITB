@@ -2,6 +2,7 @@ import React from 'react';
 import type { ReportView } from './model';
 import { StudentReportCardView } from './student-report-card-view';
 import { ClassBoletimView } from './class-boletim-view';
+import { PrintWatermark } from '../../components';
 import { useApp } from '../../app-context';
 
 export function ReportResult({ view }: { view: ReportView }) {
@@ -31,8 +32,13 @@ export function ReportResult({ view }: { view: ReportView }) {
 
   const displayTitle = view.tableTitle || view.title;
   return (
-    <div className="flex flex-col gap-3 text-left">
-      <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xs overflow-hidden">
+    <div className="flex flex-col gap-3 text-left print-landscape relative">
+      <PrintWatermark
+        text={branding?.printWatermarkText || 'INSTITUTO TRANSFORMA BRASIL'}
+        logoUrl={branding?.printWatermarkLogoUrl}
+        grayscale={branding?.printWatermarkGrayscale ?? true}
+      />
+      <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xs overflow-hidden print:border-none print:shadow-none">
         <div className="py-3 px-4 border-b border-slate-100 flex items-center justify-between">
           <div>
             <h2 id="report-table-title" className="text-sm font-bold text-slate-900 tracking-tight">
