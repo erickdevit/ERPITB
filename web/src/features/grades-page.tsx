@@ -682,7 +682,8 @@ export function GradesPage() {
   }, [selectedStudentForBoletim, classId, students.items, enrollments.items, classes.items, courses.items, attendance.items, gradeTables.items, gradeItems.items, studentGrades.items]);
 
   return (
-    <div className={`space-y-6 text-left ${selectedStudentForBoletim ? 'print:hidden' : ''}`}>
+    <div className="space-y-6 text-left">
+      <div className={`space-y-6 ${selectedStudentForBoletim ? 'print:hidden' : ''}`}>
       {/* Top Filter & View Switcher Bar */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-4 print:hidden">
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
@@ -1569,6 +1570,7 @@ export function GradesPage() {
           </p>
         </div>
       </PageDialog>
+      </div>
 
       {/* Modal: Student Individual Boletim */}
       {selectedStudentForBoletim && (

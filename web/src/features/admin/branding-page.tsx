@@ -229,9 +229,8 @@ export function BrandingPage() {
         </div>
       )}
 
-      <form onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Settings Column (2 cols) */}
-        <div className="lg:col-span-2 flex flex-col gap-6">
+      <form onSubmit={handleSave} className="max-w-4xl flex flex-col gap-6">
+        <div className="flex flex-col gap-6">
           {/* Section: Instituição */}
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-4">
             <h2 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2">
@@ -570,72 +569,6 @@ export function BrandingPage() {
               <Save className="w-4 h-4" />
               <span>{saving ? 'Salvando...' : 'Salvar Alterações'}</span>
             </button>
-          </div>
-        </div>
-
-        {/* Live Preview Column (1 col) */}
-        <div className="flex flex-col gap-4">
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-4">
-            <h2 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2">
-              Pré-visualização em Tempo Real
-            </h2>
-
-            {/* Simulated Top Bar */}
-            <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
-              <div className="bg-slate-900 text-white px-3 py-2.5 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  {loginLogoUrl ? (
-                    <img src={loginLogoUrl} alt="Logo" className="w-5 h-5 object-contain" />
-                  ) : (
-                    <div
-                      className="w-5 h-5 rounded flex items-center justify-center font-black text-[10px]"
-                      style={{ backgroundColor: accentColor, color: '#ffffff' }}
-                    >
-                      ITB
-                    </div>
-                  )}
-                  <span className="font-bold truncate max-w-[140px]">{appName}</span>
-                </div>
-                <div className="w-2 h-2 rounded-full bg-emerald-400" title="Online" />
-              </div>
-
-              {/* Simulated Card Content */}
-              <div className="p-4 space-y-3 bg-slate-50">
-                <div className="text-[11px] text-slate-500 font-semibold">Exemplo de Botão &amp; Tag:</div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    style={{ backgroundColor: accentColor }}
-                    className="px-3 py-1.5 rounded-lg text-white font-bold text-xs shadow-2xs"
-                  >
-                    Botão Primário
-                  </button>
-                  <span
-                    style={{ color: accentColor, borderColor: accentColor }}
-                    className="px-2 py-0.5 rounded-md text-[10px] font-bold border bg-white"
-                  >
-                    Destaque
-                  </span>
-                </div>
-
-                <div className="pt-2 border-t border-slate-200 text-[10px] text-slate-400 font-mono flex items-center justify-between">
-                  <span>Marca d'água: {printWatermarkText}</span>
-                  {printWatermarkLogoUrl && (
-                    <img
-                      src={printWatermarkLogoUrl}
-                      alt="Marca d'água"
-                      className={`h-4 object-contain opacity-40 transition-all ${
-                        printWatermarkGrayscale ? 'grayscale' : ''
-                      }`}
-                    />
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              As alterações de cor de destaque e nome serão aplicadas imediatamente após salvar para todos os usuários do sistema.
-            </p>
           </div>
         </div>
       </form>

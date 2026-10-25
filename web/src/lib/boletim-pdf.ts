@@ -1,14 +1,22 @@
 import { jsPDF } from 'jspdf';
+import QRCode from 'qrcode';
 import type { ClassBoletimData, UnifiedBoletimData } from './boletim';
 import { formatGrade } from './grades';
+
+export interface BoletimPdfOptions {
+  qrDataUrl?: string;
+  portalUrl?: string;
+  watermarkText?: string;
+  customFilename?: string;
+}
 
 /**
  * Formats a Date/ISO string to Brazilian format: DD/MM/AAAA HH:mm
  */
-function formatEmissionDate(isoString: string): string {
+function formatEmissionDate(isoString?: string): string {
   try {
-    const d = new Date(isoString);
-    if (Number.isNaN(d.getTime())) return isoString;
+    const d = isoString ? new Date(isoString) : new Date();
+    if (Number.isNaN(d.getTime())) return isoString || '';
     const day = String(d.getDate()).padStart(2, '0');
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const year = d.getFullYear();
@@ -16,7 +24,7 @@ function formatEmissionDate(isoString: string): string {
     const minutes = String(d.getMinutes()).padStart(2, '0');
     return `${day}/${month}/${year} ${hours}:${minutes}`;
   } catch {
-    return isoString;
+    return isoString || '';
   }
 }
 
@@ -30,10 +38,10 @@ function safeFilename(value: string): string {
 }
 
 /**
- * Builds a vector-based jsPDF A4 portrait document representing the student's unified report card
- * matching the exact consolidated table layout.
+ * Builds a vector-based jsPDF A4 landscape document representing the student's unified individual report card
+ * matching the exact structure and visual hierarchy of the on-screen student modal.
  */
-export function buildBoletimPdf(data: UnifiedBoletimData): jsPDF {
+export function buildBoletimPdf(data: UnifiedBoletimData, options?: BoletimPdfOptions): jsPDF {
   const doc = new jsPDF({
     orientation: 'landscape',
     unit: 'mm',
@@ -45,301 +53,282 @@ export function buildBoletimPdf(data: UnifiedBoletimData): jsPDF {
   const marginX = 10;
   const contentWidth = pageWidth - marginX * 2; // 277mm
 
+  // ==========================================
+  // BACKGROUND WATERMARK (Subtle centered background)
+  // ==========================================
+  const watermarkText = options?.watermarkText || 'INSTITUTO TRANSFORMA BRASIL';
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(28);
+  doc.setTextColor(241, 245, 249);
+  doc.text(watermarkText, pageWidth / 2, pageHeight / 2, {
+    align: 'center',
+    angle: 25,
+  });
+
   let currentY = 10;
 
   // ==========================================
-  // 1. INSTITUTIONAL HEADER
+  // 1. INSTITUTIONAL HEADER (Clean White, No Dark Block)
   // ==========================================
-  doc.setFillColor(15, 23, 42); // slate-900
-  doc.rect(marginX, currentY, contentWidth, 20, 'F');
-
-  // Sky blue accent line at top
-  doc.setFillColor(2, 132, 199); // sky-600
-  doc.rect(marginX, currentY, contentWidth, 1.2, 'F');
-
-  doc.setTextColor(255, 255, 255);
+  doc.setTextColor(15, 23, 42); // slate-900
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.text('INSTITUTO TRANSFORMA BRASIL', marginX + 6, currentY + 7);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(203, 213, 225); // slate-300
-  doc.text('ERPITB — RELATÓRIO ACADÊMICO', marginX + 6, currentY + 11.5);
+  doc.setFontSize(10);
+  doc.text('INSTITUTO TRANSFORMA BRASIL', marginX, currentY + 4);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(255, 255, 255);
-  doc.text('BOLETIM ESCOLAR INDIVIDUAL', marginX + 6, currentY + 16.5);
+  doc.setFontSize(12.5);
+  doc.text('BOLETIM ESCOLAR INDIVIDUAL', marginX, currentY + 9.5);
 
-  const emissionStr = `Emissão: ${formatEmissionDate(data.issueDate)}`;
+  const emissionStr = `Data e Hora de Emissão: ${formatEmissionDate(data.issueDate)}`;
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(203, 213, 225);
-  doc.text(emissionStr, marginX + contentWidth - 6, currentY + 16.5, { align: 'right' });
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139); // slate-500
+  doc.text(emissionStr, marginX + contentWidth, currentY + 9.5, { align: 'right' });
 
-  currentY += 23;
+  currentY += 12;
+  doc.setDrawColor(226, 232, 240); // slate-200
+  doc.setLineWidth(0.3);
+  doc.line(marginX, currentY, marginX + contentWidth, currentY);
+
+  currentY += 4;
 
   // ==========================================
-  // 2. STUDENT METADATA BOX
+  // 2. UNIFIED STUDENT METADATA & ACADEMIC SUMMARY ROW (SINGLE ROW MATCHING MODAL)
   // ==========================================
-  const infoBoxHeight = 12;
+  const infoBoxHeight = 15;
   doc.setFillColor(248, 250, 252); // slate-50
   doc.setDrawColor(226, 232, 240); // slate-200
   doc.setLineWidth(0.3);
   doc.roundedRect(marginX, currentY, contentWidth, infoBoxHeight, 2, 2, 'FD');
 
-  const classStr = data.student.classNames.length ? data.student.classNames.join(', ') : '—';
+  const student = data.student ?? { name: 'Aluno', id: '', classNames: [] };
+  const classStr = student.classNames?.length ? student.classNames.join(', ') : '—';
 
-  doc.setTextColor(71, 85, 105);
+  // 1. Aluno
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6);
+  doc.setTextColor(148, 163, 184); // slate-400
+  doc.text('ALUNO', marginX + 4, currentY + 5);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
-  doc.text('Aluno:', marginX + 4, currentY + 7.5);
-  doc.setTextColor(15, 23, 42);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.text(data.student.name, marginX + 16, currentY + 7.5);
+  doc.setTextColor(15, 23, 42); // slate-900
+  const nameLines = doc.splitTextToSize(student.name || 'Aluno', 60);
+  doc.text(nameLines[0] ?? (student.name || 'Aluno'), marginX + 4, currentY + 11);
 
-  const col2X = marginX + 90;
-  doc.setTextColor(71, 85, 105);
+  // 2. Matrícula
+  const colMatriculaX = marginX + 68;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6);
+  doc.setTextColor(148, 163, 184);
+  doc.text('MATRÍCULA', colMatriculaX, currentY + 5);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
-  doc.text('Matrícula:', col2X, currentY + 7.5);
   doc.setTextColor(15, 23, 42);
+  doc.text(student.registrationNumber || '—', colMatriculaX, currentY + 11);
+
+  // 3. Curso
+  const colCursoX = marginX + 102;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6);
+  doc.setTextColor(148, 163, 184);
+  doc.text('CURSO', colCursoX, currentY + 5);
   doc.setFont('helvetica', 'normal');
-  doc.text(data.student.registrationNumber || '—', col2X + 16, currentY + 7.5);
-
-  const col3X = marginX + 150;
-  doc.setTextColor(71, 85, 105);
-  doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
-  doc.text('Curso:', col3X, currentY + 7.5);
-  doc.setTextColor(15, 23, 42);
-  doc.setFont('helvetica', 'normal');
-  const courseLines = doc.splitTextToSize(data.student.courseName || '—', 55);
-  doc.text(courseLines[0] ?? (data.student.courseName || '—'), col3X + 12, currentY + 7.5);
+  doc.setTextColor(30, 41, 59); // slate-800
+  const courseLines = doc.splitTextToSize(student.courseName || '—', 52);
+  doc.text(courseLines[0] ?? (student.courseName || '—'), colCursoX, currentY + 11);
 
-  const col4X = marginX + 220;
-  doc.setTextColor(71, 85, 105);
+  // 4. Turma
+  const colTurmaX = marginX + 158;
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.text('Turma(s):', col4X, currentY + 7.5);
-  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(6);
+  doc.setTextColor(148, 163, 184);
+  doc.text('TURMA', colTurmaX, currentY + 5);
   doc.setFont('helvetica', 'normal');
-  const classLines = doc.splitTextToSize(classStr, 40);
-  doc.text(classLines[0] ?? classStr, col4X + 15, currentY + 7.5);
+  doc.setFontSize(7.5);
+  doc.setTextColor(30, 41, 59);
+  const classLines = doc.splitTextToSize(classStr, 48);
+  doc.text(classLines[0] ?? classStr, colTurmaX, currentY + 11);
+
+  // Vertical Divider 1
+  doc.setDrawColor(226, 232, 240);
+  doc.line(marginX + 210, currentY + 2, marginX + 210, currentY + infoBoxHeight - 2);
+
+  // 5. Média Geral
+  const colGpaX = marginX + 214;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6);
+  doc.setTextColor(148, 163, 184);
+  doc.text('MÉDIA GERAL', colGpaX, currentY + 5);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(15, 23, 42);
+  doc.text(formatGrade(data.overallGpa), colGpaX, currentY + 11.5);
+
+  // Vertical Divider 2
+  doc.line(marginX + 242, currentY + 2, marginX + 242, currentY + infoBoxHeight - 2);
+
+  // 6. Frequência
+  const colFreqX = marginX + 246;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6);
+  doc.setTextColor(148, 163, 184);
+  doc.text('FREQUÊNCIA', colFreqX, currentY + 5);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  doc.setTextColor(30, 41, 59);
+  const freqStr = `${(Number(data.overallAttendanceRate) || 0).toFixed(1).replace('.', ',')}%`;
+  doc.text(freqStr, colFreqX, currentY + 11.5);
 
   currentY += infoBoxHeight + 5;
 
   // ==========================================
-  // 3. CONSOLIDATED BOLETIM TABLE (WITHOUT SITUAÇÃO)
+  // 3. DETALHAMENTO DAS AVALIAÇÕES POR ETAPA (2 COLUNAS DE CARDS MATCHING MODAL)
   // ==========================================
-  doc.setTextColor(15, 23, 42);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.text(`Boletim Consolidado — ${classStr}`, marginX, currentY);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.5);
-  doc.setTextColor(100, 116, 139);
-  doc.text('Visão geral de desempenho com médias calculadas conforme a configuração de cada etapa (Média Aritmética ou Maior Nota).', marginX, currentY + 3.5);
-
-  currentY += 6;
-
-  // Compute column widths without Situação
-  // Aluno: 65mm, Média Geral: 24mm, Freq: 24mm
-  // Remaining space divided among modules
-  const studentColWidth = 65;
-  const gpaColWidth = 24;
-  const freqColWidth = 24;
-  const fixedColsWidth = studentColWidth + gpaColWidth + freqColWidth; // 113mm
-  const remainingWidth = contentWidth - fixedColsWidth; // 164mm
-  const modCount = Math.max(1, data.modules.length);
-  const modColWidth = remainingWidth / modCount;
-
-  // Table header background (light slate-50)
-  const headerHeight = 10;
-  doc.setFillColor(248, 250, 252);
-  doc.rect(marginX, currentY, contentWidth, headerHeight, 'F');
-  doc.setDrawColor(226, 232, 240);
-  doc.setLineWidth(0.3);
-  doc.line(marginX, currentY, marginX + contentWidth, currentY);
-  doc.line(marginX, currentY + headerHeight, marginX + contentWidth, currentY + headerHeight);
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.setTextColor(71, 85, 105);
-
-  let curX = marginX;
-  doc.text('Aluno', curX + 3, currentY + 6.5);
-  curX += studentColWidth;
-
-  for (const mod of data.modules) {
-    doc.line(curX, currentY, curX, currentY + headerHeight);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7);
-    doc.setTextColor(30, 41, 59);
-    const modTitle = doc.splitTextToSize(mod.moduleName, modColWidth - 2);
-    doc.text(modTitle[0] ?? mod.moduleName, curX + modColWidth / 2, currentY + 4, { align: 'center' });
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(5.5);
-    doc.setTextColor(148, 163, 184);
-    doc.text(mod.calculationModeLabel || 'Média Simples', curX + modColWidth / 2, currentY + 8, { align: 'center' });
-    curX += modColWidth;
-  }
-
-  doc.line(curX, currentY, curX, currentY + headerHeight);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
-  doc.setTextColor(71, 85, 105);
-  doc.text('Média Geral', curX + gpaColWidth / 2, currentY + 6.5, { align: 'center' });
-  curX += gpaColWidth;
-
-  doc.text('Frequência', curX + freqColWidth / 2, currentY + 6.5, { align: 'center' });
-  curX += freqColWidth;
-
-  currentY += headerHeight;
-
-  // Student row
-  const rowHeight = 10;
-  doc.setFillColor(255, 255, 255);
-  doc.rect(marginX, currentY, contentWidth, rowHeight, 'F');
-  doc.line(marginX, currentY + rowHeight, marginX + contentWidth, currentY + rowHeight);
-
-  curX = marginX;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.setTextColor(15, 23, 42);
-  const nameLines = doc.splitTextToSize(data.student.name, studentColWidth - 4);
-  doc.text(nameLines[0] ?? data.student.name, curX + 3, currentY + 6);
-  curX += studentColWidth;
-
-  for (const mod of data.modules) {
-    doc.setDrawColor(241, 245, 249);
-    doc.line(curX, currentY, curX, currentY + rowHeight);
-
+  const modules = data.modules ?? [];
+  if (modules.length > 0) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
-    doc.setTextColor(30, 41, 59);
-    const gradeStr = formatGrade(mod.finalGrade);
-    doc.text(gradeStr, curX + modColWidth / 2, currentY + 6.5, { align: 'center' });
-
-    curX += modColWidth;
-  }
-
-  doc.setDrawColor(241, 245, 249);
-  doc.line(curX, currentY, curX, currentY + rowHeight);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.setTextColor(15, 23, 42);
-  doc.text(formatGrade(data.overallGpa), curX + gpaColWidth / 2, currentY + 6.5, { align: 'center' });
-  curX += gpaColWidth;
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(51, 65, 85);
-  doc.text(`${data.overallAttendanceRate.toFixed(1).replace('.', ',')}%`, curX + freqColWidth / 2, currentY + 6.5, { align: 'center' });
-
-  currentY += rowHeight + 6;
-
-  // ==========================================
-  // 4. DETAILED EVALUATIONS BREAKDOWN
-  // ==========================================
-  const modulesWithGrades = data.modules.filter((m) => m.grades.length > 0);
-  if (modulesWithGrades.length > 0 && currentY < pageHeight - 80) {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    doc.setTextColor(71, 85, 105);
+    doc.setTextColor(100, 116, 139);
     doc.text('DETALHAMENTO DAS AVALIAÇÕES POR ETAPA', marginX, currentY);
-    currentY += 4.5;
+    currentY += 3.5;
 
-    for (const mod of modulesWithGrades) {
-      if (currentY > pageHeight - 65) break;
+    const cardWidth = (contentWidth - 6) / 2; // 135.5mm
+    const cardGap = 6;
+    let leftY = currentY;
+    let rightY = currentY;
 
+    modules.forEach((mod, idx) => {
+      const isLeft = idx % 2 === 0;
+      const cardX = isLeft ? marginX : marginX + cardWidth + cardGap;
+      const cardTopY = isLeft ? leftY : rightY;
+
+      const gradesCount = Math.max(1, (mod.grades ?? []).length);
+      const cardHeight = 8 + gradesCount * 5.2 + 2;
+
+      // Card Box
       doc.setFillColor(248, 250, 252);
       doc.setDrawColor(226, 232, 240);
-      const subHeaderHeight = 6;
-      doc.rect(marginX, currentY, contentWidth, subHeaderHeight, 'F');
+      doc.setLineWidth(0.25);
+      doc.roundedRect(cardX, cardTopY, cardWidth, cardHeight, 1.5, 1.5, 'FD');
+
+      // Card Header
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7);
+      doc.setFontSize(7.5);
       doc.setTextColor(15, 23, 42);
-      doc.text(`${mod.moduleName} (${mod.calculationModeLabel || 'Média Simples'})`, marginX + 3, currentY + 4.2);
+      const modNameTruncated = doc.splitTextToSize(mod.moduleName || 'Etapa', cardWidth - 45);
+      doc.text(modNameTruncated[0] ?? mod.moduleName, cardX + 3, cardTopY + 4.5);
 
       doc.setFont('helvetica', 'normal');
+      doc.setFontSize(5.5);
       doc.setTextColor(100, 116, 139);
-      doc.text(`Média: ${formatGrade(mod.finalGrade)}`, marginX + contentWidth - 4, currentY + 4.2, { align: 'right' });
-      currentY += subHeaderHeight;
+      doc.text(mod.calculationModeLabel || 'Média Simples', cardX + 3, cardTopY + 7);
 
-      for (const g of mod.grades) {
-        if (currentY > pageHeight - 55) break;
-        doc.setFillColor(255, 255, 255);
-        doc.rect(marginX, currentY, contentWidth, 5, 'F');
-        doc.setDrawColor(241, 245, 249);
-        doc.line(marginX, currentY + 5, marginX + contentWidth, currentY + 5);
+      // Card Final Grade on right
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(15, 23, 42);
+      const finalGradeStr = formatGrade(mod.finalGrade);
+      doc.text(finalGradeStr, cardX + cardWidth - 3, cardTopY + 5, { align: 'right' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(5);
+      doc.setTextColor(148, 163, 184);
+      doc.text('média da etapa', cardX + cardWidth - 3, cardTopY + 7.5, { align: 'right' });
 
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(6.5);
-        doc.setTextColor(51, 65, 85);
-        doc.text(g.name, marginX + 6, currentY + 3.5);
+      // Divider inside card
+      doc.setDrawColor(226, 232, 240);
+      doc.line(cardX + 2, cardTopY + 8.5, cardX + cardWidth - 2, cardTopY + 8.5);
 
-        const scoreStr = g.score !== null ? `${g.score.toFixed(1).replace('.', ',')} / ${g.maxScore}` : `— / ${g.maxScore}`;
-        doc.setFont('helvetica', 'bold');
-        doc.text(scoreStr, marginX + contentWidth - 6, currentY + 3.5, { align: 'right' });
-        currentY += 5;
+      // Grades rows
+      let gradeRowY = cardTopY + 9.5;
+      if (mod.grades && mod.grades.length > 0) {
+        mod.grades.forEach((g) => {
+          doc.setFillColor(255, 255, 255);
+          doc.rect(cardX + 2, gradeRowY, cardWidth - 4, 4.5, 'F');
+          doc.setDrawColor(241, 245, 249);
+          doc.rect(cardX + 2, gradeRowY, cardWidth - 4, 4.5, 'S');
+
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(6.5);
+          doc.setTextColor(51, 65, 85);
+          const gName = doc.splitTextToSize(g.name || 'Avaliação', cardWidth - 32);
+          doc.text(gName[0] ?? g.name, cardX + 4, gradeRowY + 3.2);
+
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(7);
+          doc.setTextColor(15, 23, 42);
+          const scoreText = typeof g.score === 'number' && !Number.isNaN(g.score)
+            ? `${g.score.toFixed(1).replace('.', ',')} / ${g.maxScore ?? 10}`
+            : `— / ${g.maxScore ?? 10}`;
+          doc.text(scoreText, cardX + cardWidth - 4, gradeRowY + 3.2, { align: 'right' });
+
+          gradeRowY += 5.2;
+        });
+      } else {
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(6);
+        doc.setTextColor(148, 163, 184);
+        doc.text('Nenhuma avaliação lançada nesta etapa.', cardX + cardWidth / 2, gradeRowY + 3.5, { align: 'center' });
+        gradeRowY += 5.2;
       }
-      currentY += 2;
-    }
+
+      if (isLeft) {
+        leftY = cardTopY + cardHeight + 3;
+      } else {
+        rightY = cardTopY + cardHeight + 3;
+      }
+    });
+
+    currentY = Math.max(leftY, rightY) + 2;
   }
 
   // ==========================================
-  // 5. SUMMARY FOOTER & CRITERIA
+  // 4. SUMMARY FOOTER & CRITERIA
   // ==========================================
-  const footerBoxHeight = 16;
-  const footerY = Math.min(Math.max(currentY + 2, pageHeight - 52), pageHeight - 48);
+  const footerBoxHeight = 14;
+  const footerY = Math.max(currentY, pageHeight - 56);
 
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.3);
   doc.roundedRect(marginX, footerY, contentWidth, footerBoxHeight, 2, 2, 'FD');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
-  doc.setTextColor(71, 85, 105);
-  doc.text('CRITÉRIOS DE AVALIAÇÃO E LEGENDA:', marginX + 4, footerY + 5);
+  doc.setFontSize(6.5);
+  doc.setTextColor(51, 65, 85); // slate-700
+  doc.text('CRITÉRIOS DE AVALIAÇÃO E LEGENDA:', marginX + 4, footerY + 4.5);
+
+  const minAtt = (data.criteria?.minAttendanceRate != null ? data.criteria.minAttendanceRate : 75).toFixed(1).replace('.', ',');
+  const minPass = (data.criteria?.minPassingGrade != null ? data.criteria.minPassingGrade : 6).toFixed(1).replace('.', ',');
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.5);
+  doc.setFontSize(6);
   doc.setTextColor(100, 116, 139);
-  doc.text(
-    `• Frequência Mínima: ${data.criteria.minAttendanceRate.toFixed(1)}% das aulas ministradas para aprovação.`,
-    marginX + 4,
-    footerY + 9.5
-  );
-  doc.text(
-    `• Média de Aprovação: Nota igual ou superior a ${data.criteria.minPassingGrade.toFixed(1)} na escala de 0,0 a 10,0.`,
-    marginX + 4,
-    footerY + 13.5
-  );
+  doc.text(`• Frequência Mínima: ${minAtt}% das aulas ministradas para aprovação.`, marginX + 4, footerY + 8.5);
+  doc.text(`• Média de Aprovação: Nota igual ou superior a ${minPass} na escala de 0,0 a 10,0.`, marginX + 4, footerY + 12);
 
   // Totals on right
-  const totalClasses = data.modules.reduce((s, m) => s + m.classesHeld, 0);
-  const totalPres = data.modules.reduce((s, m) => s + m.presences, 0);
-  const totalAbs = data.modules.reduce((s, m) => s + m.absences, 0);
-  const totalsStr = `Aulas: ${totalClasses}  |  Presenças: ${totalPres}  |  Faltas: ${totalAbs}`;
+  const totalClasses = modules.reduce((s, m) => s + (Number(m.classesHeld) || 0), 0);
+  const totalPres = modules.reduce((s, m) => s + (Number(m.presences) || 0), 0);
+  const totalAbs = modules.reduce((s, m) => s + (Number(m.absences) || 0), 0);
+  const totalJust = modules.reduce((s, m) => s + (Number(m.justified) || 0), 0);
+
+  const totalsStr = `Aulas: ${totalClasses}   |   Presenças: ${totalPres}   |   Faltas: ${totalAbs}${totalJust > 0 ? `   |   Justificadas: ${totalJust}` : ''}`;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6.5);
   doc.setTextColor(15, 23, 42);
-  doc.text(totalsStr, marginX + contentWidth - 4, footerY + 9.5, { align: 'right' });
+  doc.text(totalsStr, marginX + contentWidth - 4, footerY + 8.5, { align: 'right' });
 
   // ==========================================
-  // 6. FORMAL SIGNATURES
+  // 5. FORMAL SIGNATURES AREA
   // ==========================================
-  const sigY = footerY + footerBoxHeight + 11;
-  const sigLineWidth = 60;
-  const sig1X = marginX + 16;
-  const sig2X = marginX + contentWidth - sigLineWidth - 16;
+  const sigY = footerY + footerBoxHeight + 9;
+  const sigLineWidth = 65;
+  const sig1X = marginX + 24;
+  const sig2X = marginX + contentWidth - sigLineWidth - 24;
 
   doc.setDrawColor(148, 163, 184);
-  doc.setLineWidth(0.4);
+  doc.setLineWidth(0.35);
 
   doc.line(sig1X, sigY, sig1X + sigLineWidth, sigY);
   doc.setFont('helvetica', 'bold');
@@ -347,7 +336,7 @@ export function buildBoletimPdf(data: UnifiedBoletimData): jsPDF {
   doc.setTextColor(15, 23, 42);
   doc.text('Coordenação Pedagógica / Direção', sig1X + sigLineWidth / 2, sigY + 3.5, { align: 'center' });
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6);
+  doc.setFontSize(5.5);
   doc.setTextColor(100, 116, 139);
   doc.text('Instituto Transforma Brasil', sig1X + sigLineWidth / 2, sigY + 6.5, { align: 'center' });
 
@@ -357,9 +346,59 @@ export function buildBoletimPdf(data: UnifiedBoletimData): jsPDF {
   doc.setTextColor(15, 23, 42);
   doc.text('Aluno(a) ou Responsável Legal', sig2X + sigLineWidth / 2, sigY + 3.5, { align: 'center' });
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6);
+  doc.setFontSize(5.5);
   doc.setTextColor(100, 116, 139);
   doc.text('Assinatura do Aluno / Responsável', sig2X + sigLineWidth / 2, sigY + 6.5, { align: 'center' });
+
+  // ==========================================
+  // 6. INSTITUTIONAL FOOTER WITH QR CODE (BOTTOM-RIGHT)
+  // ==========================================
+  const bottomFooterY = pageHeight - 16;
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.3);
+  doc.line(marginX, bottomFooterY, marginX + contentWidth, bottomFooterY);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(30, 41, 59);
+  doc.text('ERPITB — Relatório Acadêmico', marginX, bottomFooterY + 5);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6);
+  doc.setTextColor(100, 116, 139);
+  doc.text('Documento oficial emitido pelo Sistema de Gestão ERPITB — Instituto Transforma Brasil.', marginX, bottomFooterY + 9);
+
+  // QR Code on bottom-right
+  const qrX = marginX + contentWidth - 14;
+  const qrY = bottomFooterY + 1.5;
+  const qrSize = 13;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6);
+  doc.setTextColor(51, 65, 85);
+  doc.text('Boletim Virtual', qrX - 2, bottomFooterY + 6, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(5);
+  doc.setTextColor(100, 116, 139);
+  doc.text('Escaneie para validar', qrX - 2, bottomFooterY + 9.5, { align: 'right' });
+
+  if (options?.qrDataUrl) {
+    try {
+      doc.addImage(options.qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
+    } catch {
+      // Fallback border box if addImage fails in testing environments
+      doc.setDrawColor(203, 213, 225);
+      doc.rect(qrX, qrY, qrSize, qrSize);
+    }
+  } else {
+    // Elegant placeholder box with mini QR label
+    doc.setDrawColor(203, 213, 225);
+    doc.rect(qrX, qrY, qrSize, qrSize);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(5);
+    doc.setTextColor(148, 163, 184);
+    doc.text('QR', qrX + qrSize / 2, qrY + qrSize / 2 + 1.5, { align: 'center' });
+  }
 
   return doc;
 }
@@ -368,7 +407,7 @@ export function buildBoletimPdf(data: UnifiedBoletimData): jsPDF {
  * Builds a vector-based jsPDF A4 document representing the Consolidated Class Boletim
  * matching the exact table in the screenshot.
  */
-export function buildClassBoletimPdf(data: ClassBoletimData): jsPDF {
+export function buildClassBoletimPdf(data: ClassBoletimData, options?: { watermarkText?: string }): jsPDF {
   const doc = new jsPDF({
     orientation: 'landscape',
     unit: 'mm',
@@ -380,69 +419,86 @@ export function buildClassBoletimPdf(data: ClassBoletimData): jsPDF {
   const marginX = 10;
   const contentWidth = pageWidth - marginX * 2;
 
+  // Background Watermark
+  const watermarkText = options?.watermarkText || 'INSTITUTO TRANSFORMA BRASIL';
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(28);
+  doc.setTextColor(241, 245, 249);
+  doc.text(watermarkText, pageWidth / 2, pageHeight / 2, {
+    align: 'center',
+    angle: 25,
+  });
+
   let currentY = 10;
 
-  // Header Banner
-  doc.setFillColor(15, 23, 42); // slate-900
-  doc.rect(marginX, currentY, contentWidth, 20, 'F');
-
-  doc.setFillColor(2, 132, 199); // sky-600
-  doc.rect(marginX, currentY, contentWidth, 1.2, 'F');
-
-  doc.setTextColor(255, 255, 255);
+  // Header (Clean White, No Dark Block)
+  doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.text('INSTITUTO TRANSFORMA BRASIL', marginX + 5, currentY + 7);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(203, 213, 225);
-  doc.text('ERPITB — RELATÓRIO ACADÊMICO', marginX + 5, currentY + 11.5);
+  doc.setFontSize(10);
+  doc.text('INSTITUTO TRANSFORMA BRASIL', marginX, currentY + 4);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(255, 255, 255);
-  doc.text(`BOLETIM CONSOLIDADO — ${data.className}`, marginX + 5, currentY + 16.5);
+  doc.setFontSize(12.5);
+  doc.text('BOLETIM CONSOLIDADO DA TURMA', marginX, currentY + 9.5);
 
-  const emissionStr = `Emissão: ${formatEmissionDate(data.issueDate || new Date().toISOString())}`;
+  const emissionStr = `Data e Hora de Emissão: ${formatEmissionDate(data.issueDate)}`;
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(203, 213, 225);
-  doc.text(emissionStr, marginX + contentWidth - 5, currentY + 16.5, { align: 'right' });
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text(emissionStr, marginX + contentWidth, currentY + 9.5, { align: 'right' });
 
-  currentY += 23;
+  currentY += 12;
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.3);
+  doc.line(marginX, currentY, marginX + contentWidth, currentY);
 
-  // Metadata Strip
+  currentY += 4;
+
+  // Metadata Box
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(226, 232, 240);
   doc.setLineWidth(0.3);
-  const metaHeight = 9;
-  doc.rect(marginX, currentY, contentWidth, metaHeight, 'FD');
+  doc.roundedRect(marginX, currentY, contentWidth, 12, 2, 2, 'FD');
 
+  doc.setTextColor(71, 85, 105);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
+  doc.text('Curso:', marginX + 4, currentY + 7.5);
+  doc.setTextColor(15, 23, 42);
+  doc.setFont('helvetica', 'normal');
+  doc.text(data.courseName || '—', marginX + 16, currentY + 7.5);
+
+  const col2X = marginX + 90;
   doc.setTextColor(71, 85, 105);
-  doc.text(`Curso: ${data.courseName || '—'}`, marginX + 4, currentY + 6);
-  doc.text(`Turma: ${data.className}`, marginX + 90, currentY + 6);
-  doc.text(`Total de Alunos: ${data.totalStudents}`, marginX + 160, currentY + 6);
-  if (data.classAverage !== null) {
-    doc.text(`Média da Turma: ${formatGrade(data.classAverage)}`, marginX + contentWidth - 4, currentY + 6, { align: 'right' });
-  }
+  doc.setFont('helvetica', 'bold');
+  doc.text('Turma:', col2X, currentY + 7.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text(data.className, col2X + 14, currentY + 7.5);
 
-  currentY += metaHeight + 4;
+  const col3X = marginX + 180;
+  doc.setTextColor(71, 85, 105);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Total de Alunos:', col3X, currentY + 7.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text(String(data.totalStudents), col3X + 24, currentY + 7.5);
 
-  // Calculate table column widths (without Situação)
+  currentY += 16;
+
+  // Table Columns Setup
   const studentColWidth = 65;
   const gpaColWidth = 24;
   const freqColWidth = 24;
-  const fixedWidth = studentColWidth + gpaColWidth + freqColWidth;
-  const tableColWidth = (contentWidth - fixedWidth) / Math.max(1, data.tables.length);
+  const fixedColsWidth = studentColWidth + gpaColWidth + freqColWidth;
+  const remainingWidth = contentWidth - fixedColsWidth;
+  const tableCount = Math.max(1, data.tables.length);
+  const tableColWidth = remainingWidth / tableCount;
 
   // Table Header
   const headerHeight = 11;
   doc.setFillColor(248, 250, 252);
   doc.rect(marginX, currentY, contentWidth, headerHeight, 'F');
   doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.3);
   doc.line(marginX, currentY, marginX + contentWidth, currentY);
   doc.line(marginX, currentY + headerHeight, marginX + contentWidth, currentY + headerHeight);
 
@@ -463,9 +519,9 @@ export function buildClassBoletimPdf(data: ClassBoletimData): jsPDF {
     doc.text(titleLines[0] ?? t.name, curX + tableColWidth / 2, currentY + 4.5, { align: 'center' });
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6);
+    doc.setFontSize(5.5);
     doc.setTextColor(148, 163, 184);
-    doc.text(t.calculationModeLabel, curX + tableColWidth / 2, currentY + 8.5, { align: 'center' });
+    doc.text(t.calculationModeLabel || 'Média Simples', curX + tableColWidth / 2, currentY + 8.5, { align: 'center' });
     curX += tableColWidth;
   }
 
@@ -477,16 +533,15 @@ export function buildClassBoletimPdf(data: ClassBoletimData): jsPDF {
   curX += gpaColWidth;
 
   doc.text('Frequência', curX + freqColWidth / 2, currentY + 7, { align: 'center' });
-  curX += freqColWidth;
 
   currentY += headerHeight;
 
-  // Student Rows
-  const rowHeight = 9.5;
+  // Student rows
+  const rowHeight = 8.5;
   for (const student of data.students) {
-    if (currentY + rowHeight > pageHeight - 25) {
+    if (currentY > pageHeight - 35) {
       doc.addPage();
-      currentY = 12;
+      currentY = 15;
     }
 
     doc.setFillColor(255, 255, 255);
@@ -496,20 +551,25 @@ export function buildClassBoletimPdf(data: ClassBoletimData): jsPDF {
 
     curX = marginX;
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7);
+    doc.setFontSize(7.5);
     doc.setTextColor(15, 23, 42);
-    const studentLines = doc.splitTextToSize(student.studentName, studentColWidth - 4);
-    doc.text(studentLines[0] ?? student.studentName, curX + 3, currentY + 6);
+    const sName = doc.splitTextToSize(student.studentName, studentColWidth - 4);
+    doc.text(sName[0] ?? student.studentName, curX + 3, currentY + 5.5);
     curX += studentColWidth;
 
-    for (const tr of student.tableResults) {
+    for (const t of data.tables) {
       doc.setDrawColor(241, 245, 249);
       doc.line(curX, currentY, curX, currentY + rowHeight);
 
+      const result = student.tableResults.find((r) => r.tableId === t.id);
+      const avgStr = result && typeof result.average === 'number' && !Number.isNaN(result.average)
+        ? formatGrade(result.average)
+        : '—';
+
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7);
+      doc.setFontSize(7.5);
       doc.setTextColor(30, 41, 59);
-      doc.text(formatGrade(tr.average), curX + tableColWidth / 2, currentY + 6.5, { align: 'center' });
+      doc.text(avgStr, curX + tableColWidth / 2, currentY + 5.5, { align: 'center' });
 
       curX += tableColWidth;
     }
@@ -519,20 +579,19 @@ export function buildClassBoletimPdf(data: ClassBoletimData): jsPDF {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
     doc.setTextColor(15, 23, 42);
-    doc.text(formatGrade(student.overallAverage), curX + gpaColWidth / 2, currentY + 6, { align: 'center' });
+    doc.text(formatGrade(student.overallAverage), curX + gpaColWidth / 2, currentY + 5.5, { align: 'center' });
     curX += gpaColWidth;
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
     doc.setTextColor(51, 65, 85);
-    doc.text(student.attendanceRateLabel, curX + freqColWidth / 2, currentY + 6, { align: 'center' });
-    curX += freqColWidth;
+    doc.text(student.attendanceRateLabel, curX + freqColWidth / 2, currentY + 5.5, { align: 'center' });
 
     currentY += rowHeight;
   }
 
   // Footer notes & signatures
-  const sigY = Math.min(currentY + 12, pageHeight - 18);
+  const sigY = Math.min(currentY + 12, pageHeight - 16);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6);
   doc.setTextColor(148, 163, 184);
@@ -553,7 +612,7 @@ export function getBoletimPdfFilename(
   customFilename?: string
 ): string {
   if (customFilename) return customFilename;
-  const safeName = safeFilename(data.student.name || 'Aluno');
+  const safeName = safeFilename(data.student?.name || 'Aluno');
   return `Boletim_${safeName || 'Aluno'}.pdf`;
 }
 
@@ -563,9 +622,28 @@ export function getBoletimPdfFilename(
 export async function exportBoletimPdf(
   data: UnifiedBoletimData,
   customFilename?: string,
-  docInstance?: jsPDF
+  docInstance?: jsPDF,
+  options?: BoletimPdfOptions
 ): Promise<void> {
-  const doc = docInstance || buildBoletimPdf(data);
+  let doc = docInstance;
+  if (!doc) {
+    let qrDataUrl = options?.qrDataUrl;
+    if (!qrDataUrl) {
+      try {
+        const portalCode = data.student?.registrationNumber || data.student?.id || '';
+        const publicPortalUrl =
+          options?.portalUrl ||
+          (typeof window !== 'undefined' && window.location?.origin
+            ? `${window.location.origin}/aluno/${encodeURIComponent(portalCode)}`
+            : `https://erp.itbcursos.com/aluno/${encodeURIComponent(portalCode)}`);
+        qrDataUrl = await QRCode.toDataURL(publicPortalUrl, { margin: 0, width: 120 });
+      } catch {
+        qrDataUrl = undefined;
+      }
+    }
+    doc = buildBoletimPdf(data, { ...options, qrDataUrl });
+  }
+
   const filename = getBoletimPdfFilename(data, customFilename);
   doc.save(filename);
 }

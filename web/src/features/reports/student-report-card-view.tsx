@@ -81,6 +81,16 @@ export function StudentReportCardView({
 }: StudentReportCardViewProps) {
   const [downloading, setDownloading] = useState(false);
 
+  const student = data?.student ?? { name: 'Aluno', id: '', classNames: [] };
+  const classNames = student.classNames ?? [];
+  const classTitle = classNames.length > 0 ? classNames.join(', ') : 'Turma';
+  const portalCode = student.registrationNumber || student.id || '';
+  const publicPortalUrl =
+    portalUrl ||
+    (typeof window !== 'undefined' && window.location?.origin
+      ? `${window.location.origin}/aluno/${encodeURIComponent(portalCode)}`
+      : `https://erp.itbcursos.com/aluno/${encodeURIComponent(portalCode)}`);
+
   const handlePrint = () => {
     if (onPrint) {
       onPrint();
@@ -97,7 +107,10 @@ export function StudentReportCardView({
     try {
       setDownloading(true);
       const { exportBoletimPdf } = await import('../../lib/boletim-pdf');
-      await exportBoletimPdf(data);
+      await exportBoletimPdf(data, undefined, undefined, {
+        portalUrl: publicPortalUrl,
+        watermarkText,
+      });
     } finally {
       setDownloading(false);
     }
@@ -125,16 +138,6 @@ export function StudentReportCardView({
       return data?.issueDate || '';
     }
   })();
-
-  const student = data?.student ?? { name: 'Aluno', id: '', classNames: [] };
-  const classNames = student.classNames ?? [];
-  const classTitle = classNames.length > 0 ? classNames.join(', ') : 'Turma';
-  const portalCode = student.registrationNumber || student.id || '';
-  const publicPortalUrl =
-    portalUrl ||
-    (typeof window !== 'undefined' && window.location?.origin
-      ? `${window.location.origin}/aluno/${encodeURIComponent(portalCode)}`
-      : `https://erp.itbcursos.com/aluno/${encodeURIComponent(portalCode)}`);
 
   return (
     <div className="flex flex-col gap-4 text-left w-full max-w-5xl mx-auto print-landscape print:max-w-none print:w-full print:mx-0 relative">
@@ -181,7 +184,7 @@ export function StudentReportCardView({
       </div>
 
       {/* PRINTABLE BOLETIM SHEET */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-2xs print:border-none print:p-0 print:shadow-none print:w-full flex flex-col gap-6 relative overflow-hidden">
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-2xs print:border-none print:p-0 print:shadow-none print:w-full print:overflow-visible flex flex-col gap-6 relative overflow-hidden">
         <PrintWatermark text={watermarkText} logoUrl={watermarkLogoUrl} grayscale={watermarkGrayscale} />
         {/* 1. INSTITUTIONAL ITB HEADER */}
         <div className="border-b border-slate-200 pb-4 flex items-center justify-between gap-4">
