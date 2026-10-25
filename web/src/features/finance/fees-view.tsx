@@ -616,6 +616,9 @@ export function FeesView() {
         className={classes.items.find((c: LocalRecord) => c.id === filterClassId)?.name as string | undefined}
         appName={branding?.appName}
         watermarkText={branding?.printWatermarkText}
+        watermarkLogoUrl={branding?.printWatermarkLogoUrl}
+        watermarkGrayscale={branding?.printWatermarkGrayscale ?? true}
+        logoUrl={branding?.loginLogoUrl}
         showHeaderLogoLeft={branding?.showHeaderLogoLeft ?? true}
         showHeaderLogoRight={branding?.showHeaderLogoRight ?? true}
       />

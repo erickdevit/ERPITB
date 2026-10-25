@@ -512,6 +512,9 @@ export function CashView({ mode = 'all' }: { mode?: 'all' | 'entrada' | 'saida' 
         periodLabel={filterMonth}
         appName={branding?.appName}
         watermarkText={branding?.printWatermarkText}
+        watermarkLogoUrl={branding?.printWatermarkLogoUrl}
+        watermarkGrayscale={branding?.printWatermarkGrayscale ?? true}
+        logoUrl={branding?.loginLogoUrl}
         showHeaderLogoLeft={branding?.showHeaderLogoLeft ?? true}
         showHeaderLogoRight={branding?.showHeaderLogoRight ?? true}
       />

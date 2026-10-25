@@ -61,6 +61,7 @@ export interface StudentReportCardViewProps {
   onDownloadPdf?: () => void;
   watermarkText?: string;
   watermarkLogoUrl?: string;
+  watermarkGrayscale?: boolean;
   logoUrl?: string;
   showHeaderLogoLeft?: boolean;
   showHeaderLogoRight?: boolean;

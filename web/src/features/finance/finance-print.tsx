@@ -45,6 +45,9 @@ interface FeesPrintDocumentProps {
   className?: string;
   appName?: string;
   watermarkText?: string;
+  watermarkLogoUrl?: string;
+  watermarkGrayscale?: boolean;
+  logoUrl?: string;
   showHeaderLogoLeft?: boolean;
   showHeaderLogoRight?: boolean;
 }
@@ -57,6 +60,9 @@ export function FeesPrintDocument({
   className,
   appName = 'ERPITB',
   watermarkText = 'INSTITUTO TRANSFORMA BRASIL',
+  watermarkLogoUrl,
+  watermarkGrayscale = true,
+  logoUrl,
   showHeaderLogoLeft = true,
   showHeaderLogoRight = true,
 }: FeesPrintDocumentProps) {
@@ -72,7 +78,7 @@ export function FeesPrintDocument({
 
   return (
     <div className="hidden print:block print-portrait font-sans text-slate-900 bg-white p-2 relative">
-      <PrintWatermark text={watermarkText} />
+      <PrintWatermark text={watermarkText} logoUrl={watermarkLogoUrl} grayscale={watermarkGrayscale} />
       <style type="text/css" media="print">
         {`
           @page {
@@ -89,12 +95,21 @@ export function FeesPrintDocument({
         <div>
           <div className="flex items-center gap-2">
             {showHeaderLogoLeft && (
-              <span
-                data-testid="print-logo-left"
-                className="font-black text-sm tracking-widest uppercase bg-slate-950 text-white px-2 py-0.5 rounded"
-              >
-                ITB
-              </span>
+              logoUrl ? (
+                <img
+                  src={logoUrl}
+                  alt={appName}
+                  className="h-8 max-w-[140px] object-contain rounded"
+                  data-testid="print-logo-left"
+                />
+              ) : (
+                <span
+                  data-testid="print-logo-left"
+                  className="font-black text-sm tracking-widest uppercase bg-slate-950 text-white px-2 py-0.5 rounded"
+                >
+                  ITB
+                </span>
+              )
             )}
             <span className="text-xs font-black uppercase tracking-wider text-slate-700">
               Instituto Transforma Brasil — {appName}
@@ -114,12 +129,21 @@ export function FeesPrintDocument({
             <p>Total de Registros: <strong>{fees.length}</strong></p>
           </div>
           {showHeaderLogoRight && (
-            <span
-              data-testid="print-logo-right"
-              className="font-black text-xs tracking-widest uppercase border border-slate-900 text-slate-900 px-1.5 py-0.5 rounded"
-            >
-              ITB
-            </span>
+            logoUrl ? (
+              <img
+                src={logoUrl}
+                alt={appName}
+                className="h-7 max-w-[120px] object-contain rounded"
+                data-testid="print-logo-right"
+              />
+            ) : (
+              <span
+                data-testid="print-logo-right"
+                className="font-black text-xs tracking-widest uppercase border border-slate-900 text-slate-900 px-1.5 py-0.5 rounded"
+              >
+                ITB
+              </span>
+            )
           )}
         </div>
       </div>
@@ -225,6 +249,9 @@ interface CashPrintDocumentProps {
   periodLabel?: string;
   appName?: string;
   watermarkText?: string;
+  watermarkLogoUrl?: string;
+  watermarkGrayscale?: boolean;
+  logoUrl?: string;
   showHeaderLogoLeft?: boolean;
   showHeaderLogoRight?: boolean;
 }
@@ -235,6 +262,9 @@ export function CashPrintDocument({
   periodLabel,
   appName = 'ERPITB',
   watermarkText = 'INSTITUTO TRANSFORMA BRASIL',
+  watermarkLogoUrl,
+  watermarkGrayscale = true,
+  logoUrl,
   showHeaderLogoLeft = true,
   showHeaderLogoRight = true,
 }: CashPrintDocumentProps) {
@@ -242,7 +272,7 @@ export function CashPrintDocument({
 
   return (
     <div className="hidden print:block print-landscape font-sans text-slate-900 bg-white p-2 relative">
-      <PrintWatermark text={watermarkText} />
+      <PrintWatermark text={watermarkText} logoUrl={watermarkLogoUrl} grayscale={watermarkGrayscale} />
       <style type="text/css" media="print">
         {`
           @page {
@@ -259,12 +289,21 @@ export function CashPrintDocument({
         <div>
           <div className="flex items-center gap-2">
             {showHeaderLogoLeft && (
-              <span
-                data-testid="print-logo-left"
-                className="font-black text-sm tracking-widest uppercase bg-slate-950 text-white px-2 py-0.5 rounded"
-              >
-                ITB
-              </span>
+              logoUrl ? (
+                <img
+                  src={logoUrl}
+                  alt={appName}
+                  className="h-8 max-w-[140px] object-contain rounded"
+                  data-testid="print-logo-left"
+                />
+              ) : (
+                <span
+                  data-testid="print-logo-left"
+                  className="font-black text-sm tracking-widest uppercase bg-slate-950 text-white px-2 py-0.5 rounded"
+                >
+                  ITB
+                </span>
+              )
             )}
             <span className="text-xs font-black uppercase tracking-wider text-slate-700">
               Instituto Transforma Brasil — {appName}
@@ -283,12 +322,21 @@ export function CashPrintDocument({
             <p>Total de Lançamentos: <strong>{transactions.length}</strong></p>
           </div>
           {showHeaderLogoRight && (
-            <span
-              data-testid="print-logo-right"
-              className="font-black text-xs tracking-widest uppercase border border-slate-900 text-slate-900 px-1.5 py-0.5 rounded"
-            >
-              ITB
-            </span>
+            logoUrl ? (
+              <img
+                src={logoUrl}
+                alt={appName}
+                className="h-7 max-w-[120px] object-contain rounded"
+                data-testid="print-logo-right"
+              />
+            ) : (
+              <span
+                data-testid="print-logo-right"
+                className="font-black text-xs tracking-widest uppercase border border-slate-900 text-slate-900 px-1.5 py-0.5 rounded"
+              >
+                ITB
+              </span>
+            )
           )}
         </div>
       </div>
