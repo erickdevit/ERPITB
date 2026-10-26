@@ -71,4 +71,29 @@ describe('ApiClient', () => {
     // onUnauthorized should only be notified once, preventing cascaded logout loops
     expect(onUnauthorized).toHaveBeenCalledTimes(1);
   });
+
+  it('trips circuit breaker after consecutive failures to protect backend quota', async () => {
+    let callCount = 0;
+    const fetchMock = vi.fn().mockImplementation(() => {
+      callCount++;
+      return Promise.resolve(new Response(JSON.stringify({ error: { message: 'Server down' } }), { status: 500 }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const client = new ApiClient(() => null, async () => undefined);
+
+    // Trigger 15 consecutive failures
+    for (let i = 0; i < 15; i++) {
+      await client.get('/v1/status').catch(() => {});
+    }
+    expect(callCount).toBe(15);
+
+    // 16th call should trip circuit breaker without calling fetch!
+    const err = (await client.get('/v1/status').catch((e) => e)) as ApiError;
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.code).toBe('CIRCUIT_BREAKER_ACTIVE');
+    expect(err.status).toBe(429);
+    // Fetch should NOT have been called for the 16th attempt
+    expect(callCount).toBe(15);
+  });
 });

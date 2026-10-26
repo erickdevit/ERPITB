@@ -186,6 +186,22 @@ export async function bootstrap(request: Request, env: Env): Promise<unknown> {
   return { user, ...(await issueSession(env, user)) };
 }
 
+interface CachedUser {
+  user: AuthUser;
+  active: number;
+  cachedAt: number;
+}
+const userCache = new Map<string, CachedUser>();
+const USER_CACHE_TTL_MS = 60_000;
+
+export function invalidateUserCache(userId?: string): void {
+  if (userId) {
+    userCache.delete(userId);
+  } else {
+    userCache.clear();
+  }
+}
+
 export async function authenticate(request: Request, env: Env): Promise<AuthUser> {
   const apiKeyHeader = request.headers.get('x-api-key');
   const authHeader = request.headers.get('authorization');
@@ -243,13 +259,40 @@ export async function authenticate(request: Request, env: Env): Promise<AuthUser
   } catch {
     throw new AppError(401, 'Token inválido ou expirado.', 'INVALID_TOKEN');
   }
-  const current = await env.DB.prepare(
-    `SELECT id, name, email, role, active FROM users WHERE id = ? LIMIT 1`,
-  ).bind(claims.sub).first<AuthUser & { active: number }>();
+  const now = Date.now();
+  const cached = userCache.get(claims.sub);
+  if (cached && (now - cached.cachedAt) < USER_CACHE_TTL_MS) {
+    if (cached.active !== 1 || !['admin', 'pedagogico', 'professor', 'financeiro'].includes(cached.user.role)) {
+      throw new AppError(401, 'Usuário inativo ou sessão inválida.', 'INVALID_TOKEN');
+    }
+    return cached.user;
+  }
+
+  let current: (AuthUser & { active: number }) | null = null;
+  try {
+    current = await env.DB.prepare(
+      `SELECT id, name, email, role, active FROM users WHERE id = ? LIMIT 1`,
+    ).bind(claims.sub).first<AuthUser & { active: number }>();
+  } catch (err) {
+    const isD1QuotaError = String(err).includes('7500') ||
+      String(err).toLowerCase().includes('daily row read limit');
+    if (isD1QuotaError && claims.sub && claims.role) {
+      return {
+        id: claims.sub,
+        name: claims.name || 'Usuário',
+        email: claims.email || '',
+        role: claims.role,
+      };
+    }
+    throw err;
+  }
+
   if (!current || current.active !== 1 || !['admin', 'pedagogico', 'professor', 'financeiro'].includes(current.role)) {
     throw new AppError(401, 'Usuário inativo ou sessão inválida.', 'INVALID_TOKEN');
   }
-  return { id: current.id, name: current.name, email: current.email, role: current.role };
+  const user: AuthUser = { id: current.id, name: current.name, email: current.email, role: current.role };
+  userCache.set(user.id, { user, active: current.active, cachedAt: now });
+  return user;
 }
 
 export async function logout(request: Request, env: Env, user?: AuthUser): Promise<unknown> {
@@ -308,6 +351,9 @@ export async function logout(request: Request, env: Env, user?: AuthUser): Promi
       }, { targetUserId, env });
     } catch {
       // Broadcast non-fatal
+    }
+    if (targetUserId) {
+      invalidateUserCache(targetUserId);
     }
   }
 

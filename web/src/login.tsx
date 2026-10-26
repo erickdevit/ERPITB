@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Eye, EyeOff, Loader2, AlertCircle, Info } from 'lucide-react';
-import { ApiClient, OfflineError } from './lib/api';
+import { ApiClient, ApiError, OfflineError } from './lib/api';
 import { LocalStore } from './lib/db';
 import { applyBrandDesignTokens } from './lib/design-tokens';
 import type { BrandingSettings, UserSession } from './types';
@@ -52,11 +52,25 @@ export function Login({
       await store.saveOfflineVerifier(normalizedEmail, password, session);
       onLogin(session, store);
     } catch (cause) {
-      if (cause instanceof OfflineError) {
+      const isQuotaOrServerUnavailable =
+        cause instanceof OfflineError ||
+        (cause instanceof ApiError && (cause.status === 503 || cause.code === 'DATABASE_QUOTA_EXCEEDED' || cause.status >= 500));
+
+      if (isQuotaOrServerUnavailable) {
         const normalizedEmail = email.trim().toLowerCase();
-        const restored = await LocalStore.openOffline(normalizedEmail, password);
-        if (restored) {
-          onLogin(restored.session, restored.store);
+        try {
+          const restored = await LocalStore.openOffline(normalizedEmail, password);
+          if (restored) {
+            onLogin(restored.session, restored.store);
+            return;
+          }
+        } catch {
+          // offline login failed
+        }
+        if (cause instanceof ApiError && (cause.status === 503 || cause.code === 'DATABASE_QUOTA_EXCEEDED')) {
+          setError(
+            `${cause.message} Para acessar em modo offline de emergência, esta conta precisa ter feito ao menos um login prévio neste dispositivo.`
+          );
           return;
         }
         setError('Sem conexão com o servidor. Para entrar offline, esta conta precisa ter feito ao menos um login prévio neste dispositivo.');

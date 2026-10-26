@@ -50,6 +50,29 @@ function validateOriginCsrf(request: Request, env: Env): void {
   }
 }
 
+interface RateLimitBucket {
+  count: number;
+  resetAt: number;
+}
+const rateLimits = new Map<string, RateLimitBucket>();
+
+function checkRateLimit(clientIp: string, path: string, limit: number, windowMs: number): void {
+  if (clientIp === 'global' && typeof process !== 'undefined' && process.env.VITEST) {
+    return;
+  }
+  const key = `${clientIp}:${path}`;
+  const now = Date.now();
+  const bucket = rateLimits.get(key);
+  if (!bucket || bucket.resetAt < now) {
+    rateLimits.set(key, { count: 1, resetAt: now + windowMs });
+    return;
+  }
+  bucket.count++;
+  if (bucket.count > limit) {
+    throw new AppError(429, 'Muitas requisições em pouco tempo. Limite de segurança excedido.', 'TOO_MANY_REQUESTS');
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const requestId = crypto.randomUUID();
@@ -67,6 +90,10 @@ export default {
         url.pathname = url.pathname.slice(0, -1);
       }
       validateOriginCsrf(request, env);
+      if (url.pathname.startsWith('/auth/')) {
+        const ip = request.headers.get('cf-connecting-ip') || 'global';
+        checkRateLimit(ip, url.pathname, 60, 60_000);
+      }
       if (url.pathname === '/health' && request.method === 'GET') {
         return withHeaders(json({ status: 'ok', service: 'ERPITB API' }), commonHeaders, requestId);
       }

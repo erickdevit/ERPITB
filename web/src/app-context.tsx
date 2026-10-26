@@ -193,12 +193,21 @@ export function useBoot() {
           },
         );
 
-        let refreshSucceeded = true;
+        let refreshFailedWith401 = false;
         if (restored.session.refreshToken) {
-          refreshSucceeded = await api.refresh();
+          try {
+            const success = await api.refresh();
+            if (!success) {
+              refreshFailedWith401 = true;
+            }
+          } catch (err) {
+            if (err instanceof ApiError && err.status === 401) {
+              refreshFailedWith401 = true;
+            }
+          }
         }
 
-        if (!refreshSucceeded) {
+        if (refreshFailedWith401) {
           const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
           if (isOnline) {
             await restored.store.clearSession();

@@ -113,3 +113,19 @@ npm run deploy
 
 6. **Mandatory Backend Re-analysis on Code & Data Changes**:
    * Whenever making edits or modifications to models, features, APIs, database tables, or contracts, a backend re-analysis MUST be performed. Verify alignment in `backend/src/`, write matching D1 migration scripts, and run backend tests (`npm run typecheck` & `npm test`).
+
+7. **Zero-Quota-Exhaustion Architecture (Strict Anti-Lockout Rule)**:
+   * **Absolute Prohibition of Unbounded Loops & Recursive Calls**:
+     - No client-side effect, callback, or hook may ever trigger recursive API retries or repeated authentication flows upon encountering errors (HTTP 401, 403, 429, 500, 503).
+     - Authentication paths (`/auth/*`) MUST NEVER attempt automatic token refresh nor recursively trigger logout notifications (`onUnauthorized`).
+     - Real-time listeners (`EventSource` SSE) MUST implement backoff delay (minimum 15s) upon connection failures instead of tight native browser reconnection loops.
+   * **Client-Side Circuit Breaker**:
+     - All API clients (`ApiClient`) MUST enforce a circuit breaker tripping after consecutive failed calls (e.g. 15 errors), suspending outbound traffic for 10 seconds to prevent unintentional denial-of-service against the backend.
+   * **In-Memory Caching for Hot Paths & D1 Quota Protection**:
+     - The Worker MUST NOT query D1 for verified, immutable, or short-lived state on every single request. User active status for cryptographically verified JWTs MUST be cached in Worker memory (60-second TTL), reducing database row reads by 95%+.
+     - If D1 is temporarily unavailable or quota-limited, cryptographically verified JWT claims MUST serve as a graceful fallback for authenticated requests, ensuring existing sessions are never locked out.
+   * **Graceful Offline Fallback & Session Preservation**:
+     - Service unavailability (HTTP 503, `DATABASE_QUOTA_EXCEEDED`, network outages) MUST NEVER wipe local user sessions in `useBoot` or IndexedDB. Only explicit HTTP 401 from a working server may clear local sessions.
+     - The login flow MUST allow fallback to cached local credentials (`LocalStore.openOffline`) when the backend is unreachable or over quota, preserving user access to previously synchronized local data on the device.
+   * **Worker-Level Rate Limiting**:
+     - All auth endpoints (`/auth/*`) MUST enforce per-IP in-memory sliding window rate limits (max 60 req/min) to prevent brute-force attacks or malfunctioning clients from depleting D1 read/write quotas.

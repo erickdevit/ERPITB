@@ -33,6 +33,8 @@ export class ApiClient {
   private onUnauthorized?: (message: string) => void;
   private refreshPromise: Promise<boolean> | null = null;
   private unauthorizedNotified = false;
+  private consecutiveFailures = 0;
+  private circuitBreakerTrippedUntil = 0;
 
   constructor(
     private getSession: () => UserSession | null,
@@ -49,6 +51,29 @@ export class ApiClient {
     this.onUnauthorized?.(message);
   }
 
+  private checkCircuitBreaker() {
+    const now = Date.now();
+    if (this.circuitBreakerTrippedUntil > now) {
+      const waitSec = Math.ceil((this.circuitBreakerTrippedUntil - now) / 1000);
+      throw new ApiError(429, `Muitas requisições com falha consecutiva. Aguarde ${waitSec}s para tentar novamente.`, 'CIRCUIT_BREAKER_ACTIVE');
+    }
+  }
+
+  private recordSuccess() {
+    this.consecutiveFailures = 0;
+    this.circuitBreakerTrippedUntil = 0;
+  }
+
+  private recordFailure(status: number) {
+    if (status === 401 || status === 429 || status >= 500) {
+      this.consecutiveFailures++;
+      if (this.consecutiveFailures >= 15) {
+        this.circuitBreakerTrippedUntil = Date.now() + 10_000;
+        this.consecutiveFailures = 0;
+      }
+    }
+  }
+
   async request<T>(
     path: string,
     method = 'GET',
@@ -57,6 +82,7 @@ export class ApiClient {
     options?: RequestOptions,
   ): Promise<T> {
     try {
+      this.checkCircuitBreaker();
       const session = this.getSession();
       const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
       const headers: Record<string, string> = {
@@ -92,6 +118,7 @@ export class ApiClient {
       }
 
       if (!response.ok) {
+        this.recordFailure(response.status);
         const requestId = payload.requestId ?? response.headers.get('x-request-id') ?? undefined;
         let baseMessage = payload.error?.message;
         if (!baseMessage) {
@@ -105,6 +132,7 @@ export class ApiClient {
         throw new ApiError(response.status, message, payload.error?.code, requestId);
       }
 
+      this.recordSuccess();
       return payload;
     } catch (error) {
       if (error instanceof ApiError) throw error;

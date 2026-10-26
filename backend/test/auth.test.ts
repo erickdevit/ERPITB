@@ -1,6 +1,6 @@
 import { SignJWT } from 'jose';
-import { describe, expect, it } from 'vitest';
-import { authenticate, hashPassword, verifyPassword } from '../src/auth';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { authenticate, hashPassword, invalidateUserCache, verifyPassword } from '../src/auth';
 import type { Env } from '../src/types';
 
 describe('PBKDF2 password verifier with Argon2id fallback', () => {
@@ -28,6 +28,8 @@ describe('PBKDF2 password verifier with Argon2id fallback', () => {
 });
 
 describe('request authentication', () => {
+  beforeEach(() => invalidateUserCache());
+
   it('uses the current database role instead of a stale role in the token', async () => {
     const secret = 'a-secret-with-at-least-thirty-two-characters';
     const token = await new SignJWT({ name: 'Marcos', email: 'marcos@example.invalid', role: 'admin', type: 'access' })
@@ -252,5 +254,70 @@ describe('Cloudflare D1 Quota Handling', () => {
     const data = (await res.json()) as { error: { code: string; message: string } };
     expect(data.error.code).toBe('DATABASE_QUOTA_EXCEEDED');
     expect(data.error.message).toContain('Limite diário de leitura');
+  });
+
+  it('caches active user state in memory to prevent repeated D1 read queries', async () => {
+    const { authenticate, invalidateUserCache } = await import('../src/auth');
+    invalidateUserCache();
+
+    let d1Queries = 0;
+    const secret = 'a-secret-with-at-least-thirty-two-characters';
+    const token = await new SignJWT({ name: 'Ana', email: 'ana@itb.org.br', role: 'professor', type: 'access' })
+      .setProtectedHeader({ alg: 'HS256' }).setSubject('user-cached-1').setExpirationTime('15m')
+      .sign(new TextEncoder().encode(secret));
+
+    const statement = {
+      bind: () => statement,
+      first: async () => {
+        d1Queries++;
+        return { id: 'user-cached-1', name: 'Ana', email: 'ana@itb.org.br', role: 'professor', active: 1 };
+      },
+    };
+    const env = { JWT_SECRET: secret, DB: { prepare: () => statement } } as unknown as Env;
+
+    // First authentication hits D1
+    const u1 = await authenticate(new Request('https://example.invalid/api', { headers: { authorization: `Bearer ${token}` } }), env);
+    expect(u1.id).toBe('user-cached-1');
+    expect(d1Queries).toBe(1);
+
+    // Second authentication serves from in-memory cache, 0 additional D1 queries!
+    const u2 = await authenticate(new Request('https://example.invalid/api', { headers: { authorization: `Bearer ${token}` } }), env);
+    expect(u2.id).toBe('user-cached-1');
+    expect(d1Queries).toBe(1);
+  });
+
+  it('enforces rate limits on /auth/* endpoints to avoid quota depletion', async () => {
+    const worker = (await import('../src/index')).default;
+    const env = {
+      ALLOWED_ORIGIN: '*',
+      DB: {
+        prepare: () => ({
+          bind: () => ({
+            first: async () => null,
+          }),
+        }),
+      },
+    } as unknown as Env;
+
+    // Send 60 requests
+    for (let i = 0; i < 60; i++) {
+      const req = new Request('https://example.invalid/auth/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'cf-connecting-ip': '192.0.2.1' },
+        body: JSON.stringify({ email: 'rate@test.com', password: 'pwd' }),
+      });
+      await worker.fetch(req, env);
+    }
+
+    // 61st request should be throttled with HTTP 429
+    const blockedReq = new Request('https://example.invalid/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'cf-connecting-ip': '192.0.2.1' },
+      body: JSON.stringify({ email: 'rate@test.com', password: 'pwd' }),
+    });
+    const res = await worker.fetch(blockedReq, env);
+    expect(res.status).toBe(429);
+    const data = (await res.json()) as { error: { code: string } };
+    expect(data.error.code).toBe('TOO_MANY_REQUESTS');
   });
 });
