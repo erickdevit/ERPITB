@@ -80,7 +80,8 @@ export function ApplicationProvider({
   }, [api]);
 
   useServerEvents({
-    enabled: typeof EventSource !== 'undefined' && !(import.meta as any).env?.VITEST,
+    enabled: Boolean(session?.accessToken) && typeof EventSource !== 'undefined' && !(import.meta as any).env?.VITEST,
+    token: session?.accessToken,
     onEntityChanged: () => {
       setRefresh((value) => value + 1);
     },
@@ -136,9 +137,12 @@ export function ApplicationProvider({
     };
   }, [sync]);
 
+  const loggingOut = useRef(false);
   const logout = useCallback(async () => {
+    if (loggingOut.current) return;
+    loggingOut.current = true;
     try {
-      await api.post('/auth/logout', { refreshToken: session.refreshToken });
+      await api.logout(session.refreshToken);
     } catch {
       // Continue logout locally even if network fails
     }

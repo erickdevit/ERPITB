@@ -31,6 +31,8 @@ export interface RequestOptions {
 
 export class ApiClient {
   private onUnauthorized?: (message: string) => void;
+  private refreshPromise: Promise<boolean> | null = null;
+  private unauthorizedNotified = false;
 
   constructor(
     private getSession: () => UserSession | null,
@@ -39,6 +41,12 @@ export class ApiClient {
 
   setOnUnauthorized(handler: (message: string) => void) {
     this.onUnauthorized = handler;
+  }
+
+  private notifyUnauthorized(message = 'Sua sessão expirou. Entre novamente.') {
+    if (this.unauthorizedNotified) return;
+    this.unauthorizedNotified = true;
+    this.onUnauthorized?.(message);
   }
 
   async request<T>(
@@ -70,15 +78,17 @@ export class ApiClient {
         requestId?: string;
       } & T;
 
-      if (response.status === 401 && session && refresh) {
+      const isAuthPath = path.startsWith('/auth/');
+
+      if (response.status === 401 && session && refresh && !isAuthPath) {
         const refreshed = await this.refresh();
         if (refreshed) {
           return this.request<T>(path, method, body, false, options);
         }
       }
 
-      if (response.status === 401 && session) {
-        this.onUnauthorized?.('Sua sessão expirou. Entre novamente.');
+      if (response.status === 401 && session && !isAuthPath) {
+        this.notifyUnauthorized('Sua sessão expirou. Entre novamente.');
       }
 
       if (!response.ok) {
@@ -103,6 +113,7 @@ export class ApiClient {
   }
 
   async login(email: string, password: string): Promise<UserSession> {
+    this.unauthorizedNotified = false;
     const result = await this.request<{
       user: Omit<UserSession, 'accessToken' | 'refreshToken'>;
       accessToken: string;
@@ -112,20 +123,42 @@ export class ApiClient {
   }
 
   async refresh(): Promise<boolean> {
-    const session = this.getSession();
-    try {
-      const result = await this.request<{
-        user: Omit<UserSession, 'accessToken' | 'refreshToken'>;
-        accessToken: string;
-        refreshToken: string;
-      }>('/auth/refresh', 'POST', { refreshToken: session?.refreshToken }, false);
-      await this.updateSession({ ...result.user, accessToken: result.accessToken, refreshToken: result.refreshToken });
-      return true;
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        this.onUnauthorized?.('Sua sessão expirou. Entre novamente.');
+    if (this.refreshPromise) return this.refreshPromise;
+
+    this.refreshPromise = (async () => {
+      const session = this.getSession();
+      if (!session?.refreshToken) {
+        this.notifyUnauthorized('Sua sessão expirou. Entre novamente.');
+        return false;
       }
-      return false;
+      try {
+        const result = await this.request<{
+          user: Omit<UserSession, 'accessToken' | 'refreshToken'>;
+          accessToken: string;
+          refreshToken: string;
+        }>('/auth/refresh', 'POST', { refreshToken: session.refreshToken }, false);
+        this.unauthorizedNotified = false;
+        await this.updateSession({ ...result.user, accessToken: result.accessToken, refreshToken: result.refreshToken });
+        return true;
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) {
+          this.notifyUnauthorized('Sua sessão expirou. Entre novamente.');
+        }
+        return false;
+      } finally {
+        this.refreshPromise = null;
+      }
+    })();
+
+    return this.refreshPromise;
+  }
+
+  async logout(refreshToken?: string): Promise<void> {
+    this.unauthorizedNotified = true;
+    try {
+      await this.request('/auth/logout', 'POST', { refreshToken }, false);
+    } catch {
+      // Ignore network/server errors during logout
     }
   }
 

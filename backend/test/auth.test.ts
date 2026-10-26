@@ -44,6 +44,21 @@ describe('request authentication', () => {
     }), env)).resolves.toMatchObject({ id: 'user-1', role: 'professor' });
   });
 
+  it('authenticates via token query parameter (fallback for SSE EventSource)', async () => {
+    const secret = 'a-secret-with-at-least-thirty-two-characters';
+    const token = await new SignJWT({ name: 'Marcos', email: 'marcos@example.invalid', role: 'admin', type: 'access' })
+      .setProtectedHeader({ alg: 'HS256' }).setSubject('user-1').setExpirationTime('5m')
+      .sign(new TextEncoder().encode(secret));
+    const statement = {
+      bind: () => statement,
+      first: async () => ({ id: 'user-1', name: 'Marcos', email: 'marcos@example.invalid', role: 'professor', active: 1 }),
+    };
+    const env = { JWT_SECRET: secret, DB: { prepare: () => statement } } as unknown as Env;
+
+    await expect(authenticate(new Request(`https://example.invalid/api/v1/events?token=${token}`), env))
+      .resolves.toMatchObject({ id: 'user-1', role: 'professor' });
+  });
+
   it('does not disguise a database failure as an invalid token', async () => {
     const secret = 'a-secret-with-at-least-thirty-two-characters';
     const token = await new SignJWT({ name: 'Marcos', email: 'marcos@example.invalid', role: 'admin', type: 'access' })
@@ -183,5 +198,59 @@ describe('login authentication error resilience', () => {
       message: 'E-mail ou senha inválidos.',
       code: 'INVALID_CREDENTIALS',
     });
+  });
+
+  it('allows logout gracefully without access token or with expired session', async () => {
+    const { logout } = await import('../src/auth');
+    const updateExecuted: string[] = [];
+    const statement = {
+      bind: (...args: unknown[]) => {
+        updateExecuted.push(args.join(', '));
+        return statement;
+      },
+      first: async () => null,
+      run: async () => ({ meta: { changes: 1 } }),
+    };
+    const env = { DB: { prepare: () => statement } } as unknown as Env;
+
+    const req = new Request('https://example.invalid/auth/logout', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ refreshToken: 'a-valid-refresh-token-of-sufficient-length-32-chars' }),
+    });
+
+    const res = await logout(req, env);
+    expect(res).toEqual({ ok: true });
+    expect(updateExecuted.length).toBeGreaterThan(0);
+  });
+});
+
+describe('Cloudflare D1 Quota Handling', () => {
+  it('maps D1 daily limit error 7500 to HTTP 503 DATABASE_QUOTA_EXCEEDED', async () => {
+    const worker = (await import('../src/index')).default;
+    const env = {
+      ALLOWED_ORIGIN: '*',
+      DB: {
+        prepare: () => ({
+          bind: () => ({
+            first: async () => {
+              throw new Error("A request to Cloudflare API failed. Your account has exceeded D1's free tier daily row read limit. [code: 7500]");
+            },
+          }),
+        }),
+      },
+    } as unknown as Env;
+
+    const req = new Request('https://example.invalid/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'admin@itbcursos.com', password: 'Password123!' }),
+    });
+
+    const res = await worker.fetch(req, env);
+    expect(res.status).toBe(503);
+    const data = (await res.json()) as { error: { code: string; message: string } };
+    expect(data.error.code).toBe('DATABASE_QUOTA_EXCEEDED');
+    expect(data.error.message).toContain('Limite diário de leitura');
   });
 });

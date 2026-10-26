@@ -228,10 +228,14 @@ export async function authenticate(request: Request, env: Env): Promise<AuthUser
     };
   }
 
-  if (!authHeader?.startsWith('Bearer ')) throw new AppError(401, 'Autenticação necessária.', 'UNAUTHENTICATED');
+  const url = new URL(request.url);
+  const tokenParam = url.searchParams.get('token');
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : (tokenParam || null);
+
+  if (!bearerToken) throw new AppError(401, 'Autenticação necessária.', 'UNAUTHENTICATED');
   let claims: TokenClaims;
   try {
-    const verified = await jwtVerify(authHeader.slice(7), jwtSecret(env), { algorithms: ['HS256'] });
+    const verified = await jwtVerify(bearerToken, jwtSecret(env), { algorithms: ['HS256'] });
     claims = verified.payload as unknown as TokenClaims;
     if (!claims.sub || claims.type !== 'access' || !['admin', 'pedagogico', 'professor', 'financeiro'].includes(claims.role)) {
       throw new Error('invalid claims');
@@ -248,19 +252,64 @@ export async function authenticate(request: Request, env: Env): Promise<AuthUser
   return { id: current.id, name: current.name, email: current.email, role: current.role };
 }
 
-export async function logout(request: Request, env: Env, user: AuthUser): Promise<unknown> {
-  const body = await readJson<Record<string, unknown>>(request);
-  const supplied = requireString(body.refreshToken, 'refreshToken', { min: 32, max: 256 });
-  const timestamp = nowIso();
-  await env.DB.prepare(
-    `UPDATE refresh_tokens SET revoked_at = ? WHERE user_id = ? AND token_hash = ? AND revoked_at IS NULL`,
-  ).bind(timestamp, user.id, await sha256Base64(supplied)).run();
+export async function logout(request: Request, env: Env, user?: AuthUser): Promise<unknown> {
+  let supplied = '';
+  try {
+    const body = await readJson<Record<string, unknown>>(request);
+    if (typeof body.refreshToken === 'string') supplied = body.refreshToken.trim();
+  } catch {
+    // maybe in cookie or empty
+  }
+  if (!supplied) {
+    const cookies = request.headers.get('cookie') || '';
+    const match = cookies.match(/erpitb_refresh_token=([^;]+)/);
+    if (match && match[1]) supplied = decodeURIComponent(match[1].trim());
+  }
 
-  broadcastEvent('session_revoked', {
-    userId: user.id,
-    reason: 'LOGOUT',
-    timestamp,
-  }, { targetUserId: user.id, env });
+  let activeUser = user;
+  if (!activeUser) {
+    try {
+      activeUser = await authenticate(request, env);
+    } catch {
+      // Access token may be expired or missing
+    }
+  }
+
+  const timestamp = nowIso();
+  let targetUserId = activeUser?.id;
+
+  if (supplied && supplied.length >= 32 && supplied.length <= 256) {
+    const tokenHash = await sha256Base64(supplied);
+    if (!targetUserId) {
+      try {
+        const row = await env.DB.prepare(
+          `SELECT user_id FROM refresh_tokens WHERE token_hash = ? LIMIT 1`,
+        ).bind(tokenHash).first<{ user_id: string }>();
+        if (row?.user_id) targetUserId = row.user_id;
+      } catch {
+        // DB non-fatal
+      }
+    }
+    try {
+      await env.DB.prepare(
+        `UPDATE refresh_tokens SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL`,
+      ).bind(timestamp, tokenHash).run();
+    } catch {
+      // DB non-fatal
+    }
+  }
+
+  if (targetUserId) {
+    try {
+      broadcastEvent('session_revoked', {
+        userId: targetUserId,
+        reason: 'LOGOUT',
+        timestamp,
+      }, { targetUserId, env });
+    } catch {
+      // Broadcast non-fatal
+    }
+  }
 
   return { ok: true };
 }

@@ -127,16 +127,16 @@ export default {
         }
         return withHeaders(json(resData), headers, requestId);
       }
+      if (url.pathname === '/auth/logout' && request.method === 'POST') {
+        const resData = await logout(request, env);
+        const headers = { ...commonHeaders, 'set-cookie': clearRefreshCookieHeader() };
+        return withHeaders(json(resData), headers, requestId);
+      }
       const publicStudent = url.pathname.match(/^\/(?:public\/students|portal|matricula|aluno)\/([^/]+)$/);
       if (publicStudent && request.method === 'GET') {
         return withHeaders(json(await getPublicStudentData(env, decodeURIComponent(publicStudent[1]!))), commonHeaders, requestId);
       }
       const user = await authenticate(request, env);
-      if (url.pathname === '/auth/logout' && request.method === 'POST') {
-        const resData = await logout(request, env, user);
-        const headers = { ...commonHeaders, 'set-cookie': clearRefreshCookieHeader() };
-        return withHeaders(json(resData), headers, requestId);
-      }
       if (url.pathname === '/sync/push' && request.method === 'POST') {
         return withHeaders(json(await push(request, env, user)), commonHeaders, requestId);
       }
@@ -182,13 +182,18 @@ export default {
         );
       }
       const isDuplicate = String(error).includes('UNIQUE constraint failed');
+      const isD1Quota = String(error).includes('7500') ||
+        String(error).toLowerCase().includes('daily row read limit') ||
+        String(error).toLowerCase().includes('exceeded d1');
       const message = known
         ? error.message
         : isDuplicate
         ? 'Já existe um registro com estes dados no sistema.'
+        : isD1Quota
+        ? 'Limite diário de leitura do banco de dados (Cloudflare D1 Free Tier) excedido. O limite será restabelecido automaticamente à 00:00 UTC (ou após upgrade para Workers Paid).'
         : 'Ocorreu um erro interno no servidor.';
-      const status = known ? error.status : isDuplicate ? 409 : 500;
-      const code = known ? error.code : isDuplicate ? 'DUPLICATE_RECORD' : 'INTERNAL_ERROR';
+      const status = known ? error.status : isDuplicate ? 409 : isD1Quota ? 503 : 500;
+      const code = known ? error.code : isDuplicate ? 'DUPLICATE_RECORD' : isD1Quota ? 'DATABASE_QUOTA_EXCEEDED' : 'INTERNAL_ERROR';
       if (!known) console.error(JSON.stringify({ requestId, error: error instanceof Error ? error.stack : String(error) }));
       return withHeaders(json({ error: { code, message, details: known ? error.details : undefined }, requestId }, status), commonHeaders, requestId);
     }
