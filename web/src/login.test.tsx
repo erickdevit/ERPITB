@@ -76,14 +76,11 @@ describe('Login Component', () => {
     expect(onLogin).not.toHaveBeenCalled();
   });
 
-  it('falls back to offline authentication if server is unreachable', async () => {
+  it('displays clear error when server is unreachable without offline bypass', async () => {
     const onLogin = vi.fn();
     const user = userEvent.setup();
-    const offlineSession = { id: 'u-1', name: 'User Offline', email: 'user@itb.org.br', role: 'professor', offline: true };
-    const offlineStore = {};
 
     mocks.login.mockRejectedValue(new OfflineError());
-    mocks.openOffline.mockResolvedValue({ session: offlineSession, store: offlineStore });
 
     render(<Login onLogin={onLogin} />);
 
@@ -91,15 +88,17 @@ describe('Login Component', () => {
     await user.type(screen.getByLabelText('Senha'), 'Senha Forte 123!');
     await user.click(screen.getByRole('button', { name: 'Entrar' }));
 
-    await waitFor(() => expect(onLogin).toHaveBeenCalledWith(offlineSession, offlineStore));
+    expect(
+      await screen.findByText('Sem conexão com o servidor. A aplicação opera 100% online.'),
+    ).toBeInTheDocument();
+    expect(onLogin).not.toHaveBeenCalled();
   });
 
-  it('shows clear error when offline login is attempted without prior credentials', async () => {
+  it('displays quota exceeded error when service returns 503', async () => {
     const onLogin = vi.fn();
     const user = userEvent.setup();
 
-    mocks.login.mockRejectedValue(new OfflineError());
-    mocks.openOffline.mockResolvedValue(null);
+    mocks.login.mockRejectedValue(new ApiError(503, 'Limite diário de banco excedido.', 'DATABASE_QUOTA_EXCEEDED'));
 
     render(<Login onLogin={onLogin} />);
 
@@ -108,7 +107,7 @@ describe('Login Component', () => {
     await user.click(screen.getByRole('button', { name: 'Entrar' }));
 
     expect(
-      await screen.findByText(/Para entrar offline, esta conta precisa ter feito ao menos um login prévio/),
+      await screen.findByText('Limite diário de banco excedido.'),
     ).toBeInTheDocument();
     expect(onLogin).not.toHaveBeenCalled();
   });

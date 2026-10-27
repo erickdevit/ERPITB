@@ -124,8 +124,8 @@ npm run deploy
    * **In-Memory Caching for Hot Paths & D1 Quota Protection**:
      - The Worker MUST NOT query D1 for verified, immutable, or short-lived state on every single request. User active status for cryptographically verified JWTs MUST be cached in Worker memory (60-second TTL), reducing database row reads by 95%+.
      - If D1 is temporarily unavailable or quota-limited, cryptographically verified JWT claims MUST serve as a graceful fallback for authenticated requests, ensuring existing sessions are never locked out.
-   * **Graceful Offline Fallback & Session Preservation**:
+   * **Graceful Session Preservation & Pure 100% Online Reliability**:
      - Service unavailability (HTTP 503, `DATABASE_QUOTA_EXCEEDED`, network outages) MUST NEVER wipe local user sessions in `useBoot` or IndexedDB. Only explicit HTTP 401 from a working server may clear local sessions.
-     - The login flow MUST allow fallback to cached local credentials (`LocalStore.openOffline`) when the backend is unreachable or over quota, preserving user access to previously synchronized local data on the device.
+     - The application operates strictly 100% online: no offline mutation queues (`database.queue`) or offline login fallback that creates synchronization divergence. If the server is unreachable, the UI informs the user cleanly without accumulating unverified local changes.
    * **Worker-Level Rate Limiting**:
      - All auth endpoints (`/auth/*`) MUST enforce per-IP in-memory sliding window rate limits (max 60 req/min) to prevent brute-force attacks or malfunctioning clients from depleting D1 read/write quotas.
