@@ -177,7 +177,7 @@ export function buildBoletimPdf(data: UnifiedBoletimData, options?: BoletimPdfOp
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(15, 23, 42); // slate-900
-  const nameLines = doc.splitTextToSize(student.name || 'Aluno', 60);
+  const nameLines = doc.splitTextToSize(student.name || 'Aluno', 78);
   if (nameLines.length > 1) {
     doc.text(nameLines[0], marginX + 4, currentY + 9.5);
     doc.text(nameLines[1], marginX + 4, currentY + 13);
@@ -186,7 +186,7 @@ export function buildBoletimPdf(data: UnifiedBoletimData, options?: BoletimPdfOp
   }
 
   // 2. Matrícula
-  const colMatriculaX = marginX + 68;
+  const colMatriculaX = marginX + 84;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6);
   doc.setTextColor(148, 163, 184);
@@ -197,7 +197,7 @@ export function buildBoletimPdf(data: UnifiedBoletimData, options?: BoletimPdfOp
   doc.text(student.registrationNumber || '—', colMatriculaX, currentY + 11);
 
   // 3. Curso
-  const colCursoX = marginX + 102;
+  const colCursoX = marginX + 114;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6);
   doc.setTextColor(148, 163, 184);
@@ -205,11 +205,11 @@ export function buildBoletimPdf(data: UnifiedBoletimData, options?: BoletimPdfOp
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(30, 41, 59); // slate-800
-  const courseLines = doc.splitTextToSize(student.courseName || '—', 52);
+  const courseLines = doc.splitTextToSize(student.courseName || '—', 44);
   doc.text(courseLines[0] ?? (student.courseName || '—'), colCursoX, currentY + 11);
 
   // 4. Turma
-  const colTurmaX = marginX + 158;
+  const colTurmaX = marginX + 162;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6);
   doc.setTextColor(148, 163, 184);

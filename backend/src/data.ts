@@ -1132,11 +1132,13 @@ export async function listAttendance(url: URL, env: Env, user: AuthUser): Promis
   if (classId) {
     await requireClassAccess(env, user, classId);
   }
+  const rawStudentId = url.searchParams.get('studentId');
+  const studentId = rawStudentId ? requireString(rawStudentId, 'studentId', { max: 36 }) : undefined;
   const date = url.searchParams.get('date');
   const from = url.searchParams.get('from');
   const to = url.searchParams.get('to');
   const limitParam = url.searchParams.get('limit');
-  const cacheKey = `attendance:${user.role}:${user.id}:${classId || ''}:${date || ''}:${from || ''}:${to || ''}:${limitParam || ''}`;
+  const cacheKey = `attendance:${user.role}:${user.id}:${classId || ''}:${studentId || ''}:${date || ''}:${from || ''}:${to || ''}:${limitParam || ''}`;
 
   return withCacheOrD1Fallback(cacheKey, 60_000, async () => {
     let sql = `SELECT a.*, s.encrypted_name, s.registration_number FROM attendance_records a JOIN students s ON s.id = a.student_id WHERE a.deleted_at IS NULL`;
@@ -1144,7 +1146,12 @@ export async function listAttendance(url: URL, env: Env, user: AuthUser): Promis
     if (classId) {
       sql += ` AND a.class_id = ?`;
       binds.push(classId);
-    } else if (user.role === 'professor') {
+    }
+    if (studentId) {
+      sql += ` AND a.student_id = ?`;
+      binds.push(studentId);
+    }
+    if (!classId && user.role === 'professor') {
       sql += ` AND a.class_id IN (SELECT class_id FROM class_teachers WHERE user_id = ? AND deleted_at IS NULL)`;
       binds.push(user.id);
     }
@@ -1152,7 +1159,7 @@ export async function listAttendance(url: URL, env: Env, user: AuthUser): Promis
     if (from) { sql += ` AND a.date >= ?`; binds.push(parseDate(from, 'data inicial')); }
     if (to) { sql += ` AND a.date <= ?`; binds.push(parseDate(to, 'data final')); }
     sql += ` ORDER BY a.date DESC, s.registration_number`;
-    if (!classId && !date && !from && !to) {
+    if (!classId && !studentId && !date && !from && !to) {
       const maxLimit = limitParam ? Math.min(Math.max(1, parseInt(limitParam, 10) || 500), 2000) : 500;
       sql += ` LIMIT ?`;
       binds.push(maxLimit);

@@ -4,6 +4,7 @@ import {
   Download,
   CheckCircle2,
   FileText,
+  FileSpreadsheet,
 } from 'lucide-react';
 import type { AcademicStatus, UnifiedBoletimData } from '../../lib/boletim';
 import { PrintWatermark, QrCodeImage } from '../../components';
@@ -59,6 +60,7 @@ export interface StudentReportCardViewProps {
   portalUrl?: string;
   onPrint?: () => void;
   onDownloadPdf?: () => void;
+  onSwitchFormat?: (format: 'standard' | 'spreadsheet') => void;
   watermarkText?: string;
   watermarkLogoUrl?: string;
   watermarkGrayscale?: boolean;
@@ -72,6 +74,7 @@ export function StudentReportCardView({
   portalUrl,
   onPrint,
   onDownloadPdf,
+  onSwitchFormat,
   watermarkText = 'INSTITUTO TRANSFORMA BRASIL',
   watermarkLogoUrl,
   watermarkGrayscale = true,
@@ -163,6 +166,18 @@ export function StudentReportCardView({
         </div>
 
         <div className="flex items-center gap-2">
+          {onSwitchFormat && (
+            <button
+              type="button"
+              onClick={() => onSwitchFormat('spreadsheet')}
+              aria-label="Ver Versão Planilha"
+              className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[36px] rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
+              title="Alternar para visualização em grade tabular / planilha"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Ver Versão Planilha</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={handlePrint}
@@ -217,12 +232,12 @@ export function StudentReportCardView({
 
         {/* 2. UNIFIED STUDENT CREDENTIALS & ACADEMIC SUMMARY ROW (SINGLE STRICT ROW) */}
         <div className="bg-slate-50/80 border border-slate-200/90 rounded-xl p-3 sm:p-3.5 print:bg-white print:border-slate-300 w-full overflow-x-auto print:overflow-visible">
-          <div className="grid grid-cols-7 items-center gap-2 sm:gap-3 text-xs min-w-[760px] print:grid-cols-6 print:min-w-0">
+          <div className="grid grid-cols-7 [grid-template-columns:2.6fr_1fr_1.3fr_1.3fr_0.9fr_0.9fr_1fr] print:[grid-template-columns:2.8fr_1fr_1.4fr_1.4fr_1fr_1fr] print:grid-cols-6 items-center gap-2 sm:gap-3 text-xs min-w-[760px] print:min-w-0">
             <div className="min-w-0">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                 Aluno
               </span>
-              <span className="text-xs font-bold text-slate-900 block break-words whitespace-normal" title={data.student.name}>
+              <span className="text-xs sm:text-sm font-extrabold text-slate-900 block whitespace-nowrap overflow-hidden text-ellipsis print:whitespace-normal" title={data.student.name}>
                 {data.student.name}
               </span>
             </div>

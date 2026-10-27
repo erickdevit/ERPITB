@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "build:web": "npm --prefix ../web run build",
+    "build:server": "esbuild src/server.ts --bundle --platform=node --target=node22 --format=esm --external:pg --outfile=dist/server.js && cp src/db/schema.postgres.sql dist/schema.postgres.sql",
+    "build": "npm run build:server",
+    "start": "node dist/server.js",
     "dev": "npm --prefix ../web run dev:real",
     "dev:real": "npm run dev",
     "dev:local": "npm run build:web && wrangler dev --local --ip 127.0.0.1 --port 8787",
@@ -15,11 +18,14 @@
   },
   "dependencies": {
     "@noble/hashes": "1.8.0",
-    "jose": "6.2.3"
+    "jose": "6.2.3",
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20260815.1",
     "@types/node": "^26.1.1",
+    "@types/pg": "^8.23.1",
+    "esbuild": "^0.28.2",
     "typescript": "5.9.3",
     "vitest": "^3.2.7",
     "wrangler": "4.123.0"

@@ -1,6 +1,46 @@
 # ERPITB — Plataforma de Gestão Acadêmica, Financeira e Analítica
 
-ERP do **Instituto Transforma Brasil**, composto por aplicação Web PWA (**React 19 + TypeScript + Vite**) 100% online e API REST serverless em **Cloudflare Workers + D1 (SQLite)**.
+ERP do **Instituto Transforma Brasil**, composto por aplicação Web PWA (**React 19 + TypeScript + Vite**) 100% online e API REST nativa em **Node.js 22 + PostgreSQL 16**, suportando também implantação serverless em Cloudflare Workers + D1.
+
+---
+
+## Execução com Docker & PostgreSQL (Recomendado)
+
+A aplicação foi portanteada para container Docker multi-stage ultraleve (`node:22-alpine`, usuário não-root `node`, bundle esbuild de 400KB), com banco relacional **PostgreSQL 16**, armazenamento local persistente de assets/branding e serving unificado de API e PWA estático na porta **3000**.
+
+### 1. Iniciar com Docker Compose
+
+```bash
+# Copie o arquivo de variáveis de ambiente
+cp .env.example .env
+
+# Suba os containers do PostgreSQL e da Aplicação
+docker compose up -d
+```
+
+Os serviços iniciados são:
+- `erpitb-postgres`: PostgreSQL 16 Alpine com volume persistente `postgres_data` na porta `5432`.
+- `erpitb-app`: Aplicação unificada (API REST + PWA Web) com volume persistente de arquivos `storage_data` na porta `3000`.
+
+### 2. Verificar a Saúde dos Containers
+
+```bash
+docker compose ps
+curl http://127.0.0.1:3000/health
+```
+
+### 3. Bootstrap do Primeiro Administrador no Docker
+
+Com os containers em execução:
+
+```bash
+curl -X POST http://127.0.0.1:3000/auth/bootstrap \
+  -H "X-Bootstrap-Secret: troque-este-segredo" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Administrador","email":"admin@erpitb.local","password":"SuaSenhaSegura123!"}'
+```
+
+Após o bootstrap, acesse `http://localhost:3000` no seu navegador para utilizar o sistema.
 
 ---
 

@@ -74,6 +74,9 @@ function checkRateLimit(clientIp: string, path: string, limit: number, windowMs:
 }
 
 let schemaEnsured = false;
+export function setSchemaEnsured(ensured = true): void {
+  schemaEnsured = ensured;
+}
 async function ensureDbSchema(env: Env): Promise<void> {
   if (schemaEnsured || !env?.DB || typeof env.DB.prepare !== 'function') return;
   try {
@@ -186,7 +189,7 @@ export default {
         const ip = request.headers.get('cf-connecting-ip') || 'global';
         checkRateLimit(ip, url.pathname, 60, 60_000);
       }
-      if (url.pathname === '/health' && request.method === 'GET') {
+      if (url.pathname === '/health' && (request.method === 'GET' || request.method === 'HEAD')) {
         return withHeaders(json({ status: 'ok', service: 'ERPITB API' }), commonHeaders, requestId);
       }
       if (url.pathname.startsWith('/v1/assets/') && request.method === 'GET') {

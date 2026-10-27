@@ -27,7 +27,10 @@ export default defineConfig(({ mode }) => {
         },
         workbox: {
           navigateFallback: '/index.html',
-          navigateFallbackDenylist: [/^\/api/],
+          navigateFallbackDenylist: [/^\/api/, /^\/v1/, /^\/auth/, /^\/sync/, /^\/health/, /^\/portal/, /^\/public/],
+          clientsClaim: true,
+          skipWaiting: true,
+          cleanupOutdatedCaches: true,
         },
       }),
     ],

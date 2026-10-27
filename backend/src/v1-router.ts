@@ -229,6 +229,11 @@ export async function handleV1Route(request: Request, env: Env, user: AuthUser, 
   if (path === '/v1/students' && method === 'POST') return createStudent(request, env, user);
   const studentMatch = path.match(/^\/v1\/students\/([^/]+)$/);
   if (studentMatch && method === 'GET') return getStudent(env, user, studentMatch[1]!);
+  const studentAttendanceMatch = path.match(/^\/v1\/students\/([^/]+)\/attendance$/);
+  if (studentAttendanceMatch && method === 'GET') {
+    url.searchParams.set('studentId', studentAttendanceMatch[1]!);
+    return listAttendance(url, env, user);
+  }
   if (studentMatch && method === 'PATCH') return updateStudent(request, env, user, studentMatch[1]!);
   if (studentMatch && method === 'DELETE') return inactivateStudent(env, user, studentMatch[1]!, request);
 
