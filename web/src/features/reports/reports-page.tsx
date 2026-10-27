@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Download, FileText, FileSpreadsheet, RotateCcw } from 'lucide-react';
+import { Download, FileText, FileSpreadsheet, Printer, RotateCcw } from 'lucide-react';
 import { useApp } from '../../app-context';
 import { Section } from '../../components';
 import { exportExcelCsv, exportExcelXlsx, exportSimplePdf } from '../../lib/exports';
@@ -70,6 +70,15 @@ export function ReportsCenterPage() {
 
         {/* Export Actions */}
         <div className="shrink-0 flex items-center justify-end gap-1.5" aria-label="Opções de exportação do relatório">
+          <button
+            type="button"
+            disabled={!view.ready}
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
+          >
+            <Printer className="w-3.5 h-3.5 text-slate-600" />
+            <span>Imprimir</span>
+          </button>
           <button
             type="button"
             disabled={!view.ready}

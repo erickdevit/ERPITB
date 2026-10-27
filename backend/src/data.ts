@@ -361,7 +361,11 @@ export async function createClass(request: Request, env: Env, user: AuthUser): P
         .replace(/\s*[-–—:]\s*(?:turma\s*)?0*\d+$/i, '')
         .replace(/\s+0*\d+$/i, '')
         .trim();
-      if (stripped.length >= 2) cleaned = stripped;
+      if (stripped.length >= 2) {
+        cleaned = stripped;
+      } else if (stripped.length === 1) {
+        cleaned = `Turma ${stripped}`;
+      }
     }
     storedName = cleaned;
   }
@@ -431,7 +435,11 @@ export async function updateClass(request: Request, env: Env, user: AuthUser, id
           .replace(/\s*[-–—:]\s*(?:turma\s*)?0*\d+$/i, '')
           .replace(/\s+0*\d+$/i, '')
           .trim();
-        if (stripped.length >= 2) cleaned = stripped;
+        if (stripped.length >= 2) {
+          cleaned = stripped;
+        } else if (stripped.length === 1) {
+          cleaned = `Turma ${stripped}`;
+        }
       }
       storedName = cleaned;
     }

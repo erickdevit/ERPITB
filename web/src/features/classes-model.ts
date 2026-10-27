@@ -77,7 +77,13 @@ export function cleanClassName(name: string): string {
     .replace(/\s*[-–—:]\s*(?:turma\s*)?0*\d+$/i, '')
     .replace(/\s+0*\d+$/i, '')
     .trim();
-  return stripped.length >= 2 ? stripped : name;
+  if (stripped.length >= 2) {
+    return stripped;
+  }
+  if (stripped.length === 1) {
+    return `Turma ${stripped}`;
+  }
+  return name;
 }
 
 export function formatClassDisplayName(classNumber?: number, name?: string): string {

@@ -85,5 +85,19 @@ describe('classes model', () => {
     expect(rows[3]!.classNumber).toBe(10);
     expect(rows[3]!.name).toBe('Robótica');
     expect(rows[3]!.displayName).toBe('#10 - Robótica');
+
+    // Suffix sections like Turma 01 - A
+    const sectionClass: LocalRecord = { id: 'c-3', name: 'Turma 03 - A', course_id: 'course-1', active: 1 };
+    const sectionRows = buildClassViews({
+      classes: [sectionClass],
+      courses,
+      laboratories: [],
+      assignments: [],
+      teachers: [],
+      session: { id: 'admin', name: 'Admin', email: 'admin@itb.test', role: 'admin' },
+    });
+    expect(sectionRows[0]!.classNumber).toBe(3);
+    expect(sectionRows[0]!.name).toBe('Turma A');
+    expect(sectionRows[0]!.displayName).toBe('#03 - Turma A');
   });
 });

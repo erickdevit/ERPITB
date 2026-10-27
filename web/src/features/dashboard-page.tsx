@@ -745,26 +745,30 @@ export function DashboardPage() {
                     const { x, y, width, height, value, index } = props;
                     const entry = comparisonData[index];
                     if (!entry) return null;
-                    const name = entry.displayName || entry.name;
+                    const rawName = entry.displayName || entry.name;
                     const isZero = entry.records === 0;
+                    const displayName = rawName.length > 24 ? `${rawName.slice(0, 23)}…` : rawName;
+                    const nameEstimateWidth = (displayName.length + (isZero ? 24 : 0)) * 7.5;
+                    const minPctX = x + 12 + nameEstimateWidth + 12;
+                    const pctX = Math.max(x + width + 8, minPctX);
 
                     return (
                       <g>
                         <text
                           x={x + 12}
                           y={y + height / 2}
-                          fill={isZero ? '#94A3B8' : width > 130 ? '#FFFFFF' : '#0F172A'}
+                          fill={isZero ? '#94A3B8' : width > 160 ? '#FFFFFF' : '#0F172A'}
                           fontSize={12}
                           fontWeight={600}
                           dominantBaseline="central"
                           style={{ pointerEvents: 'none' }}
                         >
-                          {name}
+                          {displayName}
                           {isZero ? ' · Sem chamadas no período' : ''}
                         </text>
                         {!isZero && (
                           <text
-                            x={Math.max(x + width + 8, x + 120)}
+                            x={pctX}
                             y={y + height / 2}
                             fill="#0F172A"
                             fontSize={11}

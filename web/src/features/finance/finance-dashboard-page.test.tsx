@@ -206,9 +206,14 @@ describe('FinanceDashboardPage', () => {
 
     await waitFor(() => expect(mocks.api.getFees).toHaveBeenCalled());
 
+    expect(screen.getByText('Arrecadação e Inadimplência por Turma')).toBeInTheDocument();
+
     // Select Turma 02 - Design
     const turmaSelect = screen.getByLabelText('Filtrar por turma');
     await user.selectOptions(turmaSelect, 'class-2');
+
+    // Chart should turn into student breakdown
+    expect(screen.getByText('Arrecadação por Aluno')).toBeInTheDocument();
 
     // Carla Dias should still be in the list, but Bruno Costa (class-1) should be filtered out
     expect(screen.getByText('Carla Dias')).toBeInTheDocument();

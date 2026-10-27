@@ -4,6 +4,7 @@ import { DateField, SelectField } from '../../components';
 import { formatDate, parseBrazilDate } from '../../lib/date';
 import type { LocalRecord, Role } from '../../types';
 import { canManage } from '../../types';
+import { cleanClassName, extractClassNumber, formatClassDisplayName } from '../classes-model';
 import type { ReportFilters, ReportType } from './model';
 import { reportTypeOptions } from './model';
 
@@ -183,7 +184,26 @@ export function ReportFiltersBar({
               }
               options={[
                 { value: '', label: 'Todas as turmas' },
-                ...availableClasses.map((c) => ({ value: c.id, label: text(c, 'name') })),
+                ...availableClasses
+                  .map((c) => {
+                    const cName = text(c, 'name');
+                    const num = c.class_number !== undefined && c.class_number !== null
+                      ? Number(c.class_number)
+                      : extractClassNumber(cName);
+                    const clean = cleanClassName(cName);
+                    return {
+                      value: c.id,
+                      classNumber: num,
+                      label: formatClassDisplayName(num, clean),
+                    };
+                  })
+                  .sort((a, b) => {
+                    const numA = a.classNumber ?? 999999;
+                    const numB = b.classNumber ?? 999999;
+                    if (numA !== numB) return numA - numB;
+                    return a.label.localeCompare(b.label, 'pt-BR');
+                  })
+                  .map(({ value, label }) => ({ value, label })),
               ]}
             />
           </div>

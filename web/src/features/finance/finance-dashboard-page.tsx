@@ -139,7 +139,7 @@ export function FinanceDashboardPage() {
     };
   }, [api, filterMonth, filterYear]);
 
-  // Turma options
+  // Turma options sorted in ascending numeric order
   const classOptions = useMemo(() => {
     const raw = (classes.items ?? []).filter(
       (c) => !c.deleted_at && c.active !== 0 && c.active !== false,
@@ -147,16 +147,28 @@ export function FinanceDashboardPage() {
     return raw
       .map((c) => {
         const cName = String(c.name || '');
-        const num = extractClassNumber(cName);
+        const num = c.class_number !== undefined && c.class_number !== null
+          ? Number(c.class_number)
+          : extractClassNumber(cName);
         const clean = cleanClassName(cName);
         return {
           id: c.id,
+          classNumber: num,
           name: formatClassDisplayName(num, clean),
           rawName: cName,
         };
       })
-      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+      .sort((a, b) => {
+        const numA = a.classNumber ?? 999999;
+        const numB = b.classNumber ?? 999999;
+        if (numA !== numB) return numA - numB;
+        return a.name.localeCompare(b.name, 'pt-BR');
+      });
   }, [classes.items]);
+
+  const selectedClassName = useMemo(() => {
+    return classOptions.find((c) => c.id === selectedClassId)?.name;
+  }, [classOptions, selectedClassId]);
 
   // Preset handlers
   const handleCurrentMonth = () => {
@@ -316,14 +328,46 @@ export function FinanceDashboardPage() {
     ].filter((item) => item.value > 0 || item.count > 0);
   }, [metrics]);
 
-  // Arrecadação por Turma
+  // Arrecadação por Turma ou por Aluno (quando uma turma está filtrada)
   const classBreakdownData = useMemo(() => {
+    if (selectedClassId) {
+      // Comparativo por Aluno dentro da turma selecionada
+      const studentMap = new Map<
+        string,
+        { name: string; expected: number; paid: number; overdue: number; count: number }
+      >();
+
+      for (const f of filteredFees) {
+        const sKey = f.studentId || f.studentName || 'Aluno';
+        const sName = f.studentName || `Aluno ${f.registrationNumber || ''}`.trim() || 'Aluno';
+
+        if (!studentMap.has(sKey)) {
+          studentMap.set(sKey, { name: sName, expected: 0, paid: 0, overdue: 0, count: 0 });
+        }
+        const entry = studentMap.get(sKey)!;
+        entry.expected += (f.amountCents || 0) / 100;
+        entry.paid += (f.paidAmountCents || 0) / 100;
+        if (f.status === 'atrasada') {
+          entry.overdue += Math.max(0, (f.amountCents || 0) - (f.paidAmountCents || 0)) / 100;
+        }
+        entry.count++;
+      }
+
+      return Array.from(studentMap.values())
+        .map((entry) => ({
+          ...entry,
+          rate: entry.expected > 0 ? Math.round((entry.paid / entry.expected) * 1000) / 10 : 0,
+        }))
+        .sort((a, b) => b.expected - a.expected || a.name.localeCompare(b.name, 'pt-BR'));
+    }
+
+    // Comparativo consolidado por Turma
     const map = new Map<
       string,
       { name: string; expected: number; paid: number; overdue: number; count: number }
     >();
 
-    for (const f of feesList) {
+    for (const f of filteredFees) {
       const cId = f.classId || f.className || 'Sem Turma';
       const cName = f.className || 'Turma não atribuída';
       const num = extractClassNumber(cName);
@@ -348,7 +392,7 @@ export function FinanceDashboardPage() {
         rate: entry.expected > 0 ? Math.round((entry.paid / entry.expected) * 1000) / 10 : 0,
       }))
       .sort((a, b) => b.expected - a.expected);
-  }, [feesList]);
+  }, [filteredFees, selectedClassId]);
 
   // Expenses & Incomes by Category
   const categoryBreakdownData = useMemo(() => {
@@ -843,16 +887,22 @@ export function FinanceDashboardPage() {
 
       {/* Visual Charts Row 2: Turmas Comparison & Expense by Category */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Arrecadação por Turma */}
+        {/* Arrecadação por Turma ou por Aluno */}
         <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-2xs">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                 <Building className="w-4 h-4 text-sky-600" />
-                <span>Arrecadação e Inadimplência por Turma</span>
+                <span>
+                  {selectedClassId ? 'Arrecadação por Aluno' : 'Arrecadação e Inadimplência por Turma'}
+                </span>
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">
-                Comparativo de valores previstos e realizados por turma
+                {selectedClassId
+                  ? selectedClassName
+                    ? `Comparativo de valores por aluno em ${selectedClassName}`
+                    : 'Comparativo de valores por aluno na turma selecionada'
+                  : 'Comparativo de valores previstos e realizados por turma'}
               </p>
             </div>
           </div>
@@ -903,6 +953,7 @@ export function FinanceDashboardPage() {
                       const { x, y, width, height, index } = props;
                       const entry = classBreakdownData[index];
                       if (!entry) return null;
+                      const displayName = entry.name.length > 25 ? `${entry.name.slice(0, 24)}…` : entry.name;
                       return (
                         <g>
                           <text
@@ -914,7 +965,7 @@ export function FinanceDashboardPage() {
                             dominantBaseline="central"
                             style={{ pointerEvents: 'none' }}
                           >
-                            {entry.name}
+                            {displayName}
                           </text>
                           <text
                             x={x + width + 8}
@@ -942,7 +993,9 @@ export function FinanceDashboardPage() {
             </div>
           ) : (
             <div className="py-12 text-center text-slate-400 text-xs">
-              Nenhuma turma com mensalidades lançadas para esta competência.
+              {selectedClassId
+                ? 'Nenhum aluno com mensalidades nesta turma para esta competência.'
+                : 'Nenhuma turma com mensalidades lançadas para esta competência.'}
             </div>
           )}
         </div>

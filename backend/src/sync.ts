@@ -8,7 +8,7 @@ type Row = Record<string, unknown>;
 const columns: Record<SyncEntity, readonly string[]> = {
   laboratories: ['name', 'active'],
   courses: ['code', 'name', 'active'],
-  classes: ['course_id', 'name', 'shift', 'week_day', 'is_kids', 'laboratory_id', 'active'],
+  classes: ['course_id', 'name', 'class_number', 'shift', 'week_day', 'is_kids', 'laboratory_id', 'active'],
   class_teachers: ['class_id', 'user_id'],
   students: ['encrypted_name', 'encrypted_cpf', 'encrypted_contact', 'registration_number', 'birth_date', 'active'],
   enrollments: ['class_id', 'student_id', 'status'],
@@ -232,6 +232,45 @@ async function normalizePayload(env: Env, user: AuthUser, operation: SyncOperati
       data.score = existing.score;
     } else {
       data.score = null;
+    }
+  }
+  if (operation.entity === 'classes') {
+    const rawName = String(data.name ?? existing?.name ?? '').trim();
+    let classNumber = data.class_number !== undefined && data.class_number !== null
+      ? Number(data.class_number)
+      : (existing?.class_number !== undefined && existing?.class_number !== null ? Number(existing.class_number) : undefined);
+
+    if (classNumber === undefined || Number.isNaN(classNumber) || classNumber <= 0) {
+      const match = rawName.match(/\b0*([1-9]\d{0,2})\b/) || rawName.match(/\b0*(\d+)\b/);
+      if (match && match[1]) {
+        const n = parseInt(match[1], 10);
+        if (!Number.isNaN(n) && n > 0) classNumber = n;
+      }
+    }
+
+    if (classNumber === undefined || Number.isNaN(classNumber) || classNumber <= 0) {
+      const maxRow = await env.DB.prepare('SELECT MAX(class_number) AS max_num FROM classes WHERE deleted_at IS NULL').first<{ max_num: number | null }>();
+      classNumber = (maxRow?.max_num ?? 0) + 1;
+    }
+    data.class_number = classNumber;
+
+    if (data.cleanName === true && rawName) {
+      let cleaned = rawName;
+      if (/^(?:turma\s*)?0*\d+$/i.test(cleaned)) {
+        cleaned = 'Turma';
+      } else {
+        const stripped = cleaned
+          .replace(/^(?:turma\s*)?0*\d+\s*[-–—:]\s*/i, '')
+          .replace(/\s*[-–—:]\s*(?:turma\s*)?0*\d+$/i, '')
+          .replace(/\s+0*\d+$/i, '')
+          .trim();
+        if (stripped.length >= 2) {
+          cleaned = stripped;
+        } else if (stripped.length === 1) {
+          cleaned = `Turma ${stripped}`;
+        }
+      }
+      data.name = cleaned;
     }
   }
   const selected: Row = {};

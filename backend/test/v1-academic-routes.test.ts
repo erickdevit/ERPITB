@@ -304,4 +304,72 @@ describe('Unified REST Router: Versioned Academic Endpoints (/api/v1/*)', () => 
     const updatedAtt = verifyAttRes.data.items.find((a: any) => a.id === attendanceRecordId);
     expect(updatedAtt.status).toBe('RC');
   });
+
+  it('assigns class_number automatically and preserves it across sync push/pull', async () => {
+    const { env } = createTestEnvironment();
+
+    const bootRes = await request(env, '/api/auth/bootstrap', {
+      method: 'POST',
+      headers: { 'x-bootstrap-secret': env.BOOTSTRAP_SECRET },
+      body: { name: 'Admin Master', email: 'admin@itbcursos.com', password: 'Password@123' },
+    });
+    const token = bootRes.data.accessToken;
+
+    const courseRes = await request(env, '/api/v1/courses', {
+      method: 'POST',
+      token,
+      body: { code: 'ROB', name: 'Robótica' },
+    });
+    const courseId = courseRes.data.id;
+
+    // Create class with name "Turma 05 - Robótica Avançada" and cleanName: true
+    const class1Res = await request(env, '/api/classes', {
+      method: 'POST',
+      token,
+      body: { courseId, name: 'Turma 05 - Robótica Avançada', shift: 'manha', cleanName: true },
+    });
+    expect(class1Res.status).toBe(201);
+    expect(class1Res.data.class_number).toBe(5);
+    expect(class1Res.data.name).toBe('Robótica Avançada');
+
+    // Create another class via sync push without explicit number
+    const classId2 = crypto.randomUUID();
+    const pushRes = await request(env, '/api/sync/push', {
+      method: 'POST',
+      token,
+      body: {
+        deviceId: 'dev-1',
+        operations: [
+          {
+            operationId: 'op-class-2',
+            entity: 'classes',
+            action: 'upsert',
+            id: classId2,
+            baseVersion: 0,
+            updatedAt: new Date().toISOString(),
+            data: {
+              id: classId2,
+              course_id: courseId,
+              name: 'Turma 06 - Automação',
+              shift: 'tarde',
+              active: 1,
+            },
+          },
+        ],
+      },
+    });
+    expect(pushRes.status).toBe(200);
+
+    // List classes and verify numeric sorting
+    const listRes = await request(env, '/api/classes', {
+      method: 'GET',
+      token,
+    });
+    expect(listRes.status).toBe(200);
+    const c1 = listRes.data.items.find((c: any) => c.id === class1Res.data.id);
+    const c2 = listRes.data.items.find((c: any) => c.id === classId2);
+    expect(c1.class_number).toBe(5);
+    expect(c2.class_number).toBe(6);
+    expect(listRes.data.items[0].class_number).toBeLessThanOrEqual(listRes.data.items[1].class_number);
+  });
 });

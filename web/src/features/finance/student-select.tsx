@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Check, Search, User, X } from 'lucide-react';
+import { cleanClassName, extractClassNumber, formatClassDisplayName } from '../classes-model';
 
 export interface StudentOption {
   id: string;
@@ -50,7 +51,12 @@ export function SearchableStudentSelect({
     const classMap = new Map<string, string>();
     for (const c of classes) {
       if (c && c.id) {
-        classMap.set(c.id, c.name || c.displayName || 'Turma');
+        const cName = String(c.name || c.displayName || '');
+        const num = c.class_number !== undefined && c.class_number !== null
+          ? Number(c.class_number)
+          : extractClassNumber(cName);
+        const clean = cleanClassName(cName);
+        classMap.set(c.id, formatClassDisplayName(num, clean));
       }
     }
 
