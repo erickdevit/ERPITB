@@ -251,8 +251,10 @@ div.bg-slate-900.animate-pulse {
     left: 0 !important;
     right: 0 !important;
     bottom: 0 !important;
-    width: 100vw !important;
-    height: 100vh !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
     display: flex !important;
@@ -264,6 +266,10 @@ div.bg-slate-900.animate-pulse {
     background: transparent !important;
     box-shadow: none !important;
     border: none !important;
+    page-break-before: avoid !important;
+    page-break-after: avoid !important;
+    break-before: avoid !important;
+    break-after: avoid !important;
   }
 
   .print-watermark .watermark-image,
@@ -276,6 +282,8 @@ div.bg-slate-900.animate-pulse {
     opacity: 0.085 !important;
     display: block !important;
     margin: auto !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   .print-watermark .watermark-image.grayscale,
@@ -296,13 +304,15 @@ div.bg-slate-900.animate-pulse {
     white-space: nowrap !important;
     display: block !important;
     margin: auto !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   /* Printable containers must not trap fixed positioning or occlude the background watermark */
   .print-portrait,
   .print-landscape,
-  .print-portrait > div,
-  .print-landscape > div {
+  .print-portrait > div:not(.print-watermark):not([data-watermark="true"]),
+  .print-landscape > div:not(.print-watermark):not([data-watermark="true"]) {
     position: static !important;
     overflow: visible !important;
     background-color: transparent !important;

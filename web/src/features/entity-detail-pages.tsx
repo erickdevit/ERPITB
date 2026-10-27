@@ -35,7 +35,7 @@ import { buildAnalytics } from '../lib/analytics';
 import { formatDate } from '../lib/date';
 import { useEntity } from '../lib/use-entity';
 import type { LocalRecord } from '../types';
-import { shiftLabel } from './classes-model';
+import { cleanClassName, extractClassNumber, formatClassDisplayName, shiftLabel } from './classes-model';
 
 const text = (record: Record<string, unknown> | undefined, key: string) => String(record?.[key] ?? '');
 
@@ -262,8 +262,13 @@ export function ClassDetailPage() {
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
-            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
-              {text(classRecord, 'name')}
+            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+              {(classRecord?.class_number !== undefined && classRecord?.class_number !== null) || extractClassNumber(text(classRecord, 'name')) ? (
+                <span className="px-2 py-0.5 text-xs font-mono font-black rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                  #{String(classRecord?.class_number ?? extractClassNumber(text(classRecord, 'name'))).padStart(2, '0')}
+                </span>
+              ) : null}
+              <span>{cleanClassName(text(classRecord, 'name'))}</span>
             </h1>
             <p className="text-xs text-slate-500 font-medium mt-0.5">
               {text(course, 'name')} · {shiftLabel(text(classRecord, 'shift'))}{' '}

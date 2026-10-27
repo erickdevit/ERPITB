@@ -298,11 +298,11 @@ export async function listClasses(env: Env, user: AuthUser): Promise<unknown> {
     ? `JOIN class_teachers ct ON ct.class_id = c.id AND ct.user_id = ? AND ct.deleted_at IS NULL`
     : '';
   const statement = env.DB.prepare(
-    `SELECT c.id, c.course_id, c.name, c.shift, c.week_day, c.is_kids, c.laboratory_id, c.active, c.sync_version, c.created_at, c.updated_at,
+    `SELECT c.id, c.course_id, c.name, c.class_number, c.shift, c.week_day, c.is_kids, c.laboratory_id, c.active, c.sync_version, c.created_at, c.updated_at,
             co.code AS course_code, co.name AS course_name, l.name AS laboratory_name
        FROM classes c JOIN courses co ON co.id = c.course_id
        LEFT JOIN laboratories l ON l.id = c.laboratory_id ${filter}
-      WHERE c.deleted_at IS NULL ORDER BY co.name, c.name`,
+      WHERE c.deleted_at IS NULL ORDER BY COALESCE(c.class_number, 999999) ASC, co.name ASC, c.name ASC`,
   );
   const rows = user.role === 'professor' ? await statement.bind(user.id).all() : await statement.all();
   return { items: rows.results };
@@ -312,7 +312,7 @@ export async function getClass(env: Env, user: AuthUser, id: string): Promise<Re
   requireScope(user, 'classes:read');
   await requireClassAccess(env, user, id);
   const row = await env.DB.prepare(
-    `SELECT c.id, c.course_id, c.name, c.shift, c.week_day, c.is_kids, c.laboratory_id, c.active, c.sync_version, c.created_at, c.updated_at,
+    `SELECT c.id, c.course_id, c.name, c.class_number, c.shift, c.week_day, c.is_kids, c.laboratory_id, c.active, c.sync_version, c.created_at, c.updated_at,
             co.code AS course_code, co.name AS course_name, l.name AS laboratory_name
        FROM classes c JOIN courses co ON co.id = c.course_id
        LEFT JOIN laboratories l ON l.id = c.laboratory_id
@@ -329,10 +329,48 @@ export async function createClass(request: Request, env: Env, user: AuthUser): P
   requirePermission(user, 'classes:create');
   const body = await readJson<JsonRecord>(request);
   const timestamp = nowIso();
+  const rawName = requireString(body.name, 'nome', { min: 2, max: 120 });
+
+  // 1. Extract numeric ID from name if present (e.g. "Turma 01 - Informática", "01 - Informática", "Turma 1")
+  let parsedNumber: number | undefined = undefined;
+  const numMatch = rawName.match(/\b0*(\d+)\b/);
+  if (numMatch && numMatch[1]) {
+    const n = parseInt(numMatch[1], 10);
+    if (!Number.isNaN(n) && n > 0) parsedNumber = n;
+  }
+
+  // 2. Determine canonical class_number
+  let classNumber: number;
+  if (typeof body.classNumber === 'number' && Number.isSafeInteger(body.classNumber) && body.classNumber > 0) {
+    classNumber = body.classNumber;
+  } else if (parsedNumber !== undefined) {
+    classNumber = parsedNumber;
+  } else {
+    const maxRow = await env.DB.prepare('SELECT MAX(class_number) AS max_num FROM classes WHERE deleted_at IS NULL').first<{ max_num: number | null }>();
+    classNumber = (maxRow?.max_num ?? 0) + 1;
+  }
+
+  let storedName = rawName;
+  if (body.cleanName === true) {
+    let cleaned = rawName.trim();
+    if (/^(?:turma\s*)?0*\d+$/i.test(cleaned)) {
+      cleaned = 'Turma';
+    } else {
+      const stripped = cleaned
+        .replace(/^(?:turma\s*)?0*\d+\s*[-–—:]\s*/i, '')
+        .replace(/\s*[-–—:]\s*(?:turma\s*)?0*\d+$/i, '')
+        .replace(/\s+0*\d+$/i, '')
+        .trim();
+      if (stripped.length >= 2) cleaned = stripped;
+    }
+    storedName = cleaned;
+  }
+
   const row = {
     id: uuid(),
     course_id: requireString(body.courseId, 'courseId', { max: 36 }),
-    name: requireString(body.name, 'nome', { min: 2, max: 120 }),
+    name: storedName,
+    class_number: classNumber,
     shift: oneOf(body.shift, 'turno', ['manha', 'tarde', 'noite', 'integral'] as const),
     week_day: typeof body.weekDay === 'string' ? body.weekDay : null,
     is_kids: boolInt(body.isKids, false),
@@ -347,8 +385,8 @@ export async function createClass(request: Request, env: Env, user: AuthUser): P
   const assignment = teacherId ? { id: uuid(), class_id: row.id, user_id: teacherId, sync_version: 1, created_at: timestamp, updated_at: timestamp } : null;
   await env.DB.batch([
     env.DB.prepare(
-      `INSERT INTO classes (id, course_id, name, shift, week_day, is_kids, laboratory_id, active, sync_version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
-    ).bind(row.id, row.course_id, row.name, row.shift, row.week_day, row.is_kids, row.laboratory_id, row.active, timestamp, timestamp),
+      `INSERT INTO classes (id, course_id, name, class_number, shift, week_day, is_kids, laboratory_id, active, sync_version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+    ).bind(row.id, row.course_id, row.name, row.class_number, row.shift, row.week_day, row.is_kids, row.laboratory_id, row.active, timestamp, timestamp),
     change(env, user, 'classes', row.id, 'upsert', row),
     ...(assignment ? [env.DB.prepare(`INSERT INTO class_teachers (id, class_id, user_id, sync_version, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)`).bind(assignment.id, row.id, teacherId, timestamp, timestamp), change(env, user, 'class_teachers', assignment.id, 'upsert', assignment)] : []),
     audit(env, user, 'CREATE', 'classes', row.id, { teacherId: teacherId ?? undefined }),
@@ -372,7 +410,33 @@ export async function updateClass(request: Request, env: Env, user: AuthUser, id
 
   const body = await readJson<JsonRecord>(request);
   const courseId = body.courseId === undefined ? String(current.course_id) : requireString(body.courseId, 'courseId', { max: 36 });
-  const name = body.name === undefined ? String(current.name) : requireString(body.name, 'nome', { min: 2, max: 120 });
+  const rawName = body.name === undefined ? String(current.name) : requireString(body.name, 'nome', { min: 2, max: 120 });
+  let storedName = rawName;
+  let classNumber = body.classNumber !== undefined
+    ? (typeof body.classNumber === 'number' ? body.classNumber : parseInt(String(body.classNumber), 10))
+    : (current.class_number !== null && current.class_number !== undefined ? Number(current.class_number) : null);
+
+  if (body.name !== undefined) {
+    const numMatch = rawName.match(/\b0*(\d+)\b/);
+    if (numMatch && numMatch[1] && (classNumber === null || classNumber === undefined)) {
+      classNumber = parseInt(numMatch[1], 10);
+    }
+    if (body.cleanName === true) {
+      let cleaned = rawName.trim();
+      if (/^(?:turma\s*)?0*\d+$/i.test(cleaned)) {
+        cleaned = 'Turma';
+      } else {
+        const stripped = cleaned
+          .replace(/^(?:turma\s*)?0*\d+\s*[-–—:]\s*/i, '')
+          .replace(/\s*[-–—:]\s*(?:turma\s*)?0*\d+$/i, '')
+          .replace(/\s+0*\d+$/i, '')
+          .trim();
+        if (stripped.length >= 2) cleaned = stripped;
+      }
+      storedName = cleaned;
+    }
+  }
+
   const shift = body.shift === undefined ? String(current.shift) : oneOf(body.shift, 'turno', ['manha', 'tarde', 'noite', 'integral'] as const);
   const weekDay = body.weekDay === undefined ? (current.week_day as string | null) : (typeof body.weekDay === 'string' ? body.weekDay : null);
   const isKids = body.isKids === undefined ? Number(current.is_kids ?? 0) : boolInt(body.isKids, false);
@@ -383,8 +447,8 @@ export async function updateClass(request: Request, env: Env, user: AuthUser, id
   const nextVersion = currentVersion + 1;
 
   const result = await env.DB.prepare(
-    `UPDATE classes SET course_id = ?, name = ?, shift = ?, week_day = ?, is_kids = ?, laboratory_id = ?, active = ?, sync_version = ?, updated_at = ? WHERE id = ? AND sync_version = ? AND deleted_at IS NULL`,
-  ).bind(courseId, name, shift, weekDay, isKids, laboratoryId, active, nextVersion, timestamp, id, currentVersion).run();
+    `UPDATE classes SET course_id = ?, name = ?, class_number = ?, shift = ?, week_day = ?, is_kids = ?, laboratory_id = ?, active = ?, sync_version = ?, updated_at = ? WHERE id = ? AND sync_version = ? AND deleted_at IS NULL`,
+  ).bind(courseId, storedName, classNumber, shift, weekDay, isKids, laboratoryId, active, nextVersion, timestamp, id, currentVersion).run();
 
   if (result.meta.changes === 0) {
     const latest = await getEntityRow(env, 'classes', id);

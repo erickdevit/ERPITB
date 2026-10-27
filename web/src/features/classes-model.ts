@@ -21,6 +21,7 @@ export interface ClassDraft {
   laboratoryId: string;
   teacherId: string;
   isKids: boolean;
+  classNumber?: number;
 }
 
 export interface ClassTeacherView {
@@ -34,6 +35,8 @@ export interface ClassView {
   record: LocalRecord;
   id: string;
   name: string;
+  classNumber?: number;
+  displayName: string;
   courseId: string;
   courseName: string;
   shift: ClassShift | string;
@@ -54,6 +57,37 @@ export interface ClassPermissions {
 
 const text = (record: Record<string, unknown> | undefined, key: string) => String(record?.[key] ?? '');
 const current = (record: LocalRecord) => !record.deleted_at;
+
+export function extractClassNumber(name: string): number | undefined {
+  const match = name.match(/\b0*(\d+)\b/);
+  if (match && match[1]) {
+    const n = parseInt(match[1], 10);
+    if (!Number.isNaN(n) && n > 0) return n;
+  }
+  return undefined;
+}
+
+export function cleanClassName(name: string): string {
+  const trimmed = name.trim();
+  if (/^(?:turma\s*)?0*\d+$/i.test(trimmed)) {
+    return 'Turma';
+  }
+  const stripped = trimmed
+    .replace(/^(?:turma\s*)?0*\d+\s*[-–—:]\s*/i, '')
+    .replace(/\s*[-–—:]\s*(?:turma\s*)?0*\d+$/i, '')
+    .replace(/\s+0*\d+$/i, '')
+    .trim();
+  return stripped.length >= 2 ? stripped : name;
+}
+
+export function formatClassDisplayName(classNumber?: number, name?: string): string {
+  const safeName = name || 'Turma';
+  if (classNumber !== undefined && classNumber !== null && classNumber > 0) {
+    const formattedNum = String(classNumber).padStart(2, '0');
+    return `#${formattedNum} - ${safeName}`;
+  }
+  return safeName;
+}
 
 export function permissionsForClasses(role: Role): ClassPermissions {
   return {
@@ -107,10 +141,21 @@ export function buildClassViews(input: {
           };
         })
         .sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'));
+
+      const rawName = text(record, 'name') || 'Turma sem nome';
+      const parsedNum = extractClassNumber(rawName);
+      const classNum = record.class_number !== undefined && record.class_number !== null
+        ? Number(record.class_number)
+        : parsedNum;
+      const cleanName = cleanClassName(rawName);
+      const displayName = formatClassDisplayName(classNum, cleanName);
+
       return {
         record,
         id: record.id,
-        name: text(record, 'name') || 'Turma sem nome',
+        name: cleanName,
+        classNumber: classNum,
+        displayName,
         courseId: text(record, 'course_id'),
         courseName: text(course, 'name') || text(record, 'course_name') || 'Curso não informado',
         shift: text(record, 'shift'),
@@ -121,12 +166,17 @@ export function buildClassViews(input: {
         teachers: ownTeachers,
       };
     })
-    .sort((left, right) => left.courseName.localeCompare(right.courseName, 'pt-BR') || left.name.localeCompare(right.name, 'pt-BR'));
+    .sort((left, right) => {
+      const numA = left.classNumber ?? 999999;
+      const numB = right.classNumber ?? 999999;
+      if (numA !== numB) return numA - numB;
+      return left.courseName.localeCompare(right.courseName, 'pt-BR') || left.name.localeCompare(right.name, 'pt-BR');
+    });
 }
 
 export function filterClassViews(rows: ClassView[], query: string, teacherId: string): ClassView[] {
   const normalized = query.trim().toLocaleLowerCase('pt-BR');
-  return rows.filter((row) => (!normalized || `${row.name} ${row.courseName}`.toLocaleLowerCase('pt-BR').includes(normalized))
+  return rows.filter((row) => (!normalized || `${row.displayName} ${row.name} ${row.courseName}`.toLocaleLowerCase('pt-BR').includes(normalized))
     && (!teacherId || row.teachers.some((teacher) => teacher.id === teacherId)));
 }
 

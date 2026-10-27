@@ -87,7 +87,11 @@ export function ReportsCenterPage() {
                   watermarkGrayscale: branding?.printWatermarkGrayscale ?? true,
                 });
               } else {
-                void exportSimplePdf(filename, view.title, view.context, view.headers, view.rows);
+                void exportSimplePdf(filename, view.title, view.context, view.headers, view.rows, {
+                  watermarkText: branding?.printWatermarkText,
+                  watermarkLogoUrl: branding?.printWatermarkLogoUrl,
+                  watermarkGrayscale: branding?.printWatermarkGrayscale ?? true,
+                });
               }
             }}
             className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"

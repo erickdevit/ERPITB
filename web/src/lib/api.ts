@@ -315,8 +315,14 @@ export class ApiClient {
   }
 
   // Server-side Analytics & Reports
-  getAnalytics(params?: Record<string, string>) {
-    const qs = params ? `?${new URLSearchParams(params).toString()}` : '';
+  getAnalytics(params?: Record<string, string | undefined>) {
+    const cleanParams: Record<string, string> = {};
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        if (v !== undefined) cleanParams[k] = v;
+      }
+    }
+    const qs = Object.keys(cleanParams).length > 0 ? `?${new URLSearchParams(cleanParams).toString()}` : '';
     return this.get<any>(`/v1/analytics${qs}`);
   }
 

@@ -19,6 +19,7 @@ import { PageDialog, SelectField } from '../../components';
 import { useEntity } from '../../lib/use-entity';
 import type { FinancialFee, LocalRecord, PaymentMethod } from '../../types';
 import { FeesPrintDocument } from './finance-print';
+import { SearchableStudentSelect } from './student-select';
 
 function formatCents(cents: number): string {
   return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -34,6 +35,7 @@ export function FeesView() {
   const { api, session, branding } = useApp();
   const classes = useEntity('classes');
   const students = useEntity('students');
+  const enrollments = useEntity('enrollments');
 
   const [loading, setLoading] = useState(true);
   const [fees, setFees] = useState<FinancialFee[]>([]);
@@ -385,22 +387,16 @@ export function FeesView() {
         >
           <form onSubmit={handleCreateFee} className="flex flex-col gap-4 text-xs">
             {message && <p className="text-rose-600 font-semibold">{message}</p>}
-            <div className="flex flex-col gap-1">
-              <label className="font-semibold text-slate-700">Aluno</label>
-              <select
-                required
-                value={studentId}
-                onChange={(e) => setStudentId(e.target.value)}
-                className="px-3 py-2 rounded-xl border border-slate-200 bg-white"
-              >
-                <option value="">Selecione um aluno...</option>
-                {students.items.map((s: any) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} ({s.registration_number || s.registrationNumber})
-                  </option>
-                ))}
-              </select>
-            </div>
+            <SearchableStudentSelect
+              label="Aluno"
+              required
+              value={studentId}
+              onChange={(selectedId) => setStudentId(selectedId)}
+              students={students.items}
+              enrollments={enrollments.items}
+              classes={classes.items}
+              placeholder="Digite o nome ou matrícula do aluno..."
+            />
 
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1">

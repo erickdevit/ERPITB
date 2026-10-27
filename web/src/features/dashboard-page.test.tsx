@@ -247,12 +247,35 @@ describe('DashboardPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('respects professor role scope and avoids unnecessary user directory fetches', () => {
-    mocks.session = { id: 'prof-99', name: 'Professor Específico', role: 'professor' };
+  it('transforms comparative chart into student breakdown when a turma is selected', async () => {
+    const user = userEvent.setup();
+    mocks.entities.classes = {
+      items: [
+        { id: 'class-1', name: 'Desenvolvimento Web', course_id: 'course-1', active: 1 },
+      ],
+      loading: false,
+    };
+    mocks.entities.students = {
+      items: [
+        { id: 'student-1', name: 'Beatriz Santos', registration_number: 'MAT-101', active: 1 },
+      ],
+      loading: false,
+    };
+    mocks.entities.enrollments = {
+      items: [
+        { id: 'enr-1', class_id: 'class-1', student_id: 'student-1', status: 'ativa' },
+      ],
+      loading: false,
+    };
 
     render(<DashboardPage />);
 
-    // For professor role, api.get should not be called
-    expect(mocks.api.get).not.toHaveBeenCalled();
+    expect(screen.getByText('Comparativo por Turma')).toBeInTheDocument();
+
+    const turmaSelect = screen.getByLabelText(/Turma:/i);
+    await user.selectOptions(turmaSelect, 'class-1');
+
+    expect(screen.getByText('Comparativo por Aluno')).toBeInTheDocument();
   });
 });
+

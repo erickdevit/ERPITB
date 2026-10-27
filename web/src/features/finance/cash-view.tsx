@@ -16,8 +16,10 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../app-context';
 import { PageDialog } from '../../components';
+import { useEntity } from '../../lib/use-entity';
 import type { CashTransaction, CashType, PaymentMethod } from '../../types';
 import { CashPrintDocument } from './finance-print';
+import { SearchableStudentSelect } from './student-select';
 
 function formatCents(cents: number): string {
   return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -31,6 +33,9 @@ function formatDate(iso: string): string {
 
 export function CashView({ mode = 'all' }: { mode?: 'all' | 'entrada' | 'saida' } = {}) {
   const { api, branding } = useApp();
+  const students = useEntity('students');
+  const classes = useEntity('classes');
+  const enrollments = useEntity('enrollments');
 
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<CashTransaction[]>([]);
@@ -415,7 +420,7 @@ export function CashView({ mode = 'all' }: { mode?: 'all' | 'entrada' | 'saida' 
               </div>
             </div>
 
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1.5">
               <label className="font-semibold text-slate-700">Categoria</label>
               <input
                 required
@@ -425,6 +430,25 @@ export function CashView({ mode = 'all' }: { mode?: 'all' | 'entrada' | 'saida' 
                 onChange={(e) => setCategory(e.target.value)}
                 className="px-3 py-2 rounded-xl border border-slate-200"
               />
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                {(txType === 'entrada'
+                  ? ['Mensalidade', 'Doação', 'Venda de Material', 'Taxa de Matrícula', 'Evento']
+                  : ['Material Didático', 'Limpeza', 'Manutenção', 'Internet / TI', 'Energia Elétrica', 'Lanche']
+                ).map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setCategory(cat)}
+                    className={`px-2 py-0.5 rounded-lg text-[11px] font-medium transition-colors cursor-pointer border ${
+                      category === cat
+                        ? 'bg-slate-900 text-white border-slate-900'
+                        : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="flex flex-col gap-1">
@@ -439,23 +463,23 @@ export function CashView({ mode = 'all' }: { mode?: 'all' | 'entrada' | 'saida' 
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1">
-                <label className="font-semibold text-slate-700">Aluno / Favorecido (opcional)</label>
-                <input
-                  type="text"
-                  placeholder="Nome do aluno ou favorecido"
-                  value={studentName}
-                  onChange={(e) => setStudentName(e.target.value)}
-                  className="px-3 py-2 rounded-xl border border-slate-200"
-                />
-              </div>
+            <div className="flex flex-col gap-3">
+              <SearchableStudentSelect
+                label="Aluno / Favorecido (opcional)"
+                value={studentName}
+                allowFreeText={true}
+                onChange={(val, student) => setStudentName(student ? student.name : val)}
+                students={students.items}
+                enrollments={enrollments.items}
+                classes={classes.items}
+                placeholder="Buscar aluno cadastrado ou digitar nome avulso..."
+              />
 
               <div className="flex flex-col gap-1">
                 <label className="font-semibold text-slate-700">Referência / Recibo (opcional)</label>
                 <input
                   type="text"
-                  placeholder="Nº recibo ou transação"
+                  placeholder="Nº recibo ou código da transação"
                   value={reference}
                   onChange={(e) => setReference(e.target.value)}
                   className="px-3 py-2 rounded-xl border border-slate-200"

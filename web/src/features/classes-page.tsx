@@ -21,7 +21,10 @@ import {
   buildClassViews,
   classShifts,
   classWeekDays,
+  cleanClassName,
+  extractClassNumber,
   filterClassViews,
+  formatClassDisplayName,
   permissionsForClasses,
   planTeacherToggle,
   shiftLabel,
@@ -135,8 +138,18 @@ export function ClassesPage() {
   );
 
   const openCreate = () => {
+    const maxExisting = Math.max(
+      0,
+      ...(classes.items ?? []).map((c: any) => {
+        const num = c.class_number !== undefined && c.class_number !== null
+          ? Number(c.class_number)
+          : extractClassNumber(String(c.name ?? ''));
+        return num && !Number.isNaN(num) ? num : 0;
+      }),
+    );
+    const nextNumber = maxExisting + 1;
     setEditingId(undefined);
-    setDraft(emptyDraft());
+    setDraft({ ...emptyDraft(), classNumber: nextNumber });
     setFormError(undefined);
     setDialogOpen(true);
   };
@@ -145,6 +158,7 @@ export function ClassesPage() {
     setEditingId(row.id);
     setDraft({
       name: row.name,
+      classNumber: row.classNumber,
       courseId: row.courseId,
       shift: row.shift,
       weekDay: row.weekDay,
@@ -164,11 +178,17 @@ export function ClassesPage() {
       return;
     }
 
+    const rawName = draft.name.trim();
+    const cleanName = cleanClassName(rawName);
+    const parsedNum = extractClassNumber(rawName);
+    const classNumber = draft.classNumber ?? parsedNum ?? 1;
+
     try {
       if (editingId) {
         await store.mutate('classes', {
           id: editingId,
-          name: draft.name.trim(),
+          name: cleanName,
+          class_number: classNumber,
           course_id: draft.courseId,
           shift: draft.shift,
           week_day: draft.weekDay || null,
@@ -179,7 +199,8 @@ export function ClassesPage() {
         const classId = identifier();
         await store.mutate('classes', {
           id: classId,
-          name: draft.name.trim(),
+          name: cleanName,
+          class_number: classNumber,
           course_id: draft.courseId,
           shift: draft.shift,
           week_day: draft.weekDay || null,
@@ -323,6 +344,9 @@ export function ClassesPage() {
                 <tr key={row.id} className="hover:bg-slate-50/75 transition-colors">
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 text-xs font-black rounded-md bg-slate-100 text-slate-700 border border-slate-200 shrink-0 font-mono">
+                        #{String(row.classNumber ?? '?').padStart(2, '0')}
+                      </span>
                       <Link
                         to={`/turmas/${row.id}`}
                         className="font-bold text-slate-900 hover:text-blue-600 hover:underline transition-colors"
@@ -414,6 +438,13 @@ export function ClassesPage() {
           </div>
         )}
 
+        <div className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+          <span className="font-semibold text-slate-700">ID Numérico no ERP:</span>
+          <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-300">
+            #{String(draft.classNumber || 1).padStart(2, '0')}
+          </span>
+        </div>
+
         <div className="flex flex-col gap-1.5 text-left">
           <label htmlFor="class-name-input" className="text-xs font-semibold text-slate-700">
             Nome da turma <span className="text-rose-500">*</span>
@@ -424,7 +455,7 @@ export function ClassesPage() {
             required
             value={draft.name}
             onChange={(e) => setDraft((cur) => ({ ...cur, name: e.target.value }))}
-            placeholder="Ex: Turma A - Informática"
+            placeholder="Ex: Informática Básica"
             className="w-full px-3 py-2 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all"
           />
         </div>

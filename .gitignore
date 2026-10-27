@@ -34,6 +34,8 @@ Thumbs.db
 *.db-shm
 *.db-wal
 *.sql
+!backend/src/schema.sql
+!backend/migrations/*.sql
 *.pdf
 /artifacts/
 .agents/teamwork/

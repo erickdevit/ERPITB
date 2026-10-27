@@ -56,16 +56,92 @@ export function exportBiJson(filename: string, payload: unknown) {
   download(`${filename}.json`, 'application/json;charset=utf-8', JSON.stringify({ generatedAt: new Date().toISOString(), payload }, null, 2));
 }
 
-export async function exportSimplePdf(filename: string, title: string, context: string[], headers: string[], rows: ExportValue[][]) {
-  const { jsPDF } = await import('jspdf');
+export interface SimplePdfWatermarkOptions {
+  watermarkText?: string;
+  watermarkLogoUrl?: string;
+  watermarkGrayscale?: boolean;
+}
+
+export async function exportSimplePdf(
+  filename: string,
+  title: string,
+  context: string[],
+  headers: string[],
+  rows: ExportValue[][],
+  options?: SimplePdfWatermarkOptions
+) {
+  const { jsPDF, GState } = await import('jspdf');
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const left = 12; const width = doc.internal.pageSize.getWidth() - 24; const bottom = doc.internal.pageSize.getHeight() - 12;
-  const heading = () => { doc.setFont('helvetica', 'normal'); doc.setFontSize(13); doc.text(title, left, 14); doc.setFontSize(8); context.forEach((line, index) => doc.text(line, left, 20 + index * 5)); doc.text(headers.join(' | '), left, 28 + context.length * 5); return 34 + context.length * 5; };
+
+  let logoDataUrl: string | null = null;
+  if (options?.watermarkLogoUrl && typeof window !== 'undefined' && typeof Image !== 'undefined') {
+    try {
+      logoDataUrl = await new Promise<string | null>((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth || 300;
+            canvas.height = img.naturalHeight || 300;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return resolve(null);
+            if (options.watermarkGrayscale !== false) ctx.filter = 'grayscale(100%)';
+            ctx.drawImage(img, 0, 0);
+            resolve(canvas.toDataURL('image/png'));
+          } catch {
+            resolve(null);
+          }
+        };
+        img.onerror = () => resolve(null);
+        img.src = options.watermarkLogoUrl!;
+      });
+    } catch {}
+  }
+
+  const drawPageWatermark = () => {
+    const pw = doc.internal.pageSize.getWidth();
+    const ph = doc.internal.pageSize.getHeight();
+    if (logoDataUrl) {
+      try {
+        doc.saveGraphicsState();
+        doc.setGState(new GState({ opacity: 0.08 }));
+        const imgSize = 80;
+        doc.addImage(logoDataUrl, 'PNG', (pw - imgSize) / 2, (ph - imgSize) / 2, imgSize, imgSize);
+        doc.restoreGraphicsState();
+        return;
+      } catch {}
+    }
+    const text = options?.watermarkText || 'INSTITUTO TRANSFORMA BRASIL';
+    doc.saveGraphicsState();
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(26);
+    doc.setTextColor(241, 245, 249);
+    doc.text(text, pw / 2, ph / 2, { align: 'center', angle: 25 });
+    doc.restoreGraphicsState();
+  };
+
+  const heading = () => {
+    drawPageWatermark();
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(13);
+    doc.text(title, left, 14);
+    doc.setFontSize(8);
+    context.forEach((line, index) => doc.text(line, left, 20 + index * 5));
+    doc.text(headers.join(' | '), left, 28 + context.length * 5);
+    return 34 + context.length * 5;
+  };
+
   let y = heading();
   for (const row of rows) {
     const lines = doc.splitTextToSize(row.map((value) => String(value ?? '')).join(' | '), width);
-    if (y + lines.length * 4 > bottom) { doc.addPage(); y = heading(); }
-    doc.text(lines, left, y); y += Math.max(5, lines.length * 4);
+    if (y + lines.length * 4 > bottom) {
+      doc.addPage();
+      y = heading();
+    }
+    doc.text(lines, left, y);
+    y += Math.max(5, lines.length * 4);
   }
   if (!rows.length) doc.text('Nenhum dado para os filtros selecionados.', left, y);
   doc.save(`${filename}.pdf`);

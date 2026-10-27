@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS classes (
   id TEXT PRIMARY KEY,
   course_id TEXT NOT NULL REFERENCES courses(id),
   name TEXT NOT NULL,
+  class_number INTEGER,
   shift TEXT NOT NULL CHECK (shift IN ('manha', 'tarde', 'noite', 'integral')),
   week_day TEXT,
   is_kids INTEGER NOT NULL DEFAULT 0 CHECK (is_kids IN (0, 1)),

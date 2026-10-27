@@ -52,4 +52,38 @@ describe('classes model', () => {
     expect(planTeacherToggle([assignments[0]!], 'class-1', 'teacher-1', false)).toEqual({ kind: 'error', message: 'A turma deve manter ao menos um professor ativo.' });
     expect(planTeacherToggle(assignments.concat({ id: 'a-3', class_id: 'class-1', user_id: 'teacher-2' }), 'class-1', 'teacher-1', false)).toEqual({ kind: 'delete', record: assignments[0] });
   });
+
+  it('extrai números das turmas, remove dos nomes e ordena de forma crescente numérica', () => {
+    const rawClasses: LocalRecord[] = [
+      { id: 'c-10', name: 'Turma 10 - Robótica', course_id: 'course-1', active: 1 },
+      { id: 'c-2', name: '02 - Informática', course_id: 'course-1', active: 1 },
+      { id: 'c-1', name: 'Turma 01 - Informática', course_id: 'course-1', active: 1 },
+      { id: 'c-5', name: 'Turma 05', course_id: 'course-1', active: 1 },
+    ];
+    const rows = buildClassViews({
+      classes: rawClasses,
+      courses,
+      laboratories: [],
+      assignments: [],
+      teachers: [],
+      session: { id: 'admin', name: 'Admin', email: 'admin@itb.test', role: 'admin' },
+    });
+
+    expect(rows).toHaveLength(4);
+    // Order must be numeric ascending: 1, 2, 5, 10
+    expect(rows[0]!.classNumber).toBe(1);
+    expect(rows[0]!.name).toBe('Informática');
+    expect(rows[0]!.displayName).toBe('#01 - Informática');
+
+    expect(rows[1]!.classNumber).toBe(2);
+    expect(rows[1]!.name).toBe('Informática');
+    expect(rows[1]!.displayName).toBe('#02 - Informática');
+
+    expect(rows[2]!.classNumber).toBe(5);
+    expect(rows[2]!.displayName).toBe('#05 - Turma');
+
+    expect(rows[3]!.classNumber).toBe(10);
+    expect(rows[3]!.name).toBe('Robótica');
+    expect(rows[3]!.displayName).toBe('#10 - Robótica');
+  });
 });

@@ -9,6 +9,7 @@ import {
   Calendar,
   Layers,
   Award,
+  Users,
 } from 'lucide-react';
 import {
   Bar,
@@ -31,6 +32,12 @@ import { buildAnalytics, type AnalyticsResult } from '../lib/analytics';
 import { formatDate, parseBrazilDate, todayInSaoPaulo } from '../lib/date';
 import { useEntity } from '../lib/use-entity';
 import type { LocalRecord } from '../types';
+import {
+  buildClassViews,
+  cleanClassName,
+  extractClassNumber,
+  formatClassDisplayName,
+} from './classes-model';
 
 type PeriodPreset = 7 | 30 | 90 | 'custom';
 
@@ -219,14 +226,36 @@ export function DashboardPage() {
   const { api, session } = useApp();
   const attendance = useEntity('attendance_records');
   const classes = useEntity('classes');
+  const courses = useEntity('courses');
   const students = useEntity('students');
   const enrollments = useEntity('enrollments');
   const classTeachers = useEntity('class_teachers');
 
+  const [selectedClassId, setSelectedClassId] = useState<string>('');
   const [preset, setPreset] = useState<PeriodPreset>(30);
   const [range, setRange] = useState(() => rangeFor(30));
   const [teacherNames, setTeacherNames] = useState<Record<string, string>>(() => ({ [session.id]: session.name }));
   const [teacherDirectoryOffline, setTeacherDirectoryOffline] = useState(false);
+
+  const classOptions = useMemo(() => {
+    const rawClasses = (classes.items ?? []).filter((c) => !c.deleted_at && c.active !== 0 && c.active !== false);
+    const views = buildClassViews({
+      classes: rawClasses,
+      courses: courses.items ?? [],
+      laboratories: [],
+      assignments: classTeachers.items ?? [],
+      teachers: [],
+      session,
+    });
+    return [
+      { value: '', label: 'Todas as turmas', displayName: 'Todas as turmas' },
+      ...views.map((v) => ({
+        value: v.id,
+        label: `${v.displayName} (${v.courseName})`,
+        displayName: v.displayName,
+      })),
+    ];
+  }, [classes.items, courses.items, classTeachers.items, session]);
 
   useEffect(() => {
     if (session.role === 'professor') {
@@ -259,7 +288,7 @@ export function DashboardPage() {
   useEffect(() => {
     if (!validRange || typeof api.getAnalytics !== 'function') return;
     let active = true;
-    api.getAnalytics({ from: from!, to: to! })
+    api.getAnalytics({ from: from!, to: to!, classId: selectedClassId || undefined })
       .then((res) => {
         if (active && res && typeof res === 'object') {
           setServerAnalytics(res);
@@ -269,7 +298,7 @@ export function DashboardPage() {
     return () => {
       active = false;
     };
-  }, [api, from, to, validRange]);
+  }, [api, from, to, validRange, selectedClassId]);
 
   const localAnalytics = useMemo(
     () =>
@@ -281,9 +310,11 @@ export function DashboardPage() {
           enrollments: enrollments.items ?? [],
           classTeachers: classTeachers.items ?? [],
         },
-        validRange ? { from: from!, to: to! } : { from: '9999-12-31', to: '0000-01-01' },
+        validRange
+          ? { from: from!, to: to!, classId: selectedClassId || undefined }
+          : { from: '9999-12-31', to: '0000-01-01' },
       ),
-    [attendance.items, classTeachers.items, classes.items, enrollments.items, from, students.items, to, validRange],
+    [attendance.items, classTeachers.items, classes.items, enrollments.items, from, students.items, to, validRange, selectedClassId],
   );
 
   const analytics: AnalyticsResult = useMemo(() => {
@@ -309,6 +340,64 @@ export function DashboardPage() {
   const loading =
     (attendance.loading || classes.loading || students.loading || enrollments.loading || classTeachers.loading) && !serverAnalytics;
 
+  const studentComparisonData = useMemo(() => {
+    if (!selectedClassId) return [];
+    const activeEnr = (enrollments.items ?? []).filter(
+      (e) => !e.deleted_at && (e.status === 'active' || e.status === 'ativa') && e.class_id === selectedClassId,
+    );
+    const studentMap = new Map((students.items ?? []).map((s) => [s.id, s]));
+    const classRecords = (attendance.items ?? []).filter(
+      (a) =>
+        !a.deleted_at &&
+        a.class_id === selectedClassId &&
+        from &&
+        to &&
+        String(a.date ?? '') >= from &&
+        String(a.date ?? '') <= to,
+    );
+
+    return activeEnr.map((enr) => {
+      const student = studentMap.get(String(enr.student_id ?? ''));
+      const sRecords = classRecords.filter((a) => a.student_id === enr.student_id);
+      let present = 0;
+      let absent = 0;
+      for (const rec of sRecords) {
+        const st = String(rec.status ?? '');
+        if (st === 'P') present++;
+        else if (st === 'F') absent++;
+      }
+      const total = sRecords.length;
+      const studentRate = total > 0 ? Math.round((present / total) * 1000) / 10 : 0;
+      const sName = String(student?.name ?? '') || 'Aluno sem nome';
+      return {
+        id: String(enr.student_id ?? ''),
+        name: sName,
+        displayName: sName,
+        records: total,
+        present,
+        absent,
+        rate: studentRate,
+      };
+    }).sort((a, b) => b.rate - a.rate || a.name.localeCompare(b.name, 'pt-BR'));
+  }, [selectedClassId, enrollments.items, students.items, attendance.items, from, to]);
+
+  const classComparisonData = useMemo(() => {
+    return analytics.byClass.map((c) => {
+      const num = extractClassNumber(c.name);
+      const cleanName = cleanClassName(c.name);
+      return {
+        ...c,
+        displayName: formatClassDisplayName(num, cleanName),
+      };
+    });
+  }, [analytics.byClass]);
+
+  const selectedClassName = useMemo(() => {
+    return classOptions.find((c) => c.value === selectedClassId)?.displayName;
+  }, [classOptions, selectedClassId]);
+
+  const comparisonData = selectedClassId ? studentComparisonData : classComparisonData;
+
   const distribution = [
     { key: 'P', name: 'P · Presenças', value: analytics.present },
     { key: 'F', name: 'F · Faltas', value: analytics.absent },
@@ -328,7 +417,7 @@ export function DashboardPage() {
     <div className="flex flex-col gap-4">
       {/* Period Selector Card */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs text-left">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center">
               <Calendar className="w-4 h-4" />
@@ -341,32 +430,54 @@ export function DashboardPage() {
             </div>
           </div>
 
-          <div className="inline-flex flex-wrap p-0.5 bg-slate-100 rounded-lg gap-0.5 border border-slate-200 self-start md:self-auto">
-            {([7, 30, 90] as const).map((days) => (
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Turma Top Filter */}
+            <div className="flex items-center gap-1.5">
+              <label htmlFor="dashboard-class-filter" className="text-xs font-bold text-slate-700 shrink-0">
+                Turma:
+              </label>
+              <select
+                id="dashboard-class-filter"
+                aria-label="Filtrar por turma"
+                value={selectedClassId}
+                onChange={(e) => setSelectedClassId(e.target.value)}
+                className="px-3 py-1.5 min-h-[36px] text-xs font-semibold bg-white border border-slate-200 rounded-lg shadow-2xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-950 max-w-[220px] truncate cursor-pointer"
+              >
+                {classOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="inline-flex flex-wrap p-0.5 bg-slate-100 rounded-lg gap-0.5 border border-slate-200 self-start lg:self-auto">
+              {([7, 30, 90] as const).map((days) => (
+                <button
+                  key={days}
+                  type="button"
+                  onClick={() => applyPreset(days)}
+                  className={`px-3 py-1.5 min-h-[36px] rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                    preset === days
+                      ? 'bg-slate-950 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                  }`}
+                >
+                  {days} dias
+                </button>
+              ))}
               <button
-                key={days}
                 type="button"
-                onClick={() => applyPreset(days)}
+                onClick={() => setPreset('custom')}
                 className={`px-3 py-1.5 min-h-[36px] rounded-md text-xs font-semibold transition-all cursor-pointer ${
-                  preset === days
+                  preset === 'custom'
                     ? 'bg-slate-950 text-white shadow-xs'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                 }`}
               >
-                {days} dias
+                Personalizado
               </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setPreset('custom')}
-              className={`px-3 py-1.5 min-h-[36px] rounded-md text-xs font-semibold transition-all cursor-pointer ${
-                preset === 'custom'
-                  ? 'bg-slate-950 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-              }`}
-            >
-              Personalizado
-            </button>
+            </div>
           </div>
         </div>
 
@@ -566,76 +677,108 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {/* Class Comparison Chart */}
-      <DashboardCard title="Comparativo por Turma" subtitle="Frequência consolidada no período selecionado">
+      {/* Comparison Chart: Turma or Student Breakdown */}
+      <DashboardCard
+        title={selectedClassId ? 'Comparativo por Aluno' : 'Comparativo por Turma'}
+        subtitle={
+          selectedClassId
+            ? selectedClassName
+              ? `Frequência individual dos alunos em ${selectedClassName}`
+              : 'Frequência individual por aluno no período'
+            : 'Frequência consolidada no período selecionado'
+        }
+      >
         {loading ? (
-          <ChartSkeleton height={240} label="Carregando comparativo por turma" />
-        ) : analytics.byClass.length ? (
+          <ChartSkeleton
+            height={240}
+            label={selectedClassId ? 'Carregando comparativo por aluno' : 'Carregando comparativo por turma'}
+          />
+        ) : comparisonData.length ? (
           <div
             role="img"
-            aria-label="Gráfico comparativo da frequência por turma"
-            style={{ height: Math.min(480, Math.max(240, analytics.byClass.length * 40)) }}
+            aria-label={
+              selectedClassId
+                ? 'Gráfico comparativo da frequência por aluno'
+                : 'Gráfico comparativo da frequência por turma'
+            }
+            style={{ height: Math.min(640, Math.max(260, comparisonData.length * 44)) }}
             className="w-full"
           >
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={analytics.byClass} layout="vertical" margin={{ top: 4, right: 36, bottom: 4, left: 8 }}>
+              <BarChart
+                data={comparisonData}
+                layout="vertical"
+                margin={{ top: 8, right: 54, bottom: 8, left: 8 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" horizontal={false} />
-                <XAxis type="number" domain={[0, 100]} unit="%" tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
+                <XAxis
+                  type="number"
+                  domain={[0, 100]}
+                  unit="%"
+                  tick={{ fontSize: 11, fill: '#64748B' }}
+                  stroke="#E2E8F0"
+                />
                 <YAxis
                   type="category"
-                  dataKey="name"
-                  width={130}
-                  tick={{ fontSize: 11, fill: '#0F172A', fontWeight: 600 }}
-                  stroke="#E2E8F0"
-                  tickFormatter={(val) => (String(val).length > 18 ? `${String(val).slice(0, 17)}…` : String(val))}
+                  dataKey="displayName"
+                  hide
                 />
                 <Tooltip
                   formatter={(value: any, _name: any, item: any) => {
                     if (item?.payload?.records === 0) {
                       return ['Sem chamadas no período', 'Status'];
                     }
-                    return [`${value}% (${item?.payload?.present ?? 0} presenças em ${item?.payload?.records ?? 0} marcações)`, 'Frequência'];
+                    return [
+                      `${value}% (${item?.payload?.present ?? 0} presenças em ${item?.payload?.records ?? 0} marcações)`,
+                      'Frequência',
+                    ];
                   }}
-                  contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0' }}
+                  contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05)' }}
                 />
                 <Bar
                   dataKey="rate"
                   name="Frequência (%)"
-                  radius={[0, 4, 4, 0]}
-                  maxBarSize={18}
+                  radius={[0, 6, 6, 0]}
+                  barSize={32}
+                  background={{ fill: '#F1F5F9', radius: 6 }}
                   label={(props: any) => {
                     const { x, y, width, height, value, index } = props;
-                    const entry = analytics.byClass[index];
+                    const entry = comparisonData[index];
                     if (!entry) return null;
-                    if (entry.records === 0) {
-                      return (
-                        <text
-                          x={x + 8}
-                          y={y + height / 2}
-                          fill="#94A3B8"
-                          fontSize={11}
-                          fontWeight={500}
-                          dominantBaseline="central"
-                        >
-                          Sem chamadas no período
-                        </text>
-                      );
-                    }
+                    const name = entry.displayName || entry.name;
+                    const isZero = entry.records === 0;
+
                     return (
-                      <text
-                        x={x + width + 8}
-                        y={y + height / 2}
-                        fill="#475569"
-                        fontSize={11}
-                        fontWeight={600}
-                        dominantBaseline="central"
-                      >
-                        {value}%
-                      </text>
+                      <g>
+                        <text
+                          x={x + 12}
+                          y={y + height / 2}
+                          fill={isZero ? '#94A3B8' : width > 130 ? '#FFFFFF' : '#0F172A'}
+                          fontSize={12}
+                          fontWeight={600}
+                          dominantBaseline="central"
+                          style={{ pointerEvents: 'none' }}
+                        >
+                          {name}
+                          {isZero ? ' · Sem chamadas no período' : ''}
+                        </text>
+                        {!isZero && (
+                          <text
+                            x={Math.max(x + width + 8, x + 120)}
+                            y={y + height / 2}
+                            fill="#0F172A"
+                            fontSize={11}
+                            fontWeight={700}
+                            dominantBaseline="central"
+                          >
+                            {value}%
+                          </text>
+                        )}
+                      </g>
                     );
                   }}
                 >
-                  {analytics.byClass.map((entry) => (
+                  {comparisonData.map((entry) => (
                     <Cell
                       key={entry.id}
                       fill={entry.records === 0 ? '#E2E8F0' : '#0284C7'}
@@ -646,8 +789,13 @@ export function DashboardPage() {
             </ResponsiveContainer>
           </div>
         ) : (
-          <EmptyChart icon={CalendarX} title="Nenhuma turma disponível">
-            Nenhuma turma está disponível para comparação.
+          <EmptyChart
+            icon={selectedClassId ? Users : CalendarX}
+            title={selectedClassId ? 'Nenhum aluno matriculado' : 'Nenhuma turma disponível'}
+          >
+            {selectedClassId
+              ? 'Nenhum aluno ativo encontrado nesta turma para o período selecionado.'
+              : 'Nenhuma turma está disponível para comparação.'}
           </EmptyChart>
         )}
       </DashboardCard>
