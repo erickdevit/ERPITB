@@ -9,7 +9,10 @@ const mocks = vi.hoisted(() => {
   return {
     reload,
     entities: {
-      classes: [{ id: 'class-1', name: 'Turma A', course_id: 'course-1' }],
+      classes: [
+        { id: 'class-1', name: 'Turma A', course_id: 'course-1' },
+        { id: 'class-2', name: 'Turma B', course_id: 'course-1' },
+      ],
       courses: [{ id: 'course-1', name: 'Tecnologia' }],
       students: [{ id: 'student-1', name: 'Ana Souza', registration_number: '001', active: 1 }],
       enrollments: [{ id: 'enrollment-1', class_id: 'class-1', student_id: 'student-1', status: 'ativa' }],
@@ -25,6 +28,7 @@ const mocks = vi.hoisted(() => {
     api: {
       lockStudentEnrollment: vi.fn().mockResolvedValue({ ok: true }),
       unlockStudentEnrollment: vi.fn().mockResolvedValue({ ok: true }),
+      transferStudentEnrollment: vi.fn().mockResolvedValue({ ok: true }),
       getClassSessions: vi.fn().mockResolvedValue({ sessions: [] }),
     },
   };
@@ -150,6 +154,28 @@ describe('AttendancePage', () => {
 
     await waitFor(() => {
       expect(mocks.api.unlockStudentEnrollment).toHaveBeenCalledWith('student-1', 'class-1');
+    });
+    expect(mocks.reload).toHaveBeenCalled();
+    expect(mocks.sync).toHaveBeenCalled();
+  });
+
+  it('allows transferring a student to another class directly from the attendance page', async () => {
+    const user = userEvent.setup();
+    render(<AttendancePage today="2026-08-15" />);
+    await screen.findByText('Ana Souza');
+
+    const transferBtn = screen.getByLabelText('Transferir Ana Souza de turma');
+    expect(transferBtn).toBeInTheDocument();
+    await user.click(transferBtn);
+
+    const dialog = await screen.findByRole('dialog', { name: /Transferir aluno de turma/i });
+    expect(within(dialog).getByText(/Transferir o aluno/i)).toBeInTheDocument();
+
+    const confirmBtn = within(dialog).getByRole('button', { name: /Confirmar transferência/i });
+    await user.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(mocks.api.transferStudentEnrollment).toHaveBeenCalledWith('student-1', 'class-1', 'class-2');
     });
     expect(mocks.reload).toHaveBeenCalled();
     expect(mocks.sync).toHaveBeenCalled();

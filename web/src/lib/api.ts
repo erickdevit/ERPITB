@@ -303,6 +303,13 @@ export class ApiClient {
     return this.post<{ ok: boolean; message: string }>(`/v1/students/${studentId}/unlock`, { classId });
   }
 
+  transferStudentEnrollment(studentId: string, fromClassId: string, toClassId: string) {
+    return this.post<{ ok: boolean; message: string; targetEnrollmentId?: string }>(
+      `/v1/students/${studentId}/transfer`,
+      { fromClassId, toClassId },
+    );
+  }
+
   getClassSessions(classId: string) {
     return this.get<{ items: Array<{ id: string; date: string; summary?: string }>; total: number }>(`/v1/classes/${classId}/sessions`);
   }

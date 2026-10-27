@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Archive,
+  ArrowRightLeft,
   BookOpen,
   Calendar,
   Edit3,
@@ -96,6 +97,13 @@ interface QuickAddStudentState {
   error?: string;
 }
 
+interface TransferStudentDialogState {
+  studentId: string;
+  studentName: string;
+  targetClassId: string;
+  error?: string;
+}
+
 export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }) {
   const { store, api, sync, session } = useApp();
   const classes = useEntity('classes');
@@ -116,6 +124,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   const [replacementDialog, setReplacementDialog] = useState<ReplacementDialogState>();
   const [quickEditStudent, setQuickEditStudent] = useState<QuickEditStudentState>();
   const [quickAddStudent, setQuickAddStudent] = useState<QuickAddStudentState>();
+  const [transferStudentDialog, setTransferStudentDialog] = useState<TransferStudentDialogState>();
   const [confirmActionModal, setConfirmActionModal] = useState<{
     type: 'lock' | 'unlock' | 'archive';
     studentId: string;
@@ -450,6 +459,81 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
     }
   };
 
+  const handleOpenTransferDialog = (studentId: string, studentName: string) => {
+    if (!classId) return;
+    const defaultTarget = otherClasses[0]?.value ?? '';
+    setTransferStudentDialog({
+      studentId,
+      studentName,
+      targetClassId: defaultTarget,
+    });
+  };
+
+  const executeTransferStudent = async () => {
+    if (!transferStudentDialog || !classId) return;
+    const { studentId, studentName, targetClassId } = transferStudentDialog;
+
+    if (!targetClassId || targetClassId === classId) {
+      setTransferStudentDialog((cur) =>
+        cur ? { ...cur, error: 'Selecione uma turma de destino diferente da atual.' } : cur,
+      );
+      return;
+    }
+
+    const targetClassName =
+      classes.items.find((c) => c.id === targetClassId)?.name ?? 'nova turma';
+
+    try {
+      if (api && typeof api.transferStudentEnrollment === 'function') {
+        await api.transferStudentEnrollment(studentId, classId, targetClassId);
+      } else if (store && typeof store.moveStudent === 'function') {
+        await store.moveStudent(studentId, targetClassId);
+      } else {
+        const enrs = enrollments.items.filter((e) => !e.deleted_at && e.student_id === studentId);
+        const originEnr = enrs.find((e) => e.class_id === classId);
+        const targetEnr = enrs.find((e) => e.class_id === targetClassId);
+        const mutations = [];
+        if (originEnr) {
+          mutations.push({
+            entity: 'enrollments',
+            data: { ...originEnr, status: 'concluida', left_at: canonicalDate || today },
+            action: 'upsert' as const,
+          });
+        }
+        mutations.push({
+          entity: 'enrollments',
+          data: {
+            id: targetEnr?.id ?? crypto.randomUUID(),
+            class_id: targetClassId,
+            student_id: studentId,
+            status: 'ativa',
+            created_at: targetEnr?.created_at ?? new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          action: 'upsert' as const,
+        });
+        await store.mutateBatch(mutations as any);
+      }
+
+      setTransferStudentDialog(undefined);
+      await Promise.all([enrollments.reload(), students.reload()]);
+      setNotice({
+        severity: 'success',
+        message: `Aluno ${studentName} transferido com sucesso para a turma ${targetClassName}.`,
+      });
+      void sync();
+    } catch (error) {
+      setTransferStudentDialog((cur) =>
+        cur
+          ? {
+              ...cur,
+              error: error instanceof Error ? error.message : 'Não foi possível transferir o aluno de turma.',
+            }
+          : cur,
+      );
+    }
+  };
+
   const handleConfirmQuickAddStudent = async () => {
     if (!quickAddStudent || !classId) return;
     try {
@@ -515,6 +599,19 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
       (s) => !s.deleted_at && s.active !== 0 && s.active !== false && !enrolledIds.has(s.id),
     );
   }, [classId, enrollments.items, students.items]);
+
+  const otherClasses = useMemo(() => {
+    return classes.items
+      .filter((c) => !c.deleted_at && c.id !== classId)
+      .map((c) => {
+        const course = courses.items.find((crs) => crs.id === c.course_id);
+        return {
+          value: String(c.id),
+          label: course ? `${c.name} — ${course.name}` : String(c.name),
+        };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [classes.items, courses.items, classId]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -778,6 +875,17 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                         </button>
                       )}
 
+                      {/* Transfer Student to Another Class */}
+                      <button
+                        type="button"
+                        aria-label={`Transferir ${text(row.student, 'name')} de turma`}
+                        title="Mudar aluno de turma"
+                        onClick={() => handleOpenTransferDialog(row.student.id, text(row.student, 'name'))}
+                        className="p-2 min-w-[40px] min-h-[40px] lg:min-w-[34px] lg:min-h-[34px] flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-sky-700 hover:bg-sky-50 hover:border-sky-200 transition-colors cursor-pointer"
+                      >
+                        <ArrowRightLeft className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
+                      </button>
+
                       {/* Safe Archive Student Button (no physical DELETE; preserves academic & financial history) */}
                       <button
                         type="button"
@@ -896,6 +1004,57 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
             <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-900">
               Por segurança e conformidade acadêmica/financeira, nenhum registro histórico é destruído fisicamente: a
               matrícula ativa é encerrada e o histórico de chamadas, notas e financeiro permanece preservado.
+            </div>
+          </div>
+        )}
+      </PageDialog>
+
+      {/* Transfer Student Dialog */}
+      <PageDialog
+        open={Boolean(transferStudentDialog)}
+        title="Transferir aluno de turma"
+        onClose={() => setTransferStudentDialog(undefined)}
+        onSave={() => void executeTransferStudent()}
+        saveText="Confirmar transferência"
+      >
+        {transferStudentDialog && (
+          <div className="space-y-4 text-left text-xs sm:text-sm text-slate-700">
+            <p>
+              Transferir o aluno <strong className="text-slate-900">{transferStudentDialog.studentName}</strong> da turma atual{' '}
+              <span className="font-semibold text-slate-900">
+                ({String(classes.items.find((c) => c.id === classId)?.name ?? 'Turma atual')})
+              </span>{' '}
+              para uma nova turma:
+            </p>
+
+            {transferStudentDialog.error && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-xs">
+                {transferStudentDialog.error}
+              </div>
+            )}
+
+            {otherClasses.length > 0 ? (
+              <SelectField
+                label="Nova Turma de Destino"
+                value={transferStudentDialog.targetClassId}
+                required
+                onChange={(val) =>
+                  setTransferStudentDialog((cur) => (cur ? { ...cur, targetClassId: val, error: undefined } : cur))
+                }
+                options={otherClasses}
+              />
+            ) : (
+              <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-lg text-xs">
+                Nenhuma outra turma ativa encontrada para transferência.
+              </div>
+            )}
+
+            <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-900 space-y-1">
+              <p className="font-semibold">Preservação integral do histórico acadêmico:</p>
+              <p>
+                O histórico de presenças, faltas e notas obtidas nesta turma atual permanecerá 100% preservado. O aluno
+                passará a constar como ativo na nova turma selecionada para as próximas chamadas.
+              </p>
             </div>
           </div>
         )}

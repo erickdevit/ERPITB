@@ -216,6 +216,28 @@ export const openApiSpec = {
         responses: { 200: { description: 'Matrícula reativada com sucesso' } },
       },
     },
+    '/v1/students/{id}/transfer': {
+      post: {
+        summary: 'Transfere o aluno da turma de origem para uma nova turma, mantendo o histórico',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['fromClassId', 'toClassId'],
+                properties: {
+                  fromClassId: { type: 'string' },
+                  toClassId: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+        responses: { 200: { description: 'Aluno transferido com sucesso' } },
+      },
+    },
     '/v1/laboratories': {
       get: {
         summary: 'Lista laboratórios e polos',

@@ -309,6 +309,87 @@ export async function handleV1Route(request: Request, env: Env, user: AuthUser, 
     return json({ ok: true, message: 'Matrícula reativada com sucesso. O aluno voltará a constar como ativo nas chamadas.' }, 200);
   }
 
+  const transferMatch = path.match(/^\/v1\/students\/([^/]+)\/transfer$/);
+  if (transferMatch && method === 'POST') {
+    const studentId = transferMatch[1]!;
+    const body = await readJson<Record<string, unknown>>(request.clone() as unknown as Request).catch(() => ({} as Record<string, unknown>));
+    const fromClassId = typeof body.fromClassId === 'string' && body.fromClassId.trim() ? body.fromClassId.trim() : null;
+    const toClassId = typeof body.toClassId === 'string' && body.toClassId.trim() ? body.toClassId.trim() : null;
+
+    if (!fromClassId || !toClassId) {
+      throw new AppError(400, 'Turma de origem (fromClassId) e turma de destino (toClassId) são obrigatórias.', 'VALIDATION_ERROR');
+    }
+    if (fromClassId === toClassId) {
+      throw new AppError(400, 'A turma de destino deve ser diferente da turma atual.', 'VALIDATION_ERROR');
+    }
+
+    if (user.role === 'professor') {
+      if (!(await teacherOwnsClass(env, user.id, fromClassId))) {
+        throw new AppError(403, 'Acesso não permitido para transferir aluno desta turma.', 'FORBIDDEN');
+      }
+    } else {
+      requirePermission(user, 'students:write');
+    }
+
+    const student = await env.DB.prepare(
+      `SELECT id FROM students WHERE id = ? AND deleted_at IS NULL`
+    ).bind(studentId).first<{ id: string }>();
+    if (!student) {
+      throw new AppError(404, 'Aluno não encontrado.', 'NOT_FOUND');
+    }
+
+    const targetClass = await env.DB.prepare(
+      `SELECT id, name FROM classes WHERE id = ? AND deleted_at IS NULL`
+    ).bind(toClassId).first<{ id: string; name: string }>();
+    if (!targetClass) {
+      throw new AppError(404, 'Turma de destino não encontrada.', 'NOT_FOUND');
+    }
+
+    const timestamp = nowIso();
+
+    // 1. Mark origin enrollment as concluded
+    await env.DB.prepare(`
+      UPDATE enrollments
+         SET status = 'concluida', sync_version = sync_version + 1, updated_at = ?
+       WHERE student_id = ? AND class_id = ? AND deleted_at IS NULL
+    `).bind(timestamp, studentId, fromClassId).run();
+
+    // Also close any other active enrollments for this student (to satisfy uq_enrollments_student_active)
+    await env.DB.prepare(`
+      UPDATE enrollments
+         SET status = 'concluida', sync_version = sync_version + 1, updated_at = ?
+       WHERE student_id = ? AND class_id <> ? AND status = 'ativa' AND deleted_at IS NULL
+    `).bind(timestamp, studentId, toClassId).run();
+
+    // 2. Upsert enrollment in target class as 'ativa'
+    const existingTarget = await env.DB.prepare(
+      `SELECT id FROM enrollments WHERE class_id = ? AND student_id = ?`
+    ).bind(toClassId, studentId).first<{ id: string }>();
+
+    const targetEnrollmentId = existingTarget?.id ?? uuid();
+    await env.DB.prepare(`
+      INSERT INTO enrollments (id, class_id, student_id, status, sync_version, created_at, updated_at)
+      VALUES (?, ?, ?, 'ativa', 1, ?, ?)
+      ON CONFLICT(class_id, student_id) DO UPDATE SET
+        status = 'ativa',
+        deleted_at = NULL,
+        sync_version = sync_version + 1,
+        updated_at = excluded.updated_at
+    `).bind(targetEnrollmentId, toClassId, studentId, timestamp, timestamp).run();
+
+    // 3. Audit log
+    await env.DB.prepare(`
+      INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at)
+      VALUES (?, ?, 'TRANSFER_STUDENT', 'enrollments', ?, ?, ?)
+    `).bind(uuid(), user.id, studentId, JSON.stringify({ fromClassId, toClassId, targetEnrollmentId }), timestamp).run();
+
+    return json({
+      ok: true,
+      message: `Aluno transferido com sucesso para a turma ${targetClass.name}.`,
+      targetEnrollmentId,
+    }, 200);
+  }
+
   // 10. Enrollments Endpoints
   if (path === '/v1/enrollments' && method === 'GET') return listEnrollments(env, user, url);
   if (path === '/v1/enrollments' && method === 'POST') {

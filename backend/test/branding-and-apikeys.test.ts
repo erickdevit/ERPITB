@@ -228,5 +228,29 @@ describe('Branding, API Keys, Sessions and Enrollment Locking', () => {
     expect(unlockRes.status).toBe(200);
     expect(unlockRes.data.ok).toBe(true);
     expect(unlockRes.data.message).toContain('reativada com sucesso');
+
+    // Transfer student to another class
+    const targetClassRes = await request(env, '/api/classes', {
+      method: 'POST', token: adminToken, body: { courseId: courseRes.data.id, name: 'Turma C', shift: 'noite' },
+    });
+    const transferRes = await request(env, `/api/v1/students/${studentId}/transfer`, {
+      method: 'POST',
+      token: adminToken,
+      body: { fromClassId: classRes.data.id, toClassId: targetClassRes.data.id },
+    });
+    expect(transferRes.status).toBe(200);
+    expect(transferRes.data.ok).toBe(true);
+    expect(transferRes.data.message).toContain('transferido com sucesso');
+
+    // Verify enrollments in DB
+    const oldEnr = await env.DB.prepare(
+      `SELECT status FROM enrollments WHERE student_id = ? AND class_id = ?`
+    ).bind(studentId, classRes.data.id).first<{ status: string }>();
+    expect(oldEnr?.status).toBe('concluida');
+
+    const newEnr = await env.DB.prepare(
+      `SELECT status FROM enrollments WHERE student_id = ? AND class_id = ?`
+    ).bind(studentId, targetClassRes.data.id).first<{ status: string }>();
+    expect(newEnr?.status).toBe('ativa');
   });
 });
