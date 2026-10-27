@@ -211,27 +211,19 @@ export async function createFee(request: Request, env: Env, user: AuthUser): Pro
   const todayStr = timestamp.slice(0, 10);
   const initialStatus: FeeStatus = dueDate < todayStr ? 'atrasada' : 'aberto';
 
-  await env.DB.batch([
-    env.DB.prepare(`
-      INSERT INTO financial_fees (
-        id, student_id, class_id, enrollment_id,
-        competence_month, competence_year, due_date,
-        amount_cents, paid_amount_cents, installment_number,
-        status, notes, created_by_user_id, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)
-    `).bind(
-      id, studentId, finalClassId, enrollmentId,
-      competenceMonth, competenceYear, dueDate,
-      amountCents, installmentNumber,
-      initialStatus, notes, user.id, timestamp, timestamp,
-    ),
-    env.DB.prepare(`
-      INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at)
-      VALUES (?, ?, 'CREATE_FEE', 'financial_fees', ?, ?, ?)
-    `).bind(
-      uuid(), user.id, id, JSON.stringify({ studentId, competenceMonth, competenceYear, amountCents }), timestamp,
-    ),
-  ]);
+  await env.DB.prepare(`
+    INSERT INTO financial_fees (
+      id, student_id, class_id, enrollment_id,
+      competence_month, competence_year, due_date,
+      amount_cents, paid_amount_cents, installment_number,
+      status, notes, created_by_user_id, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    id, studentId, finalClassId, enrollmentId,
+    competenceMonth, competenceYear, dueDate,
+    amountCents, installmentNumber,
+    initialStatus, notes, user.id, timestamp, timestamp,
+  ).run();
 
   let studentName = `Aluno ${student.registration_number || ''}`;
   try {
@@ -320,11 +312,6 @@ export async function updateFee(request: Request, env: Env, user: AuthUser, id: 
     if (!latest) throw new AppError(404, 'Mensalidade não encontrada.', 'NOT_FOUND');
     throw new AppError(409, 'Mensalidade foi modificada concorrentemente por outro usuário.', 'CONCURRENCY_CONFLICT', { serverVersion: Number(latest.sync_version ?? 1) });
   }
-
-  await env.DB.prepare(`
-    INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at)
-    VALUES (?, ?, 'UPDATE_FEE', 'financial_fees', ?, ?, ?)
-  `).bind(uuid(), user.id, id, JSON.stringify({ dueDate, amountCents, status }), timestamp).run();
 
   broadcastEvent('entity_changed', {
     entity: 'financial_fees',
@@ -464,14 +451,6 @@ export async function recordPayment(request: Request, env: Env, user: AuthUser, 
       cashTransactionId, amountCents, paymentDate, cashDescription,
       paymentMethod, idempotencyKey || reference, studentName, fee.class_name,
       paymentId, user.id, timestamp, timestamp,
-    ),
-    // 4. Audit
-    env.DB.prepare(`
-      INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at)
-      VALUES (?, ?, 'RECORD_PAYMENT', 'financial_payments', ?, ?, ?)
-    `).bind(
-      uuid(), user.id, paymentId,
-      JSON.stringify({ feeId, amountCents, paymentMethod, newStatus }), timestamp,
     ),
   ]);
 
@@ -667,23 +646,17 @@ export async function createCashEntry(request: Request, env: Env, user: AuthUser
   const id = uuid();
   const timestamp = nowIso();
 
-  await env.DB.batch([
-    env.DB.prepare(`
-      INSERT INTO cash_transactions (
-        id, type, amount_cents, date, category, description,
-        payment_method, reference, student_name, class_name,
-        fee_payment_id, recorded_by_user_id, is_reversal, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, 0, ?, ?)
-    `).bind(
-      id, type, amountCents, date, category, description,
-      paymentMethod, reference, studentName, className,
-      user.id, timestamp, timestamp,
-    ),
-    env.DB.prepare(`
-      INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at)
-      VALUES (?, ?, 'CREATE_CASH_ENTRY', 'cash_transactions', ?, ?, ?)
-    `).bind(uuid(), user.id, id, JSON.stringify({ type, amountCents, category, description }), timestamp),
-  ]);
+  await env.DB.prepare(`
+    INSERT INTO cash_transactions (
+      id, type, amount_cents, date, category, description,
+      payment_method, reference, student_name, class_name,
+      fee_payment_id, recorded_by_user_id, is_reversal, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, 0, ?, ?)
+  `).bind(
+    id, type, amountCents, date, category, description,
+    paymentMethod, reference, studentName, className,
+    user.id, timestamp, timestamp,
+  ).run();
 
   broadcastEvent('entity_changed', {
     entity: 'cash_transactions',
@@ -759,11 +732,6 @@ export async function reverseCashEntry(request: Request, env: Env, user: AuthUse
       existing.reference, existing.student_name, existing.class_name,
       user.id, id, reason, timestamp, timestamp,
     ),
-    // 3. Audit log
-    env.DB.prepare(`
-      INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at)
-      VALUES (?, ?, 'REVERSE_CASH_ENTRY', 'cash_transactions', ?, ?, ?)
-    `).bind(uuid(), user.id, id, JSON.stringify({ reversalId, reason }), timestamp),
   ]);
 
   broadcastEvent('entity_changed', {
@@ -861,11 +829,6 @@ export async function saveFinancialContact(request: Request, env: Env, user: Aut
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(id, studentId, encName, encPhone, encCpf, encAddress, timestamp, timestamp).run();
   }
-
-  await env.DB.prepare(`
-    INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at)
-    VALUES (?, ?, 'SAVE_FINANCIAL_CONTACT', 'financial_contacts', ?, '{}', ?)
-  `).bind(uuid(), user.id, id, timestamp).run();
 
   return {
     id,

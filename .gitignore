@@ -34,6 +34,7 @@ Thumbs.db
 *.db-shm
 *.db-wal
 *.sql
+*.sql.gz
 !backend/src/schema.sql
 !backend/migrations/*.sql
 *.pdf

@@ -17,7 +17,6 @@ import {
   UserCheck,
   Database,
   UserCog,
-  History,
   LogOut,
   Menu,
   ChevronDown,
@@ -81,7 +80,6 @@ const allDestinations: Destination[] = [
   { path: '/usuarios', label: 'Usuários', section: 'SISTEMA', icon: UserCog, admin: true },
   { path: '/admin/branding', label: 'Identidade Visual', section: 'SISTEMA', icon: Palette, admin: true },
   { path: '/admin/api-keys', label: 'Chaves de API', section: 'SISTEMA', icon: KeyRound, admin: true },
-  { path: '/auditoria', label: 'Auditoria', section: 'SISTEMA', icon: History, manager: true },
 ];
 
 function allowed(item: Destination, role: Role) {
@@ -117,7 +115,6 @@ const ClassDetailPage = lazy(() => import('./features/entity-detail-pages').then
 const StudentDetailPage = lazy(() => import('./features/entity-detail-pages').then((m) => ({ default: m.StudentDetailPage })));
 const ReportsCenterPage = lazy(() => import('./features/reports').then((m) => ({ default: m.ReportsCenterPage })));
 const ConflictsPage = lazy(() => import('./features/conflicts-page').then((m) => ({ default: m.ConflictsPage })));
-const AuditPage = lazy(() => import('./features/audit-page').then((m) => ({ default: m.AuditPage })));
 const StudentsPage = lazy(() => import('./features/students-page').then((m) => ({ default: m.StudentsPage })));
 const CoursesPage = lazy(() => import('./features/catalog-page').then((m) => ({ default: m.CoursesPage })));
 const LaboratoriesPage = lazy(() => import('./features/catalog-page').then((m) => ({ default: m.LaboratoriesPage })));
@@ -180,7 +177,6 @@ function AppRoutes() {
       <Route path="/admin/branding" element={session.role === 'admin' ? deferred(<BrandingPage />) : <Navigate to="/" replace />} />
       <Route path="/admin/api-keys" element={session.role === 'admin' ? deferred(<ApiKeysPage />) : <Navigate to="/" replace />} />
       <Route path="/conflitos" element={manager ? deferred(<ConflictsPage />) : <Navigate to="/" replace />} />
-      <Route path="/auditoria" element={manager ? deferred(<AuditPage />) : <Navigate to="/" replace />} />
       <Route path="/matricula/:code" element={deferred(<PublicStudentPortal />)} />
       <Route path="/portal/:code" element={deferred(<PublicStudentPortal />)} />
       <Route path="/aluno/:code" element={deferred(<PublicStudentPortal />)} />

@@ -263,11 +263,6 @@ export async function handleV1Route(request: Request, env: Env, user: AuthUser, 
       throw new AppError(404, 'Nenhuma matrícula ativa encontrada para trancar.', 'NOT_FOUND');
     }
 
-    await env.DB.prepare(`
-      INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at)
-      VALUES (?, ?, 'LOCK_ENROLLMENT', 'enrollments', ?, ?, ?)
-    `).bind(uuid(), user.id, studentId, JSON.stringify({ classId }), timestamp).run();
-
     invalidateWorkerCache(['students', 'enrollments']);
 
     return json({ ok: true, message: 'Matrícula trancada com sucesso. O aluno não aparecerá nas próximas chamadas.' }, 200);
@@ -303,11 +298,6 @@ export async function handleV1Route(request: Request, env: Env, user: AuthUser, 
     if (result.meta.changes === 0) {
       throw new AppError(404, 'Nenhuma matrícula trancada encontrada para reativar.', 'NOT_FOUND');
     }
-
-    await env.DB.prepare(`
-      INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at)
-      VALUES (?, ?, 'UNLOCK_ENROLLMENT', 'enrollments', ?, ?, ?)
-    `).bind(uuid(), user.id, studentId, JSON.stringify({ classId }), timestamp).run();
 
     invalidateWorkerCache(['students', 'enrollments']);
 
@@ -381,12 +371,6 @@ export async function handleV1Route(request: Request, env: Env, user: AuthUser, 
         sync_version = sync_version + 1,
         updated_at = excluded.updated_at
     `).bind(targetEnrollmentId, toClassId, studentId, timestamp, timestamp).run();
-
-    // 3. Audit log
-    await env.DB.prepare(`
-      INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at)
-      VALUES (?, ?, 'TRANSFER_STUDENT', 'enrollments', ?, ?, ?)
-    `).bind(uuid(), user.id, studentId, JSON.stringify({ fromClassId, toClassId, targetEnrollmentId }), timestamp).run();
 
     invalidateWorkerCache(['students', 'enrollments']);
 
@@ -504,11 +488,6 @@ export async function handleV1Route(request: Request, env: Env, user: AuthUser, 
         // Individual legacy operations that are outdated or already applied do not block drain audit
       }
     }
-
-    await env.DB.prepare(`
-      INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at)
-      VALUES (?, ?, 'LEGACY_DRAIN', 'migration', ?, ?, ?)
-    `).bind(uuid(), user.id, user.id, JSON.stringify({ operationsCount: operations.length }), timestamp).run();
 
     return {
       ok: true,

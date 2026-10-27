@@ -3,13 +3,6 @@ import { requirePermission, requireScope } from './rbac';
 import { assertConcurrencyVersion, formatETag, parseIfMatchHeader } from './concurrency';
 import type { AuthUser, Env } from './types';
 
-function auditLog(env: Env, user: AuthUser, action: string, entity: string, entityId: string, details: unknown = {}): D1PreparedStatement {
-  return env.DB.prepare(
-    `INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).bind(uuid(), user.id, action, entity, entityId, JSON.stringify(details), nowIso());
-}
-
 async function requireClassAccess(env: Env, user: AuthUser, classId: string): Promise<void> {
   if (user.role === 'financeiro') {
     throw new AppError(403, 'Acesso restrito ao corpo docente e pedagógico.', 'FORBIDDEN');
@@ -86,8 +79,7 @@ export async function createGradeTable(request: Request, env: Env, user: AuthUse
   const id = uuid();
   const timestamp = nowIso();
 
-  await env.DB.batch([
-    env.DB.prepare(`
+  await env.DB.prepare(`
       INSERT INTO grade_tables (
         id, class_id, name, calculation_mode, passing_grade, published,
         sort_order, start_date, end_date, notes, created_by_user_id,
@@ -96,9 +88,7 @@ export async function createGradeTable(request: Request, env: Env, user: AuthUse
     `).bind(
       id, classId, name, calculationMode, passingGrade, published,
       sortOrder, startDate, endDate, notes, user.id, timestamp, timestamp
-    ),
-    auditLog(env, user, 'CREATE', 'grade_tables', id, { classId, name }),
-  ]);
+    ).run();
 
   const created = await env.DB.prepare(`SELECT * FROM grade_tables WHERE id = ?`).bind(id).first<Record<string, unknown>>();
   return new Response(JSON.stringify(created), {
@@ -154,8 +144,6 @@ export async function updateGradeTable(request: Request, env: Env, user: AuthUse
     throw new AppError(409, 'Registro foi modificado concorrentemente por outro usuário.', 'CONCURRENCY_CONFLICT', { serverVersion: Number(latest.sync_version ?? 1) });
   }
 
-  await auditLog(env, user, 'UPDATE', 'grade_tables', id, { name }).run();
-
   const updated = await env.DB.prepare(`SELECT * FROM grade_tables WHERE id = ?`).bind(id).first<Record<string, unknown>>();
   return new Response(JSON.stringify(updated), {
     status: 200,
@@ -190,8 +178,6 @@ export async function deleteGradeTable(request: Request, env: Env, user: AuthUse
     if (!latest) throw new AppError(404, 'Tabela de notas não encontrada.', 'NOT_FOUND');
     throw new AppError(409, 'Registro foi modificado concorrentemente por outro usuário.', 'CONCURRENCY_CONFLICT', { serverVersion: Number(latest.sync_version ?? 1) });
   }
-
-  await auditLog(env, user, 'DELETE', 'grade_tables', id).run();
 
   await env.DB.prepare(
     `UPDATE grade_items SET deleted_at = ?, sync_version = sync_version + 1, updated_at = ? WHERE grade_table_id = ? AND deleted_at IS NULL`
@@ -272,8 +258,7 @@ export async function createGradeItem(request: Request, env: Env, user: AuthUser
   const id = uuid();
   const timestamp = nowIso();
 
-  await env.DB.batch([
-    env.DB.prepare(`
+  await env.DB.prepare(`
       INSERT INTO grade_items (
         id, class_id, grade_table_id, name, category, evaluation_date,
         max_score, weight, sort_order, notes, created_by_user_id,
@@ -282,9 +267,7 @@ export async function createGradeItem(request: Request, env: Env, user: AuthUser
     `).bind(
       id, classId, gradeTableId, name, category, evaluationDate,
       maxScore, weight, sortOrder, notes, user.id, timestamp, timestamp
-    ),
-    auditLog(env, user, 'CREATE', 'grade_items', id, { classId, gradeTableId, name }),
-  ]);
+    ).run();
 
   const created = await env.DB.prepare(`SELECT * FROM grade_items WHERE id = ?`).bind(id).first<Record<string, unknown>>();
   return new Response(JSON.stringify(created), {
@@ -336,8 +319,6 @@ export async function updateGradeItem(request: Request, env: Env, user: AuthUser
     throw new AppError(409, 'Registro foi modificado concorrentemente por outro usuário.', 'CONCURRENCY_CONFLICT', { serverVersion: Number(latest.sync_version ?? 1) });
   }
 
-  await auditLog(env, user, 'UPDATE', 'grade_items', id, { name }).run();
-
   const updated = await env.DB.prepare(`SELECT * FROM grade_items WHERE id = ?`).bind(id).first<Record<string, unknown>>();
   return new Response(JSON.stringify(updated), {
     status: 200,
@@ -372,8 +353,6 @@ export async function deleteGradeItem(request: Request, env: Env, user: AuthUser
     if (!latest) throw new AppError(404, 'Item de avaliação não encontrado.', 'NOT_FOUND');
     throw new AppError(409, 'Registro foi modificado concorrentemente por outro usuário.', 'CONCURRENCY_CONFLICT', { serverVersion: Number(latest.sync_version ?? 1) });
   }
-
-  await auditLog(env, user, 'DELETE', 'grade_items', id).run();
 
   await env.DB.prepare(
     `UPDATE student_grades SET deleted_at = ?, sync_version = sync_version + 1, updated_at = ? WHERE grade_item_id = ? AND deleted_at IS NULL`

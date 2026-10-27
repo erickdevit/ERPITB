@@ -203,11 +203,6 @@ export async function updateBranding(request: Request, env: Env, user: AuthUser)
     }
   }
 
-  await env.DB.prepare(`
-    INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at)
-    VALUES (?, ?, 'UPDATE_BRANDING', 'branding_settings', 'default', ?, ?)
-  `).bind(uuid(), user.id, JSON.stringify({ appName, accentColor, documentHeaderAlign }), timestamp).run();
-
   broadcastEvent('branding_updated', {
     appName,
     accentColor,
@@ -244,39 +239,33 @@ export async function resetBranding(env: Env, user: AuthUser): Promise<BrandingS
   requirePermission(user, 'branding:manage');
   const timestamp = nowIso();
 
-  await env.DB.batch([
-    env.DB.prepare(`
-      INSERT INTO branding_settings (
-        id, app_name, accent_color, login_logo_url, login_bg_url,
-        print_watermark_text, print_watermark_logo_url, print_watermark_grayscale, show_header_logo_left, show_header_logo_right,
-        document_header_align, sync_version, updated_by_user_id, updated_at
-      ) VALUES ('default', ?, ?, '', '', ?, '', 1, 1, 0, 'left', 1, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        app_name = excluded.app_name,
-        accent_color = excluded.accent_color,
-        login_logo_url = '',
-        login_bg_url = '',
-        print_watermark_text = excluded.print_watermark_text,
-        print_watermark_logo_url = '',
-        print_watermark_grayscale = 1,
-        show_header_logo_left = 1,
-        show_header_logo_right = 0,
-        document_header_align = 'left',
-        sync_version = branding_settings.sync_version + 1,
-        updated_by_user_id = excluded.updated_by_user_id,
-        updated_at = excluded.updated_at
-    `).bind(
-      DEFAULT_BRANDING.appName,
-      DEFAULT_BRANDING.accentColor,
-      DEFAULT_BRANDING.printWatermarkText,
-      user.id,
-      timestamp,
-    ),
-    env.DB.prepare(`
-      INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at)
-      VALUES (?, ?, 'RESET_BRANDING', 'branding_settings', 'default', '{}', ?)
-    `).bind(uuid(), user.id, timestamp),
-  ]);
+  await env.DB.prepare(`
+    INSERT INTO branding_settings (
+      id, app_name, accent_color, login_logo_url, login_bg_url,
+      print_watermark_text, print_watermark_logo_url, print_watermark_grayscale, show_header_logo_left, show_header_logo_right,
+      document_header_align, sync_version, updated_by_user_id, updated_at
+    ) VALUES ('default', ?, ?, '', '', ?, '', 1, 1, 0, 'left', 1, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      app_name = excluded.app_name,
+      accent_color = excluded.accent_color,
+      login_logo_url = '',
+      login_bg_url = '',
+      print_watermark_text = excluded.print_watermark_text,
+      print_watermark_logo_url = '',
+      print_watermark_grayscale = 1,
+      show_header_logo_left = 1,
+      show_header_logo_right = 0,
+      document_header_align = 'left',
+      sync_version = branding_settings.sync_version + 1,
+      updated_by_user_id = excluded.updated_by_user_id,
+      updated_at = excluded.updated_at
+  `).bind(
+    DEFAULT_BRANDING.appName,
+    DEFAULT_BRANDING.accentColor,
+    DEFAULT_BRANDING.printWatermarkText,
+    user.id,
+    timestamp,
+  ).run();
 
   broadcastEvent('branding_updated', {
     appName: DEFAULT_BRANDING.appName,

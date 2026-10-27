@@ -124,9 +124,6 @@ export async function login(request: Request, env: Env): Promise<unknown> {
   }
   const user: AuthUser = { id: row.id, name: row.name, email: row.email, role: row.role };
   const session = await issueSession(env, user);
-  await env.DB.prepare(
-    `INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at) VALUES (?, ?, 'LOGIN', 'users', ?, '{}', ?)`,
-  ).bind(uuid(), user.id, user.id, nowIso()).run();
   return { user, ...session };
 }
 
@@ -175,14 +172,9 @@ export async function bootstrap(request: Request, env: Env): Promise<unknown> {
   };
   const timestamp = nowIso();
   const passwordHash = await hashPassword(password);
-  await env.DB.batch([
-    env.DB.prepare(
-      `INSERT INTO users (id, name, email, password_hash, role, active, created_at, updated_at) VALUES (?, ?, ?, ?, 'admin', 1, ?, ?)`,
-    ).bind(user.id, user.name, user.email, passwordHash, timestamp, timestamp),
-    env.DB.prepare(
-      `INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at) VALUES (?, ?, 'BOOTSTRAP', 'users', ?, '{}', ?)`,
-    ).bind(uuid(), user.id, user.id, timestamp),
-  ]);
+  await env.DB.prepare(
+    `INSERT INTO users (id, name, email, password_hash, role, active, created_at, updated_at) VALUES (?, ?, ?, ?, 'admin', 1, ?, ?)`,
+  ).bind(user.id, user.name, user.email, passwordHash, timestamp, timestamp).run();
   return { user, ...(await issueSession(env, user)) };
 }
 

@@ -42,12 +42,6 @@ function parseBirthDate(value: unknown): string {
   return date;
 }
 
-function audit(env: Env, user: AuthUser, action: string, entity: string, entityId: string | null, details: unknown = {}): D1PreparedStatement {
-  return env.DB.prepare(
-    `INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  ).bind(uuid(), user.id, action, entity, entityId, JSON.stringify(details), nowIso());
-}
-
 function change(env: Env, user: AuthUser, entity: string, entityId: string, operation: 'upsert' | 'delete', payload: unknown): D1PreparedStatement {
   return env.DB.prepare(
     `INSERT INTO sync_changes (entity_name, entity_id, operation, payload_json, changed_by_user_id, changed_at) VALUES (?, ?, ?, ?, ?, ?)`,
@@ -182,7 +176,6 @@ export async function createLaboratory(request: Request, env: Env, user: AuthUse
       `INSERT INTO laboratories (id, name, active, sync_version, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)`,
     ).bind(row.id, row.name, row.active, timestamp, timestamp),
     change(env, user, 'laboratories', row.id, 'upsert', row),
-    audit(env, user, 'CREATE', 'laboratories', row.id),
   ]);
   invalidateWorkerCache('laboratories');
   return row;
@@ -223,7 +216,7 @@ export async function updateLaboratory(request: Request, env: Env, user: AuthUse
   }
 
   const row = await getEntityRow(env, 'laboratories', id);
-  await env.DB.batch([change(env, user, 'laboratories', id, 'upsert', row), audit(env, user, 'UPDATE', 'laboratories', id)]);
+  await env.DB.batch([change(env, user, 'laboratories', id, 'upsert', row)]);
   invalidateWorkerCache('laboratories');
 
   return new Response(JSON.stringify(row), {
@@ -281,7 +274,6 @@ export async function createCourse(request: Request, env: Env, user: AuthUser): 
       `INSERT INTO courses (id, code, name, active, sync_version, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?)`,
     ).bind(row.id, row.code, row.name, row.active, timestamp, timestamp),
     change(env, user, 'courses', row.id, 'upsert', row),
-    audit(env, user, 'CREATE', 'courses', row.id),
   ]);
   invalidateWorkerCache('courses');
   return row;
@@ -311,7 +303,7 @@ export async function updateCourse(request: Request, env: Env, user: AuthUser, i
   }
 
   const row = await getEntityRow(env, 'courses', id);
-  await env.DB.batch([change(env, user, 'courses', id, 'upsert', row), audit(env, user, 'UPDATE', 'courses', id)]);
+  await env.DB.batch([change(env, user, 'courses', id, 'upsert', row)]);
   invalidateWorkerCache('courses');
 
   return new Response(JSON.stringify(row), {
@@ -364,7 +356,7 @@ export async function deleteEntity(env: Env, user: AuthUser, table: 'laboratorie
     throw new AppError(409, 'Registro foi modificado concorrentemente por outro usuário.', 'CONCURRENCY_CONFLICT', { serverVersion: Number(latest.sync_version ?? 1) });
   }
   const tombstone = { id, deleted_at: timestamp, updated_at: timestamp };
-  await env.DB.batch([change(env, user, table, id, 'delete', tombstone), audit(env, user, 'DELETE', table, id)]);
+  await env.DB.batch([change(env, user, table, id, 'delete', tombstone)]);
   invalidateWorkerCache(table);
   invalidateWorkerCache('analytics');
   invalidateWorkerCache('reports');
@@ -512,7 +504,6 @@ export async function createClass(request: Request, env: Env, user: AuthUser): P
     ).bind(row.id, row.course_id, row.name, row.class_number, row.shift, row.week_day, row.is_kids, row.laboratory_id, row.active, row.start_date, row.end_date, timestamp, timestamp),
     change(env, user, 'classes', row.id, 'upsert', row),
     ...(assignment ? [env.DB.prepare(`INSERT INTO class_teachers (id, class_id, user_id, sync_version, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)`).bind(assignment.id, row.id, teacherId, timestamp, timestamp), change(env, user, 'class_teachers', assignment.id, 'upsert', assignment)] : []),
-    audit(env, user, 'CREATE', 'classes', row.id, { teacherId: teacherId ?? undefined }),
   ]);
 
   invalidateWorkerCache('classes');
@@ -604,7 +595,7 @@ export async function updateClass(request: Request, env: Env, user: AuthUser, id
   }
 
   const row = await getEntityRow(env, 'classes', id);
-  await env.DB.batch([change(env, user, 'classes', id, 'upsert', row), audit(env, user, 'UPDATE', 'classes', id)]);
+  await env.DB.batch([change(env, user, 'classes', id, 'upsert', row)]);
 
   invalidateWorkerCache('classes');
   invalidateWorkerCache('analytics');
@@ -660,10 +651,7 @@ export async function createUser(request: Request, env: Env, user: AuthUser): Pr
   const timestamp = nowIso();
   const row = { id: uuid(), name: requireString(body.name, 'nome', { min: 2, max: 120 }), email: normalizeEmail(body.email), role, active: 1, created_at: timestamp, updated_at: timestamp };
   const passwordHash = await hashPassword(password);
-  await env.DB.batch([
-    env.DB.prepare(`INSERT INTO users (id, name, email, password_hash, role, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?)`).bind(row.id, row.name, row.email, passwordHash, role, timestamp, timestamp),
-    audit(env, user, 'CREATE', 'users', row.id, { role }),
-  ]);
+  await env.DB.prepare(`INSERT INTO users (id, name, email, password_hash, role, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?)`).bind(row.id, row.name, row.email, passwordHash, role, timestamp, timestamp).run();
   return row;
 }
 
@@ -708,7 +696,6 @@ export async function updateUser(request: Request, env: Env, user: AuthUser, id:
   } else {
     await env.DB.prepare(`UPDATE users SET name = ?, email = ?, role = ?, active = ?, updated_at = ? WHERE id = ?`).bind(name, email, role, active, timestamp, id).run();
   }
-  await env.DB.batch([audit(env, user, 'UPDATE', 'users', id, { role, active: Boolean(active) })]);
   return { id, name, email, role, active, updated_at: timestamp };
 }
 
@@ -759,9 +746,7 @@ export async function deleteUser(env: Env, user: AuthUser, id: string): Promise<
   await env.DB.prepare(`DELETE FROM class_teachers WHERE user_id = ?`).bind(id).run();
   await env.DB.prepare(`DELETE FROM sync_operations WHERE user_id = ?`).bind(id).run();
   await env.DB.prepare(`DELETE FROM sync_changes WHERE changed_by_user_id = ?`).bind(id).run();
-  await env.DB.prepare(`DELETE FROM audit_logs WHERE user_id = ?`).bind(id).run();
   await env.DB.prepare(`DELETE FROM users WHERE id = ?`).bind(id).run();
-  await env.DB.batch([audit(env, user, 'DELETE', 'users', id, { name: current.name, email: current.email, role: current.role })]);
 
   broadcastEvent('session_revoked', {
     userId: id,
@@ -800,7 +785,7 @@ export async function assignTeacher(request: Request, env: Env, user: AuthUser, 
      ON CONFLICT(class_id, user_id) DO UPDATE SET deleted_at = NULL, sync_version = sync_version + 1, updated_at = excluded.updated_at`,
   ).bind(id, classId, userId, timestamp, timestamp).run();
   const row = await getEntityRow(env, 'class_teachers', id);
-  await env.DB.batch([change(env, user, 'class_teachers', id, 'upsert', row), audit(env, user, 'ASSIGN', 'class_teachers', id)]);
+  await env.DB.batch([change(env, user, 'class_teachers', id, 'upsert', row)]);
   invalidateWorkerCache('classes');
   invalidateWorkerCache('analytics');
   invalidateWorkerCache('reports');
@@ -817,7 +802,6 @@ export async function removeTeacher(env: Env, user: AuthUser, classId: string, t
   await env.DB.prepare(`UPDATE class_teachers SET deleted_at = ?, updated_at = ?, sync_version = sync_version + 1 WHERE id = ?`).bind(timestamp, timestamp, row.id).run();
   await env.DB.batch([
     change(env, user, 'class_teachers', row.id, 'delete', { id: row.id, class_id: classId, user_id: teacherId, deleted_at: timestamp }),
-    audit(env, user, 'REMOVE', 'class_teachers', row.id),
   ]);
   invalidateWorkerCache('classes');
   invalidateWorkerCache('analytics');
@@ -925,7 +909,6 @@ export async function createStudent(request: Request, env: Env, user: AuthUser):
     env.DB.prepare(`INSERT INTO enrollments (id, class_id, student_id, status, sync_version, created_at, updated_at) VALUES (?, ?, ?, 'ativa', 1, ?, ?)`).bind(enrollment.id, classId, clear.id, timestamp, timestamp),
     change(env, user, 'students', clear.id, 'upsert', encrypted),
     change(env, user, 'enrollments', enrollment.id, 'upsert', enrollment),
-    audit(env, user, 'CREATE', 'students', clear.id, { classId }),
   ]);
   invalidateWorkerCache('students');
   invalidateWorkerCache('enrollments');
@@ -967,7 +950,7 @@ export async function updateStudent(request: Request, env: Env, user: AuthUser, 
     });
   }
   const row = await getEntityRow(env, 'students', id) as StudentRow;
-  await env.DB.batch([change(env, user, 'students', id, 'upsert', row), audit(env, user, 'UPDATE', 'students', id)]);
+  await env.DB.batch([change(env, user, 'students', id, 'upsert', row)]);
   invalidateWorkerCache('students');
   invalidateWorkerCache('analytics');
   invalidateWorkerCache('reports');
@@ -1001,7 +984,7 @@ export async function inactivateStudent(env: Env, user: AuthUser, id: string, re
     });
   }
   const row = await getEntityRow(env, 'students', id);
-  await env.DB.batch([change(env, user, 'students', id, 'upsert', row), audit(env, user, 'INACTIVATE', 'students', id)]);
+  await env.DB.batch([change(env, user, 'students', id, 'upsert', row)]);
   invalidateWorkerCache('students');
   invalidateWorkerCache('analytics');
   invalidateWorkerCache('reports');
@@ -1028,7 +1011,7 @@ export async function enrollStudent(request: Request, env: Env, user: AuthUser, 
      ON CONFLICT(class_id, student_id) DO UPDATE SET status = excluded.status, deleted_at = NULL, sync_version = sync_version + 1, updated_at = excluded.updated_at`,
   ).bind(id, classId, studentId, status, timestamp, timestamp).run();
   const row = await getEntityRow(env, 'enrollments', id);
-  await env.DB.batch([change(env, user, 'enrollments', id, 'upsert', row), audit(env, user, 'ENROLL', 'enrollments', id)]);
+  await env.DB.batch([change(env, user, 'enrollments', id, 'upsert', row)]);
   invalidateWorkerCache('enrollments');
   invalidateWorkerCache('students');
   invalidateWorkerCache('analytics');
@@ -1094,10 +1077,6 @@ export async function updateEnrollment(request: Request, env: Env, user: AuthUse
     });
   }
 
-  await env.DB.batch([
-    audit(env, user, 'UPDATE', 'enrollments', id, { status }),
-  ]);
-
   invalidateWorkerCache('enrollments');
   invalidateWorkerCache('students');
   invalidateWorkerCache('analytics');
@@ -1129,10 +1108,6 @@ export async function deleteEnrollment(request: Request, env: Env, user: AuthUse
       serverVersion: latest ? Number(latest.sync_version ?? 1) : currentVersion,
     });
   }
-
-  await env.DB.batch([
-    audit(env, user, 'DELETE', 'enrollments', id),
-  ]);
 
   invalidateWorkerCache('enrollments');
   invalidateWorkerCache('students');
@@ -1280,7 +1255,6 @@ export async function saveAttendance(request: Request, env: Env, user: AuthUser)
         updated_at = excluded.updated_at
     `).bind(uuid(), classId, date, user.id, generalNotes, timestamp, timestamp)
   );
-  statements.push(audit(env, user, 'ATTENDANCE_BATCH', 'attendance_records', classId, { date, count: saved.length, generalNotes, justification: body.justification ?? null }));
   await env.DB.batch(statements);
 
   invalidateWorkerCache('attendance');
@@ -1426,19 +1400,14 @@ export async function resolveConflict(request: Request, env: Env, user: AuthUser
   statements.push(env.DB.prepare(
     `UPDATE sync_conflicts SET status = ?, resolved_by_user_id = ?, resolution_justification = ?, resolved_at = ? WHERE id = ? AND status = 'PENDING'`,
   ).bind(decision === 'local' ? 'LOCAL_ACCEPTED' : 'REMOTE_ACCEPTED', user.id, justification, nowIso(), id));
-  statements.push(audit(env, user, 'RESOLVE_CONFLICT', 'sync_conflicts', id, { decision, justification }));
   await env.DB.batch(statements);
   const record = await clientEntityRow(env, entity, accepted);
   return { ok: true, decision, entity, record, version: Number(record.sync_version ?? 0) };
 }
 
-export async function listAudit(url: URL, env: Env, user: AuthUser): Promise<unknown> {
+export async function listAudit(_url: URL, _env: Env, user: AuthUser): Promise<unknown> {
   requirePermission(user, 'audit:read');
-  const limit = Math.min(Math.max(Number(url.searchParams.get('limit') ?? 100), 1), 500);
-  const rows = await env.DB.prepare(
-    `SELECT a.*, u.name AS user_name FROM audit_logs a LEFT JOIN users u ON u.id = a.user_id ORDER BY a.created_at DESC LIMIT ?`,
-  ).bind(limit).all();
-  return { items: rows.results };
+  return { items: [] };
 }
 
 export async function handleDataRoute(request: Request, env: Env, user: AuthUser, url: URL): Promise<unknown | undefined> {

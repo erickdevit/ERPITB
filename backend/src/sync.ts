@@ -460,9 +460,6 @@ async function createConflict(env: Env, user: AuthUser, deviceId: string, operat
     env.DB.prepare(
       `INSERT INTO sync_operations (operation_id, device_id, user_id, result_json, created_at) VALUES (?, ?, ?, ?, ?)`,
     ).bind(operation.operationId, deviceId, user.id, JSON.stringify(result), timestamp),
-    env.DB.prepare(
-      `INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at) VALUES (?, ?, 'SYNC_CONFLICT', ?, ?, ?, ?)`,
-    ).bind(uuid(), user.id, operation.entity, operation.id, JSON.stringify({ conflictId: id, deviceId }), timestamp),
   ]);
   return result;
 }
@@ -506,7 +503,6 @@ async function applyOperation(env: Env, user: AuthUser, deviceId: string, operat
     statement,
     env.DB.prepare(`INSERT INTO sync_changes (entity_name, entity_id, operation, payload_json, changed_by_user_id, changed_at) VALUES (?, ?, ?, ?, ?, ?)`).bind(operation.entity, targetId, operation.action, JSON.stringify(payload), user.id, timestamp),
     env.DB.prepare(`INSERT INTO sync_operations (operation_id, device_id, user_id, result_json, created_at) VALUES (?, ?, ?, ?, ?)`).bind(operation.operationId, deviceId, user.id, JSON.stringify(result), timestamp),
-    env.DB.prepare(`INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at) VALUES (?, ?, 'SYNC_APPLY', ?, ?, ?, ?)`).bind(uuid(), user.id, operation.entity, targetId, JSON.stringify({ operationId: operation.operationId, deviceId }), timestamp),
   ];
   if (operation.entity === 'attendance_records' && operation.action === 'upsert' && payload.class_id && payload.date) {
     batchStatements.push(

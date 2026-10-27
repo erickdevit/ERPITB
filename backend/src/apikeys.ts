@@ -85,18 +85,12 @@ export async function createApiKey(request: Request, env: Env, user: AuthUser): 
   const timestamp = nowIso();
   const scopesJson = JSON.stringify(scopes);
 
-  await env.DB.batch([
-    env.DB.prepare(`
-      INSERT INTO api_keys (
-        id, name, key_prefix, key_hash, scopes_json,
-        created_by_user_id, expires_at, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(id, name, keyPrefix, keyHash, scopesJson, user.id, expiresAt, timestamp, timestamp),
-    env.DB.prepare(`
-      INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at)
-      VALUES (?, ?, 'CREATE_API_KEY', 'api_keys', ?, ?, ?)
-    `).bind(uuid(), user.id, id, JSON.stringify({ name, scopes, keyPrefix }), timestamp),
-  ]);
+  await env.DB.prepare(`
+    INSERT INTO api_keys (
+      id, name, key_prefix, key_hash, scopes_json,
+      created_by_user_id, expires_at, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(id, name, keyPrefix, keyHash, scopesJson, user.id, expiresAt, timestamp, timestamp).run();
 
   return {
     key: {
@@ -122,13 +116,7 @@ export async function revokeApiKey(env: Env, user: AuthUser, id: string): Promis
     throw new AppError(404, 'Chave de API não encontrada.', 'NOT_FOUND');
   }
 
-  await env.DB.batch([
-    env.DB.prepare(`UPDATE api_keys SET revoked_at = ?, updated_at = ? WHERE id = ?`).bind(timestamp, timestamp, id),
-    env.DB.prepare(`
-      INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at)
-      VALUES (?, ?, 'REVOKE_API_KEY', 'api_keys', ?, ?, ?)
-    `).bind(uuid(), user.id, id, JSON.stringify({ name: existing.name }), timestamp),
-  ]);
+  await env.DB.prepare(`UPDATE api_keys SET revoked_at = ?, updated_at = ? WHERE id = ?`).bind(timestamp, timestamp, id).run();
 
   return { ok: true, message: 'Chave de API revogada com sucesso.' };
 }
@@ -163,11 +151,6 @@ export async function rotateApiKey(env: Env, user: AuthUser, id: string): Promis
         created_by_user_id, expires_at, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(newId, existing.name, newKeyPrefix, newKeyHash, existing.scopes_json, user.id, existing.expires_at, timestamp, timestamp),
-    // Audit
-    env.DB.prepare(`
-      INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at)
-      VALUES (?, ?, 'ROTATE_API_KEY', 'api_keys', ?, ?, ?)
-    `).bind(uuid(), user.id, newId, JSON.stringify({ oldKeyId: id, newKeyPrefix }), timestamp),
   ]);
 
   let scopes: string[] = [];
