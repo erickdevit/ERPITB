@@ -1,6 +1,7 @@
 import React from 'react';
 import { RotateCcw } from 'lucide-react';
 import { DateField, SelectField } from '../../components';
+import { SearchableStudentSelect } from '../student-select';
 import { formatDate, parseBrazilDate } from '../../lib/date';
 import type { LocalRecord, Role } from '../../types';
 import { canManage } from '../../types';
@@ -211,17 +212,14 @@ export function ReportFiltersBar({
 
         {((filters.type === 'student' && filters.classId) || filters.type === 'studentBoletim') && (
           <div>
-            <SelectField
+            <SearchableStudentSelect
               label="Aluno"
               value={filters.studentId ?? ''}
               onChange={(studentId) => onChange({ ...filters, studentId: studentId || undefined })}
-              options={[
-                { value: '', label: 'Selecione um aluno' },
-                ...availableStudents.map((s) => ({
-                  value: s.id,
-                  label: text(s, 'name'),
-                })),
-              ]}
+              students={availableStudents}
+              enrollments={safeEnrollments}
+              classes={safeClasses}
+              placeholder="Buscar por nome ou matrícula..."
             />
           </div>
         )}

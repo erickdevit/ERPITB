@@ -20,6 +20,11 @@ export function Login({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [branding, setBranding] = useState<BrandingSettings | undefined>(initialBranding);
+  const [logoLoadFailed, setLogoLoadFailed] = useState(false);
+
+  useEffect(() => {
+    setLogoLoadFailed(false);
+  }, [branding?.loginLogoUrl]);
 
   useEffect(() => {
     try {
@@ -73,22 +78,18 @@ export function Login({
         <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xl shadow-slate-200/40 p-6 sm:p-8">
           {/* Logo Institucional (apenas o logo configurado, sem o nome ERPITB) */}
           <div className="flex justify-center mb-6">
-            {branding?.loginLogoUrl ? (
-              <img
-                src={branding.loginLogoUrl}
-                alt={branding.appName || 'Logo Institucional'}
-                className="max-h-16 max-w-[220px] w-auto object-contain"
-              />
-            ) : (
-              <img
-                src="/itb-logo.svg"
-                alt="Logo Institucional"
-                className="max-h-14 max-w-[180px] w-auto object-contain"
-                onError={(e) => {
-                  (e.currentTarget as HTMLElement).style.display = 'none';
-                }}
-              />
-            )}
+            <img
+              src={branding?.loginLogoUrl && !logoLoadFailed ? branding.loginLogoUrl : '/itb-logo.svg'}
+              alt={branding?.appName || 'Logo Institucional'}
+              className="max-h-16 max-w-[220px] w-auto object-contain"
+              onError={(e) => {
+                if (e.currentTarget.getAttribute('src') !== '/itb-logo.svg') {
+                  setLogoLoadFailed(true);
+                } else {
+                  e.currentTarget.style.display = 'none';
+                }
+              }}
+            />
           </div>
 
           <form onSubmit={submit} className="flex flex-col gap-4">

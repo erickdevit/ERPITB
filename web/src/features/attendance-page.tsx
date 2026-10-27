@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../app-context';
 import { DateField, PageDialog, SelectField } from '../components';
+import { SearchableStudentSelect } from './student-select';
 import { formatDate, parseBrazilDate, todayInSaoPaulo } from '../lib/date';
 import { useEntity } from '../lib/use-entity';
 import { cleanClassName, extractClassNumber, formatClassDisplayName } from './classes-model';
@@ -972,7 +973,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
               onClick={() =>
                 setQuickAddStudent({
                   mode: unenrolledStudents.length > 0 ? 'existing' : 'new',
-                  existingStudentId: unenrolledStudents[0]?.id ?? '',
+                  existingStudentId: '',
                   name: '',
                   registrationNumber: '',
                   contact: '',
@@ -1192,20 +1193,17 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
         </div>
 
         {quickAddStudent?.mode === 'existing' ? (
-          <SelectField
+          <SearchableStudentSelect
             label="Selecione o aluno"
             value={quickAddStudent.existingStudentId}
             onChange={(val) =>
               setQuickAddStudent((cur) => (cur ? { ...cur, existingStudentId: val, error: undefined } : cur))
             }
-            options={
-              unenrolledStudents.length > 0
-                ? unenrolledStudents.map((s) => ({
-                    value: s.id,
-                    label: `${text(s, 'name')} (${text(s, 'registration_number') || 'Sem RA'})`,
-                  }))
-                : [{ value: '', label: 'Todos os alunos ativos já estão matriculados' }]
-            }
+            students={unenrolledStudents}
+            enrollments={enrollments.items}
+            classes={classes.items}
+            disabled={unenrolledStudents.length === 0}
+            placeholder={unenrolledStudents.length > 0 ? 'Buscar por nome ou matrícula...' : 'Todos os alunos ativos já estão matriculados'}
           />
         ) : (
           <>

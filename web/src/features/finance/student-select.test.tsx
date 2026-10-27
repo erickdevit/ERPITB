@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { SearchableStudentSelect } from './student-select';
+import { SearchableStudentSelect } from '../student-select';
 
 describe('SearchableStudentSelect', () => {
   const dummyStudents = [

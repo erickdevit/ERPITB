@@ -50,6 +50,7 @@ vi.mock('../lib/use-entity', () => ({
 describe('AttendancePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.entities.students = [{ id: 'student-1', name: 'Ana Souza', registration_number: '001', active: 1 }];
     mocks.entities.enrollments = [{ id: 'enrollment-1', class_id: 'class-1', student_id: 'student-1', status: 'ativa' }];
     mocks.entities.attendance_records = [];
     mocks.entities.class_notes = [];
@@ -98,6 +99,25 @@ describe('AttendancePage', () => {
     await user.click(screen.getByLabelText('Anotação de Ana Souza'));
     expect(screen.getByLabelText('Anotação do aluno')).toBeEnabled();
     expect(screen.getByLabelText('Observação geral da turma nesta chamada')).toBeEnabled();
+  });
+
+  it('searches the unenrolled student list when adding a student to the class', async () => {
+    const user = userEvent.setup();
+    mocks.entities.students = [
+      { id: 'student-1', name: 'Ana Souza', registration_number: '001', active: 1 },
+      { id: 'student-2', name: 'Bruno Lima', registration_number: '002', active: 1 },
+    ];
+    render(<AttendancePage today="2026-08-15" />);
+
+    await screen.findByText('Ana Souza');
+    await user.selectOptions(screen.getByLabelText('Turma'), 'class-1');
+    await user.click(screen.getByRole('button', { name: 'Incluir aluno na turma' }));
+    await screen.findByText('Aluno já cadastrado');
+    const searchInput = screen.getByPlaceholderText('Buscar por nome ou matrícula...');
+    await user.type(searchInput, '002');
+
+    expect(screen.getByRole('option', { name: /Bruno Lima/ })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /Ana Souza/ })).not.toBeInTheDocument();
   });
 
   it('renders an explanatory read-only state when a professor tries to open an old unsaved call', async () => {

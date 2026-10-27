@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Check, Search, User, X } from 'lucide-react';
-import { cleanClassName, extractClassNumber, formatClassDisplayName } from '../classes-model';
+import { cleanClassName, extractClassNumber, formatClassDisplayName } from './classes-model';
 
 export interface StudentOption {
   id: string;

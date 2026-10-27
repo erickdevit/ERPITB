@@ -19,7 +19,7 @@ import { PageDialog, SelectField } from '../../components';
 import { useEntity } from '../../lib/use-entity';
 import type { FinancialFee, LocalRecord, PaymentMethod } from '../../types';
 import { FeesPrintDocument } from './finance-print';
-import { SearchableStudentSelect } from './student-select';
+import { SearchableStudentSelect } from '../student-select';
 
 function formatCents(cents: number): string {
   return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });

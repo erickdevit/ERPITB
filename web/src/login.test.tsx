@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Login } from './login';
@@ -39,6 +39,29 @@ vi.mock('./lib/db', () => ({
 describe('Login Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('renders the bundled institutional logo when no custom logo is configured', () => {
+    render(<Login onLogin={vi.fn()} />);
+
+    expect(screen.getByRole('img')).toHaveAttribute('src', '/itb-logo.svg');
+  });
+
+  it('falls back to the bundled institutional logo when the configured logo cannot load', () => {
+    render(<Login onLogin={vi.fn()} initialBranding={{
+      id: 'branding-1',
+      appName: 'ERPITB',
+      accentColor: '#0284c7',
+      loginLogoUrl: 'https://example.com/broken-logo.svg',
+      showHeaderLogoLeft: true,
+      showHeaderLogoRight: true,
+      updatedAt: '2026-10-27T00:00:00.000Z',
+    }} />);
+    const logo = screen.getByRole('img');
+
+    fireEvent.error(logo);
+
+    expect(logo).toHaveAttribute('src', '/itb-logo.svg');
   });
 
   it('submits valid credentials and calls onLogin', async () => {
