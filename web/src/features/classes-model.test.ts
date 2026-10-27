@@ -73,18 +73,18 @@ describe('classes model', () => {
     // Order must be numeric ascending: 1, 2, 5, 10
     expect(rows[0]!.classNumber).toBe(1);
     expect(rows[0]!.name).toBe('Informática');
-    expect(rows[0]!.displayName).toBe('#01 - Informática');
+    expect(rows[0]!.displayName).toBe('01 - Informática');
 
     expect(rows[1]!.classNumber).toBe(2);
     expect(rows[1]!.name).toBe('Informática');
-    expect(rows[1]!.displayName).toBe('#02 - Informática');
+    expect(rows[1]!.displayName).toBe('02 - Informática');
 
     expect(rows[2]!.classNumber).toBe(5);
-    expect(rows[2]!.displayName).toBe('#05 - Turma');
+    expect(rows[2]!.displayName).toBe('05 - Turma');
 
     expect(rows[3]!.classNumber).toBe(10);
     expect(rows[3]!.name).toBe('Robótica');
-    expect(rows[3]!.displayName).toBe('#10 - Robótica');
+    expect(rows[3]!.displayName).toBe('10 - Robótica');
 
     // Suffix sections like Turma 01 - A
     const sectionClass: LocalRecord = { id: 'c-3', name: 'Turma 03 - A', course_id: 'course-1', active: 1 };
@@ -98,6 +98,6 @@ describe('classes model', () => {
     });
     expect(sectionRows[0]!.classNumber).toBe(3);
     expect(sectionRows[0]!.name).toBe('Turma A');
-    expect(sectionRows[0]!.displayName).toBe('#03 - Turma A');
+    expect(sectionRows[0]!.displayName).toBe('03 - Turma A');
   });
 });

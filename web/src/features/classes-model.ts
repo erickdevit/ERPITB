@@ -90,7 +90,7 @@ export function formatClassDisplayName(classNumber?: number, name?: string): str
   const safeName = name || 'Turma';
   if (classNumber !== undefined && classNumber !== null && classNumber > 0) {
     const formattedNum = String(classNumber).padStart(2, '0');
-    return `#${formattedNum} - ${safeName}`;
+    return `${formattedNum} - ${safeName}`;
   }
   return safeName;
 }

@@ -25,6 +25,11 @@ import { StudentReportCardView } from './reports/student-report-card-view';
 import { useEntity } from '../lib/use-entity';
 import type { LocalRecord } from '../types';
 import {
+  cleanClassName,
+  extractClassNumber,
+  formatClassDisplayName,
+} from './classes-model';
+import {
   buildStudentViews,
   classesVisibleToSession,
   enrollmentStatusLabel,
@@ -148,7 +153,14 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
   const classOptions = useMemo(
     () => [
       { value: '', label: 'Selecione uma turma' },
-      ...(visibleClasses ?? []).map((c) => ({ value: c.id, label: text(c, 'name') })),
+      ...(visibleClasses ?? []).map((c) => {
+        const rawName = text(c, 'name');
+        const num = c.class_number !== undefined && c.class_number !== null
+          ? Number(c.class_number)
+          : extractClassNumber(rawName);
+        const clean = cleanClassName(rawName);
+        return { value: c.id, label: formatClassDisplayName(num, clean) };
+      }),
     ],
     [visibleClasses],
   );
@@ -332,7 +344,14 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
               onChange={setFilterClassId}
               options={[
                 { value: '', label: 'Todas as turmas' },
-                ...visibleClasses.map((c) => ({ value: c.id, label: text(c, 'name') })),
+                ...visibleClasses.map((c) => {
+                  const rawName = text(c, 'name');
+                  const num = c.class_number !== undefined && c.class_number !== null
+                    ? Number(c.class_number)
+                    : extractClassNumber(rawName);
+                  const clean = cleanClassName(rawName);
+                  return { value: c.id, label: formatClassDisplayName(num, clean) };
+                }),
               ]}
             />
           </div>

@@ -3,6 +3,7 @@ import { RotateCcw } from 'lucide-react';
 import { DateField, SelectField } from '../../components';
 import { formatDate, parseBrazilDate } from '../../lib/date';
 import type { LocalRecord } from '../../types';
+import { cleanClassName, extractClassNumber, formatClassDisplayName } from '../classes-model';
 import type { BiFilters } from './model';
 
 const text = (record: LocalRecord | undefined, field: string) => String(record?.[field] ?? '');
@@ -84,7 +85,24 @@ export function BiFilterBar({
               { value: '', label: 'Todas as turmas' },
               ...availableClasses
                 .filter((item) => !item.deleted_at)
-                .map((item) => ({ value: item.id, label: text(item, 'name') })),
+                .map((item) => {
+                  const rawName = text(item, 'name');
+                  const num = item.class_number !== undefined && item.class_number !== null
+                    ? Number(item.class_number)
+                    : extractClassNumber(rawName);
+                  const clean = cleanClassName(rawName);
+                  return {
+                    value: item.id,
+                    classNumber: num,
+                    label: formatClassDisplayName(num, clean),
+                  };
+                })
+                .sort((a, b) => {
+                  const numA = a.classNumber ?? 999999;
+                  const numB = b.classNumber ?? 999999;
+                  if (numA !== numB) return numA - numB;
+                  return a.label.localeCompare(b.label, 'pt-BR');
+                }),
             ]}
           />
         </div>

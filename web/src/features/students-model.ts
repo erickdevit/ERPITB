@@ -1,5 +1,6 @@
 import { latestAttendance } from '../lib/attendance';
 import type { LocalRecord, Role, UserSession } from '../types';
+import { cleanClassName, extractClassNumber, formatClassDisplayName } from './classes-model';
 
 export const enrollmentStatuses = ['ativa', 'trancada', 'concluida'] as const;
 export type EnrollmentStatus = typeof enrollmentStatuses[number];
@@ -76,7 +77,20 @@ export function classesVisibleToSession(
   return safeClasses.filter(current)
     .filter((item) => item.active !== 0 && item.active !== false)
     .filter((item) => !visibleClassIds || visibleClassIds.has(item.id))
-    .sort((left, right) => text(left, 'name').localeCompare(text(right, 'name'), 'pt-BR'));
+    .sort((left, right) => {
+      const leftName = text(left, 'name');
+      const rightName = text(right, 'name');
+      const leftNum = left.class_number !== undefined && left.class_number !== null
+        ? Number(left.class_number)
+        : extractClassNumber(leftName);
+      const rightNum = right.class_number !== undefined && right.class_number !== null
+        ? Number(right.class_number)
+        : extractClassNumber(rightName);
+      const numA = leftNum ?? 999999;
+      const numB = rightNum ?? 999999;
+      if (numA !== numB) return numA - numB;
+      return leftName.localeCompare(rightName, 'pt-BR');
+    });
 }
 
 export function buildStudentViews(input: {
@@ -105,6 +119,14 @@ export function buildStudentViews(input: {
       const classId = text(enrollment, 'class_id');
       const ownAttendance = attendance.filter((record) => record.student_id === student.id && record.class_id === classId);
       const present = ownAttendance.filter((record) => record.status === 'P').length;
+      const classRecord = classes.get(classId);
+      const rawClassName = text(classRecord, 'name');
+      const num = classRecord?.class_number !== undefined && classRecord?.class_number !== null
+        ? Number(classRecord.class_number)
+        : extractClassNumber(rawClassName);
+      const clean = cleanClassName(rawClassName);
+      const className = rawClassName ? formatClassDisplayName(num, clean) : 'Turma não informada';
+
       return {
         key: `${student.id}:${enrollment.id}`,
         id: student.id,
@@ -117,7 +139,7 @@ export function buildStudentViews(input: {
         birthDate: text(student, 'birth_date'),
         registrationDate: text(student, 'created_at'),
         classId,
-        className: text(classes.get(classId), 'name') || 'Turma não informada',
+        className,
         enrollmentStatus: text(enrollment, 'status') || 'ativa',
         attendanceRate: ownAttendance.length ? Math.round(present * 1000 / ownAttendance.length) / 10 : 100,
         attendanceRecords: ownAttendance.length,

@@ -73,6 +73,60 @@ function checkRateLimit(clientIp: string, path: string, limit: number, windowMs:
   }
 }
 
+let schemaEnsured = false;
+async function ensureDbSchema(env: Env): Promise<void> {
+  if (schemaEnsured || !env?.DB || typeof env.DB.prepare !== 'function') return;
+  try {
+    const p1 = env.DB.prepare(`ALTER TABLE classes ADD COLUMN class_number INTEGER`);
+    if (typeof p1?.run === 'function') await p1.run();
+  } catch {
+    // Column already exists
+  }
+  try {
+    const p2 = env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_classes_class_number ON classes(class_number)`);
+    if (typeof p2?.run === 'function') await p2.run();
+  } catch {
+    // Index already exists
+  }
+  try {
+    const p3 = env.DB.prepare(
+      `SELECT id, name FROM classes WHERE class_number IS NULL AND deleted_at IS NULL`
+    );
+    if (!p3 || typeof p3.all !== 'function') {
+      schemaEnsured = true;
+      return;
+    }
+    const unnumbered = await p3.all<{ id: string; name: string }>();
+
+    if (unnumbered?.results && unnumbered.results.length > 0) {
+      let maxNum = 0;
+      const maxRow = await env.DB.prepare(
+        `SELECT MAX(class_number) AS max_num FROM classes WHERE deleted_at IS NULL`
+      ).first<{ max_num: number | null }>();
+      if (maxRow?.max_num && maxRow.max_num > 0) {
+        maxNum = maxRow.max_num;
+      }
+
+      for (const cls of unnumbered.results) {
+        const numMatch = cls.name.match(/\b0*(\d+)\b/);
+        let num: number;
+        if (numMatch && numMatch[1]) {
+          const parsed = parseInt(numMatch[1], 10);
+          num = (!Number.isNaN(parsed) && parsed > 0) ? parsed : ++maxNum;
+        } else {
+          num = ++maxNum;
+        }
+        await env.DB.prepare(
+          `UPDATE classes SET class_number = ? WHERE id = ?`
+        ).bind(num, cls.id).run();
+      }
+    }
+  } catch (err) {
+    console.error('Error populating class_numbers:', err);
+  }
+  schemaEnsured = true;
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const requestId = crypto.randomUUID();
@@ -90,6 +144,7 @@ export default {
         url.pathname = url.pathname.slice(0, -1);
       }
       validateOriginCsrf(request, env);
+      await ensureDbSchema(env);
       if (url.pathname.startsWith('/auth/')) {
         const ip = request.headers.get('cf-connecting-ip') || 'global';
         checkRateLimit(ip, url.pathname, 60, 60_000);

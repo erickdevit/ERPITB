@@ -18,6 +18,7 @@ import { useApp } from '../app-context';
 import { DateField, PageDialog, SelectField } from '../components';
 import { formatDate, parseBrazilDate, todayInSaoPaulo } from '../lib/date';
 import { useEntity } from '../lib/use-entity';
+import { cleanClassName, extractClassNumber, formatClassDisplayName } from './classes-model';
 import {
   attendanceCallAccess,
   buildAttendanceDraftRows,
@@ -151,9 +152,32 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
     }
   }, [date]);
 
+  const classOptions = useMemo(() => {
+    return (classes.items ?? [])
+      .filter((c) => !c.deleted_at && c.active !== 0 && c.active !== false)
+      .map((item) => {
+        const rawName = text(item, 'name');
+        const num = item.class_number !== undefined && item.class_number !== null
+          ? Number(item.class_number)
+          : extractClassNumber(rawName);
+        const clean = cleanClassName(rawName);
+        return {
+          value: item.id,
+          classNumber: num,
+          label: formatClassDisplayName(num, clean),
+        };
+      })
+      .sort((a, b) => {
+        const numA = a.classNumber ?? 999999;
+        const numB = b.classNumber ?? 999999;
+        if (numA !== numB) return numA - numB;
+        return a.label.localeCompare(b.label, 'pt-BR');
+      });
+  }, [classes.items]);
+
   useEffect(() => {
-    if (!classId && classes.items.length) setClassId(classes.items[0]!.id);
-  }, [classId, classes.items]);
+    if (!classId && classOptions.length) setClassId(classOptions[0]!.value);
+  }, [classId, classOptions]);
 
   // Load canonical taught class sessions count from server or distinct attendance dates
   useEffect(() => {
@@ -224,10 +248,6 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
     );
   }, [rows, search]);
 
-  const classOptions = (classes.items ?? []).map((item) => ({
-    value: item.id,
-    label: text(item, 'name'),
-  }));
 
   const updateRow = (index: number, update: (row: AttendanceDraftRow) => AttendanceDraftRow) => {
     setRows((current) => current.map((row, currentIndex) => (currentIndex === index ? update(row) : row)));
@@ -604,13 +624,25 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
     return classes.items
       .filter((c) => !c.deleted_at && c.id !== classId)
       .map((c) => {
+        const rawName = text(c, 'name');
+        const num = c.class_number !== undefined && c.class_number !== null
+          ? Number(c.class_number)
+          : extractClassNumber(rawName);
+        const clean = cleanClassName(rawName);
         const course = courses.items.find((crs) => crs.id === c.course_id);
+        const base = formatClassDisplayName(num, clean);
         return {
           value: String(c.id),
-          label: course ? `${c.name} — ${course.name}` : String(c.name),
+          classNumber: num,
+          label: course ? `${base} — ${course.name}` : base,
         };
       })
-      .sort((a, b) => a.label.localeCompare(b.label));
+      .sort((a, b) => {
+        const numA = a.classNumber ?? 999999;
+        const numB = b.classNumber ?? 999999;
+        if (numA !== numB) return numA - numB;
+        return a.label.localeCompare(b.label, 'pt-BR');
+      });
   }, [classes.items, courses.items, classId]);
 
   return (

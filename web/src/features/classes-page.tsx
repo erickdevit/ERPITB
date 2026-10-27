@@ -345,7 +345,7 @@ export function ClassesPage() {
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-2">
                       <span className="px-2 py-0.5 text-xs font-black rounded-md bg-slate-100 text-slate-700 border border-slate-200 shrink-0 font-mono">
-                        #{String(row.classNumber ?? '?').padStart(2, '0')}
+                        {String(row.classNumber ?? '?').padStart(2, '0')}
                       </span>
                       <Link
                         to={`/turmas/${row.id}`}
@@ -441,7 +441,7 @@ export function ClassesPage() {
         <div className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
           <span className="font-semibold text-slate-700">ID Numérico no ERP:</span>
           <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-300">
-            #{String(draft.classNumber || 1).padStart(2, '0')}
+            {String(draft.classNumber || 1).padStart(2, '0')}
           </span>
         </div>
 

@@ -1,4 +1,5 @@
 import type { LocalRecord } from '../types';
+import { extractClassNumber } from '../features/classes-model';
 import { latestAttendance } from './attendance';
 
 export interface AnalyticsFilters {
@@ -141,7 +142,28 @@ export function buildAnalytics(rawInput: AnalyticsInput, filters: AnalyticsFilte
     activeStudents: filters.studentId ? (enrolledStudents.has(filters.studentId) ? 1 : 0) : enrolledStudents.size,
     riskStudents: risk.size,
     evolution: [...daily.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([date, counts]) => ({ date, rate: rate(counts), records: counts.records })),
-    byClass: visibleClasses.map((item) => { const counts = classTotals.get(item.id) ?? emptyCounts(); return { ...counts, id: item.id, name: text(item, 'name'), courseId: text(item, 'course_id'), rate: rate(counts) }; }).sort((left, right) => left.name.localeCompare(right.name)),
+    byClass: visibleClasses
+      .map((item) => {
+        const counts = classTotals.get(item.id) ?? emptyCounts();
+        const rawName = text(item, 'name');
+        const num = item.class_number !== undefined && item.class_number !== null
+          ? Number(item.class_number)
+          : extractClassNumber(rawName);
+        return {
+          ...counts,
+          id: item.id,
+          name: rawName,
+          classNumber: num,
+          courseId: text(item, 'course_id'),
+          rate: rate(counts),
+        };
+      })
+      .sort((left, right) => {
+        const numA = left.classNumber ?? 999999;
+        const numB = right.classNumber ?? 999999;
+        if (numA !== numB) return numA - numB;
+        return left.name.localeCompare(right.name, 'pt-BR');
+      }),
     topAbsentees: absentees.sort((left, right) => right.absences - left.absences || left.rate - right.rate).slice(0, 10),
     teacherWorkload: [...teacherWorkload.entries()].map(([teacherId, value]) => ({ teacherId, classes: value.classes.size, students: value.students.size })).sort((left, right) => right.classes - left.classes || right.students - left.students),
   };

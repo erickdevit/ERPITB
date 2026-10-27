@@ -364,18 +364,21 @@ export function FinanceDashboardPage() {
     // Comparativo consolidado por Turma
     const map = new Map<
       string,
-      { name: string; expected: number; paid: number; overdue: number; count: number }
+      { name: string; classNumber?: number; expected: number; paid: number; overdue: number; count: number }
     >();
 
     for (const f of filteredFees) {
       const cId = f.classId || f.className || 'Sem Turma';
-      const cName = f.className || 'Turma não atribuída';
-      const num = extractClassNumber(cName);
+      const cRecord = (classes.items ?? []).find((c) => c.id === f.classId);
+      const cName = f.className || String(cRecord?.name ?? '') || 'Turma não atribuída';
+      const num = cRecord?.class_number !== undefined && cRecord.class_number !== null
+        ? Number(cRecord.class_number)
+        : extractClassNumber(cName);
       const clean = cleanClassName(cName);
       const displayName = formatClassDisplayName(num, clean);
 
       if (!map.has(cId)) {
-        map.set(cId, { name: displayName, expected: 0, paid: 0, overdue: 0, count: 0 });
+        map.set(cId, { name: displayName, classNumber: num, expected: 0, paid: 0, overdue: 0, count: 0 });
       }
       const entry = map.get(cId)!;
       entry.expected += (f.amountCents || 0) / 100;
@@ -391,8 +394,13 @@ export function FinanceDashboardPage() {
         ...entry,
         rate: entry.expected > 0 ? Math.round((entry.paid / entry.expected) * 1000) / 10 : 0,
       }))
-      .sort((a, b) => b.expected - a.expected);
-  }, [filteredFees, selectedClassId]);
+      .sort((a, b) => {
+        const numA = a.classNumber ?? 999999;
+        const numB = b.classNumber ?? 999999;
+        if (numA !== numB) return numA - numB;
+        return a.name.localeCompare(b.name, 'pt-BR');
+      });
+  }, [filteredFees, selectedClassId, classes.items]);
 
   // Expenses & Incomes by Category
   const categoryBreakdownData = useMemo(() => {

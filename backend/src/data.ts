@@ -297,27 +297,51 @@ export async function listClasses(env: Env, user: AuthUser): Promise<unknown> {
   const filter = user.role === 'professor'
     ? `JOIN class_teachers ct ON ct.class_id = c.id AND ct.user_id = ? AND ct.deleted_at IS NULL`
     : '';
-  const statement = env.DB.prepare(
-    `SELECT c.id, c.course_id, c.name, c.class_number, c.shift, c.week_day, c.is_kids, c.laboratory_id, c.active, c.sync_version, c.created_at, c.updated_at,
-            co.code AS course_code, co.name AS course_name, l.name AS laboratory_name
-       FROM classes c JOIN courses co ON co.id = c.course_id
-       LEFT JOIN laboratories l ON l.id = c.laboratory_id ${filter}
-      WHERE c.deleted_at IS NULL ORDER BY COALESCE(c.class_number, 999999) ASC, co.name ASC, c.name ASC`,
-  );
-  const rows = user.role === 'professor' ? await statement.bind(user.id).all() : await statement.all();
-  return { items: rows.results };
+
+  try {
+    const statement = env.DB.prepare(
+      `SELECT c.id, c.course_id, c.name, c.class_number, c.shift, c.week_day, c.is_kids, c.laboratory_id, c.active, c.sync_version, c.created_at, c.updated_at,
+              co.code AS course_code, co.name AS course_name, l.name AS laboratory_name
+         FROM classes c JOIN courses co ON co.id = c.course_id
+         LEFT JOIN laboratories l ON l.id = c.laboratory_id ${filter}
+        WHERE c.deleted_at IS NULL ORDER BY COALESCE(c.class_number, 999999) ASC, co.name ASC, c.name ASC`,
+    );
+    const rows = user.role === 'professor' ? await statement.bind(user.id).all() : await statement.all();
+    return { items: rows.results };
+  } catch (err) {
+    const fallbackStatement = env.DB.prepare(
+      `SELECT c.id, c.course_id, c.name, NULL AS class_number, c.shift, c.week_day, c.is_kids, c.laboratory_id, c.active, c.sync_version, c.created_at, c.updated_at,
+              co.code AS course_code, co.name AS course_name, l.name AS laboratory_name
+         FROM classes c JOIN courses co ON co.id = c.course_id
+         LEFT JOIN laboratories l ON l.id = c.laboratory_id ${filter}
+        WHERE c.deleted_at IS NULL ORDER BY co.name ASC, c.name ASC`,
+    );
+    const fallbackRows = user.role === 'professor' ? await fallbackStatement.bind(user.id).all() : await fallbackStatement.all();
+    return { items: fallbackRows.results };
+  }
 }
 
 export async function getClass(env: Env, user: AuthUser, id: string): Promise<Response> {
   requireScope(user, 'classes:read');
   await requireClassAccess(env, user, id);
-  const row = await env.DB.prepare(
-    `SELECT c.id, c.course_id, c.name, c.class_number, c.shift, c.week_day, c.is_kids, c.laboratory_id, c.active, c.sync_version, c.created_at, c.updated_at,
-            co.code AS course_code, co.name AS course_name, l.name AS laboratory_name
-       FROM classes c JOIN courses co ON co.id = c.course_id
-       LEFT JOIN laboratories l ON l.id = c.laboratory_id
-      WHERE c.id = ? AND c.deleted_at IS NULL`
-  ).bind(id).first<Record<string, unknown>>();
+  let row: Record<string, unknown> | null = null;
+  try {
+    row = await env.DB.prepare(
+      `SELECT c.id, c.course_id, c.name, c.class_number, c.shift, c.week_day, c.is_kids, c.laboratory_id, c.active, c.sync_version, c.created_at, c.updated_at,
+              co.code AS course_code, co.name AS course_name, l.name AS laboratory_name
+         FROM classes c JOIN courses co ON co.id = c.course_id
+         LEFT JOIN laboratories l ON l.id = c.laboratory_id
+        WHERE c.id = ? AND c.deleted_at IS NULL`
+    ).bind(id).first<Record<string, unknown>>();
+  } catch {
+    row = await env.DB.prepare(
+      `SELECT c.id, c.course_id, c.name, NULL AS class_number, c.shift, c.week_day, c.is_kids, c.laboratory_id, c.active, c.sync_version, c.created_at, c.updated_at,
+              co.code AS course_code, co.name AS course_name, l.name AS laboratory_name
+         FROM classes c JOIN courses co ON co.id = c.course_id
+         LEFT JOIN laboratories l ON l.id = c.laboratory_id
+        WHERE c.id = ? AND c.deleted_at IS NULL`
+    ).bind(id).first<Record<string, unknown>>();
+  }
   if (!row) throw new AppError(404, 'Turma não encontrada.', 'NOT_FOUND');
   return new Response(JSON.stringify(row), {
     status: 200,

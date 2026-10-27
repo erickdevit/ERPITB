@@ -40,6 +40,11 @@ import type { LocalRecord } from '../types';
 import { ClassBoletimView } from './reports/class-boletim-view';
 import { StudentReportCardView } from './reports/student-report-card-view';
 import {
+  cleanClassName,
+  extractClassNumber,
+  formatClassDisplayName,
+} from './classes-model';
+import {
   deleteGradeItemCascade,
   deleteGradeTableCascade,
   moveArrayItem,
@@ -185,7 +190,23 @@ export function GradesPage() {
   });
 
   const activeClasses = useMemo(
-    () => classes.items.filter((c) => !c.deleted_at && c.active !== 0 && c.active !== false),
+    () =>
+      classes.items
+        .filter((c) => !c.deleted_at && c.active !== 0 && c.active !== false)
+        .sort((left, right) => {
+          const leftName = text(left, 'name');
+          const rightName = text(right, 'name');
+          const leftNum = left.class_number !== undefined && left.class_number !== null
+            ? Number(left.class_number)
+            : extractClassNumber(leftName);
+          const rightNum = right.class_number !== undefined && right.class_number !== null
+            ? Number(right.class_number)
+            : extractClassNumber(rightName);
+          const numA = leftNum ?? 999999;
+          const numB = rightNum ?? 999999;
+          if (numA !== numB) return numA - numB;
+          return leftName.localeCompare(rightName, 'pt-BR');
+        }),
     [classes.items],
   );
 
@@ -692,10 +713,17 @@ export function GradesPage() {
               label="Turma"
               value={classId}
               onChange={handleClassChange}
-              options={activeClasses.map((c) => ({
-                value: c.id,
-                label: text(c, 'name'),
-              }))}
+              options={activeClasses.map((c) => {
+                const rawName = text(c, 'name');
+                const num = c.class_number !== undefined && c.class_number !== null
+                  ? Number(c.class_number)
+                  : extractClassNumber(rawName);
+                const clean = cleanClassName(rawName);
+                return {
+                  value: c.id,
+                  label: formatClassDisplayName(num, clean),
+                };
+              })}
             />
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-slate-700">Buscar aluno</label>

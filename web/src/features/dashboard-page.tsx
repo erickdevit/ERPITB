@@ -382,15 +382,27 @@ export function DashboardPage() {
   }, [selectedClassId, enrollments.items, students.items, attendance.items, from, to]);
 
   const classComparisonData = useMemo(() => {
-    return analytics.byClass.map((c) => {
-      const num = extractClassNumber(c.name);
-      const cleanName = cleanClassName(c.name);
-      return {
-        ...c,
-        displayName: formatClassDisplayName(num, cleanName),
-      };
-    });
-  }, [analytics.byClass]);
+    return analytics.byClass
+      .map((c) => {
+        const cls = (classes.items ?? []).find((item) => item.id === c.id);
+        const rawName = String(cls?.name ?? c.name ?? '');
+        const num = cls?.class_number !== undefined && cls.class_number !== null
+          ? Number(cls.class_number)
+          : extractClassNumber(rawName);
+        const cleanName = cleanClassName(rawName);
+        return {
+          ...c,
+          classNumber: num,
+          displayName: formatClassDisplayName(num, cleanName),
+        };
+      })
+      .sort((a, b) => {
+        const numA = a.classNumber ?? 999999;
+        const numB = b.classNumber ?? 999999;
+        if (numA !== numB) return numA - numB;
+        return a.displayName.localeCompare(b.displayName, 'pt-BR');
+      });
+  }, [analytics.byClass, classes.items]);
 
   const selectedClassName = useMemo(() => {
     return classOptions.find((c) => c.value === selectedClassId)?.displayName;

@@ -13,6 +13,7 @@ import { DateField, PageDialog, Section, SelectField } from '../components';
 import { formatDate, parseBrazilDate, todayInSaoPaulo } from '../lib/date';
 import { useEntity } from '../lib/use-entity';
 import type { LocalRecord } from '../types';
+import { cleanClassName, extractClassNumber, formatClassDisplayName } from './classes-model';
 
 const text = (record: Record<string, unknown> | undefined, key: string) => String(record?.[key] ?? '');
 
@@ -42,7 +43,24 @@ export function ReplacementsPage({
       { value: '', label: 'Todas as turmas' },
       ...(classes.items ?? [])
         .filter((c) => !c.deleted_at && c.active !== 0 && c.active !== false)
-        .map((c) => ({ value: c.id, label: text(c, 'name') })),
+        .map((c) => {
+          const rawName = text(c, 'name');
+          const num = c.class_number !== undefined && c.class_number !== null
+            ? Number(c.class_number)
+            : extractClassNumber(rawName);
+          const clean = cleanClassName(rawName);
+          return {
+            value: c.id,
+            classNumber: num,
+            label: formatClassDisplayName(num, clean),
+          };
+        })
+        .sort((a, b) => {
+          const numA = a.classNumber ?? 999999;
+          const numB = b.classNumber ?? 999999;
+          if (numA !== numB) return numA - numB;
+          return a.label.localeCompare(b.label, 'pt-BR');
+        }),
     ],
     [classes.items],
   );
@@ -67,11 +85,17 @@ export function ReplacementsPage({
       .map((item) => {
         const student = (students.items ?? []).find((s) => s.id === item.student_id);
         const cls = (classes.items ?? []).find((c) => c.id === item.class_id);
+        const rawName = text(cls, 'name');
+        const num = cls?.class_number !== undefined && cls?.class_number !== null
+          ? Number(cls.class_number)
+          : extractClassNumber(rawName);
+        const clean = cleanClassName(rawName);
+        const displayClassName = rawName ? formatClassDisplayName(num, clean) : 'Turma não informada';
         return {
           ...item,
           studentName: text(student, 'name'),
           registrationNumber: text(student, 'registration_number'),
-          className: text(cls, 'name'),
+          className: displayClassName,
         };
       });
   }, [replacements.items, students.items, classes.items, history, search, filterClassId]);
