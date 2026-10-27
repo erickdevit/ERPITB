@@ -232,7 +232,13 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   const existingCall = attendance.items.some(
     (item) => !item.deleted_at && item.class_id === classId && item.date === canonicalDate,
   );
-  const access = attendanceCallAccess(session.role, canonicalDate, today, existingCall);
+  const selectedClass = classes.items.find((c) => c.id === classId);
+  const classStartDate = text(selectedClass, 'start_date') || text(selectedClass, 'startDate') || null;
+  const classEndDate = text(selectedClass, 'end_date') || text(selectedClass, 'endDate') || null;
+  const access = attendanceCallAccess(session.role, canonicalDate, today, existingCall, {
+    startDate: classStartDate,
+    endDate: classEndDate,
+  });
 
   useEffect(() => {
     if (loading || !classId || !canonicalDate) {
@@ -329,6 +335,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
         rows,
         generalNotes,
         existingClassNote,
+        classRecord: selectedClass,
       });
       await Promise.all([attendance.reload(), classNotes.reload(), replacements.reload()]);
       setTaughtSessionsCount((prev) => Math.max(prev, 1));
@@ -687,7 +694,14 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
 
           {/* Data */}
           <div className="w-full md:w-40">
-            <DateField label="Data da chamada" value={date} onChange={setDate} required />
+            <DateField
+              label="Data da chamada"
+              value={date}
+              onChange={setDate}
+              required
+              min={classStartDate || undefined}
+              max={classEndDate || undefined}
+            />
           </div>
 
           {/* Busca aluno */}

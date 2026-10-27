@@ -51,6 +51,8 @@ CREATE TABLE IF NOT EXISTS classes (
   is_kids INTEGER NOT NULL DEFAULT 0 CHECK (is_kids IN (0, 1)),
   laboratory_id TEXT REFERENCES laboratories(id),
   active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+  start_date TEXT,
+  end_date TEXT,
   sync_version INTEGER NOT NULL DEFAULT 1,
   deleted_at TEXT,
   created_at TEXT NOT NULL,

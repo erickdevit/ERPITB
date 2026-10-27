@@ -178,6 +178,8 @@ export function DateField({
   allowFuture = false,
   required = false,
   helperText,
+  min,
+  max,
 }: {
   label: string;
   value: string;
@@ -185,6 +187,8 @@ export function DateField({
   allowFuture?: boolean;
   required?: boolean;
   helperText?: string;
+  min?: string;
+  max?: string;
 }) {
   const [internalDate, setInternalDate] = useState(() => {
     try {
@@ -229,6 +233,8 @@ export function DateField({
         id={`date-${label}`}
         type="date"
         required={required}
+        min={min}
+        max={max}
         value={internalDate}
         onChange={handleChange}
         className="w-full px-3 py-2 text-sm text-slate-900 bg-white border border-slate-200/90 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all"

@@ -274,6 +274,9 @@ export function ClassDetailPage() {
               {text(course, 'name')} · {shiftLabel(text(classRecord, 'shift'))}{' '}
               {text(classRecord, 'week_day') ? `· ${text(classRecord, 'week_day')}` : ''}
               {lab ? ` · Lab: ${text(lab, 'name')}` : ''}
+              {(text(classRecord, 'start_date') || text(classRecord, 'startDate') || text(classRecord, 'end_date') || text(classRecord, 'endDate')) ? (
+                ` · Período: ${formatDate(text(classRecord, 'start_date') || text(classRecord, 'startDate')) || '—'} a ${formatDate(text(classRecord, 'end_date') || text(classRecord, 'endDate')) || '—'}`
+              ) : ''}
             </p>
           </div>
         </div>

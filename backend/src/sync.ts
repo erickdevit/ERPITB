@@ -8,7 +8,7 @@ type Row = Record<string, unknown>;
 const columns: Record<SyncEntity, readonly string[]> = {
   laboratories: ['name', 'active'],
   courses: ['code', 'name', 'active'],
-  classes: ['course_id', 'name', 'class_number', 'shift', 'week_day', 'is_kids', 'laboratory_id', 'active'],
+  classes: ['course_id', 'name', 'class_number', 'shift', 'week_day', 'is_kids', 'laboratory_id', 'active', 'start_date', 'end_date'],
   class_teachers: ['class_id', 'user_id'],
   students: ['encrypted_name', 'encrypted_cpf', 'encrypted_contact', 'registration_number', 'birth_date', 'active'],
   enrollments: ['class_id', 'student_id', 'status'],
@@ -106,6 +106,17 @@ async function authorizeOperation(env: Env, user: AuthUser, operation: SyncOpera
     if (!hasPermission(user.role, 'attendance:write')) throw new AppError(403, 'Ação não permitida.', 'FORBIDDEN');
     const classId = String(operation.data.class_id ?? existing?.class_id ?? '');
     const date = String(operation.data.date ?? existing?.date ?? '');
+    if (classId) {
+      const classRecord = await env.DB.prepare(
+        `SELECT start_date, end_date FROM classes WHERE id = ? AND deleted_at IS NULL`
+      ).bind(classId).first<{ start_date: string | null; end_date: string | null }>();
+      if (classRecord?.start_date && date < classRecord.start_date) {
+        throw new AppError(400, `Não é possível registrar frequência anterior à data de início da turma (${classRecord.start_date}).`, 'ATTENDANCE_BEFORE_CLASS_START', { startDate: classRecord.start_date, date });
+      }
+      if (classRecord?.end_date && date > classRecord.end_date) {
+        throw new AppError(400, `Não é possível registrar frequência posterior à data de encerramento da turma (${classRecord.end_date}).`, 'ATTENDANCE_AFTER_CLASS_END', { endDate: classRecord.end_date, date });
+      }
+    }
     if (user.role === 'professor') {
       if (!await teacherOwnsClass(env, user.id, classId)) throw new AppError(403, 'Turma não atribuída ao professor.', 'FORBIDDEN');
       if (isReplacementCompletion(operation, existing)) {
@@ -248,6 +259,12 @@ async function normalizePayload(env: Env, user: AuthUser, operation: SyncOperati
     }
     if (data.is_kids === undefined && data.isKids !== undefined) {
       data.is_kids = data.isKids ? 1 : 0;
+    }
+    if (data.start_date === undefined && data.startDate !== undefined) {
+      data.start_date = data.startDate || null;
+    }
+    if (data.end_date === undefined && data.endDate !== undefined) {
+      data.end_date = data.endDate || null;
     }
     const rawName = String(data.name ?? existing?.name ?? '').trim();
     let classNumber = data.class_number !== undefined && data.class_number !== null

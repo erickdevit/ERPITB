@@ -83,6 +83,24 @@ async function ensureDbSchema(env: Env): Promise<void> {
     // Column already exists
   }
   try {
+    const pStartDate = env.DB.prepare(`ALTER TABLE classes ADD COLUMN start_date TEXT`);
+    if (typeof pStartDate?.run === 'function') await pStartDate.run();
+  } catch {
+    // Column already exists
+  }
+  try {
+    const pEndDate = env.DB.prepare(`ALTER TABLE classes ADD COLUMN end_date TEXT`);
+    if (typeof pEndDate?.run === 'function') await pEndDate.run();
+  } catch {
+    // Column already exists
+  }
+  try {
+    const pDatesIdx = env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_classes_dates ON classes(start_date, end_date)`);
+    if (typeof pDatesIdx?.run === 'function') await pDatesIdx.run();
+  } catch {
+    // Index already exists
+  }
+  try {
     const p2 = env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_classes_class_number ON classes(class_number)`);
     if (typeof p2?.run === 'function') await p2.run();
   } catch {

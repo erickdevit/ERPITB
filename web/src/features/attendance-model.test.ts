@@ -27,6 +27,23 @@ describe('attendanceCallAccess', () => {
     expect(attendanceCallAccess('admin', '2025-01-01', '2026-08-15', false)).toEqual({ editable: true });
     expect(attendanceCallAccess('pedagogico', '2025-01-01', '2026-08-15', false)).toEqual({ editable: true });
   });
+
+  it('blocks attendance recording outside class start_date and end_date for all profiles', () => {
+    const limits = { startDate: '2026-03-01', endDate: '2026-11-30' };
+    expect(attendanceCallAccess('admin', '2026-02-28', '2026-08-15', false, limits)).toMatchObject({
+      editable: false,
+      message: expect.stringContaining('anterior à data de início'),
+    });
+    expect(attendanceCallAccess('professor', '2026-02-28', '2026-02-28', false, limits)).toMatchObject({
+      editable: false,
+      message: expect.stringContaining('anterior à data de início'),
+    });
+    expect(attendanceCallAccess('admin', '2026-12-01', '2026-08-15', false, limits)).toMatchObject({
+      editable: false,
+      message: expect.stringContaining('posterior à data de encerramento'),
+    });
+    expect(attendanceCallAccess('admin', '2026-05-15', '2026-08-15', false, limits)).toEqual({ editable: true });
+  });
 });
 
 describe('attendance drafts', () => {
@@ -110,6 +127,19 @@ describe('saveAttendanceCall', () => {
       rows: [{ student: student('student-1', 'Ana'), status: 'R', notes: '', statusChanged: true }],
     })).rejects.toThrow('Ana: Informe a data e o horário da reposição.');
     expect(store.mutateBatch).not.toHaveBeenCalled();
+
+    // Rejects outside class limits
+    await expect(saveAttendanceCall({
+      store, classId: 'class-1', date: '2026-02-15', userId: 'teacher-1', generalNotes: '',
+      classRecord: { startDate: '2026-03-01', endDate: '2026-11-30' },
+      rows: [{ student: student('student-1', 'Ana'), status: 'P', notes: '', statusChanged: true }],
+    })).rejects.toThrow('anterior à data de início da turma');
+
+    await expect(saveAttendanceCall({
+      store, classId: 'class-1', date: '2026-12-15', userId: 'teacher-1', generalNotes: '',
+      classRecord: { startDate: '2026-03-01', endDate: '2026-11-30' },
+      rows: [{ student: student('student-1', 'Ana'), status: 'P', notes: '', statusChanged: true }],
+    })).rejects.toThrow('posterior à data de encerramento da turma');
   });
 
   it('persists statuses, replacement metadata, removals and the general note as one logical batch', async () => {

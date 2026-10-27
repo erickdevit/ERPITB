@@ -381,7 +381,7 @@ export async function listClasses(env: Env, user: AuthUser): Promise<unknown> {
 
     try {
       const statement = env.DB.prepare(
-        `SELECT c.id, c.course_id, c.name, c.class_number, c.shift, c.week_day, c.is_kids, c.laboratory_id, c.active, c.sync_version, c.created_at, c.updated_at,
+        `SELECT c.id, c.course_id, c.name, c.class_number, c.shift, c.week_day, c.is_kids, c.laboratory_id, c.active, c.start_date, c.end_date, c.sync_version, c.created_at, c.updated_at,
                 co.code AS course_code, co.name AS course_name, l.name AS laboratory_name
            FROM classes c JOIN courses co ON co.id = c.course_id
            LEFT JOIN laboratories l ON l.id = c.laboratory_id ${filter}
@@ -391,7 +391,7 @@ export async function listClasses(env: Env, user: AuthUser): Promise<unknown> {
       return { items: rows.results };
     } catch (err) {
       const fallbackStatement = env.DB.prepare(
-        `SELECT c.id, c.course_id, c.name, NULL AS class_number, c.shift, c.week_day, c.is_kids, c.laboratory_id, c.active, c.sync_version, c.created_at, c.updated_at,
+        `SELECT c.id, c.course_id, c.name, NULL AS class_number, c.shift, c.week_day, c.is_kids, c.laboratory_id, c.active, c.start_date, c.end_date, c.sync_version, c.created_at, c.updated_at,
                 co.code AS course_code, co.name AS course_name, l.name AS laboratory_name
            FROM classes c JOIN courses co ON co.id = c.course_id
            LEFT JOIN laboratories l ON l.id = c.laboratory_id ${filter}
@@ -409,7 +409,7 @@ export async function getClass(env: Env, user: AuthUser, id: string): Promise<Re
   let row: Record<string, unknown> | null = null;
   try {
     row = await env.DB.prepare(
-      `SELECT c.id, c.course_id, c.name, c.class_number, c.shift, c.week_day, c.is_kids, c.laboratory_id, c.active, c.sync_version, c.created_at, c.updated_at,
+      `SELECT c.id, c.course_id, c.name, c.class_number, c.shift, c.week_day, c.is_kids, c.laboratory_id, c.active, c.start_date, c.end_date, c.sync_version, c.created_at, c.updated_at,
               co.code AS course_code, co.name AS course_name, l.name AS laboratory_name
          FROM classes c JOIN courses co ON co.id = c.course_id
          LEFT JOIN laboratories l ON l.id = c.laboratory_id
@@ -417,7 +417,7 @@ export async function getClass(env: Env, user: AuthUser, id: string): Promise<Re
     ).bind(id).first<Record<string, unknown>>();
   } catch {
     row = await env.DB.prepare(
-      `SELECT c.id, c.course_id, c.name, NULL AS class_number, c.shift, c.week_day, c.is_kids, c.laboratory_id, c.active, c.sync_version, c.created_at, c.updated_at,
+      `SELECT c.id, c.course_id, c.name, NULL AS class_number, c.shift, c.week_day, c.is_kids, c.laboratory_id, c.active, c.start_date, c.end_date, c.sync_version, c.created_at, c.updated_at,
               co.code AS course_code, co.name AS course_name, l.name AS laboratory_name
          FROM classes c JOIN courses co ON co.id = c.course_id
          LEFT JOIN laboratories l ON l.id = c.laboratory_id
@@ -476,6 +476,14 @@ export async function createClass(request: Request, env: Env, user: AuthUser): P
     storedName = cleaned;
   }
 
+  const rawStartDate = body.startDate !== undefined ? body.startDate : body.start_date;
+  const startDate = rawStartDate ? parseDate(rawStartDate, 'data de início') : null;
+  const rawEndDate = body.endDate !== undefined ? body.endDate : body.end_date;
+  const endDate = rawEndDate ? parseDate(rawEndDate, 'previsão de encerramento') : null;
+  if (startDate && endDate && startDate > endDate) {
+    throw new AppError(400, 'A previsão de encerramento não pode ser anterior à data de início da turma.', 'VALIDATION_ERROR');
+  }
+
   const row = {
     id: uuid(),
     course_id: requireString(body.courseId, 'courseId', { max: 36 }),
@@ -485,7 +493,12 @@ export async function createClass(request: Request, env: Env, user: AuthUser): P
     week_day: typeof (body.weekDay ?? body.week_day) === 'string' && String(body.weekDay ?? body.week_day).trim().length > 0 ? String(body.weekDay ?? body.week_day).trim() : null,
     is_kids: boolInt(body.isKids ?? body.is_kids, false),
     laboratory_id: typeof (body.laboratoryId ?? body.laboratory_id) === 'string' && String(body.laboratoryId ?? body.laboratory_id).length > 0 ? String(body.laboratoryId ?? body.laboratory_id) : null,
-    active: boolInt(body.active), sync_version: 1, created_at: timestamp, updated_at: timestamp,
+    active: boolInt(body.active),
+    start_date: startDate,
+    end_date: endDate,
+    sync_version: 1,
+    created_at: timestamp,
+    updated_at: timestamp,
   };
   const teacherId = typeof body.teacherId === 'string' && body.teacherId.length > 0 ? requireString(body.teacherId, 'professor', { max: 36 }) : null;
   if (teacherId) {
@@ -495,8 +508,8 @@ export async function createClass(request: Request, env: Env, user: AuthUser): P
   const assignment = teacherId ? { id: uuid(), class_id: row.id, user_id: teacherId, sync_version: 1, created_at: timestamp, updated_at: timestamp } : null;
   await env.DB.batch([
     env.DB.prepare(
-      `INSERT INTO classes (id, course_id, name, class_number, shift, week_day, is_kids, laboratory_id, active, sync_version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
-    ).bind(row.id, row.course_id, row.name, row.class_number, row.shift, row.week_day, row.is_kids, row.laboratory_id, row.active, timestamp, timestamp),
+      `INSERT INTO classes (id, course_id, name, class_number, shift, week_day, is_kids, laboratory_id, active, start_date, end_date, sync_version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+    ).bind(row.id, row.course_id, row.name, row.class_number, row.shift, row.week_day, row.is_kids, row.laboratory_id, row.active, row.start_date, row.end_date, timestamp, timestamp),
     change(env, user, 'classes', row.id, 'upsert', row),
     ...(assignment ? [env.DB.prepare(`INSERT INTO class_teachers (id, class_id, user_id, sync_version, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)`).bind(assignment.id, row.id, teacherId, timestamp, timestamp), change(env, user, 'class_teachers', assignment.id, 'upsert', assignment)] : []),
     audit(env, user, 'CREATE', 'classes', row.id, { teacherId: teacherId ?? undefined }),
@@ -562,13 +575,28 @@ export async function updateClass(request: Request, env: Env, user: AuthUser, id
   const rawLabId = body.laboratoryId !== undefined ? body.laboratoryId : body.laboratory_id;
   const laboratoryId = rawLabId === undefined ? (current.laboratory_id as string | null) : (typeof rawLabId === 'string' && rawLabId.length > 0 ? rawLabId : null);
   const active = body.active === undefined ? Number(current.active) : boolInt(body.active);
+
+  const rawStartDate = body.startDate !== undefined ? body.startDate : body.start_date;
+  const startDate = rawStartDate === undefined
+    ? (current.start_date as string | null)
+    : (rawStartDate ? parseDate(rawStartDate, 'data de início') : null);
+
+  const rawEndDate = body.endDate !== undefined ? body.endDate : body.end_date;
+  const endDate = rawEndDate === undefined
+    ? (current.end_date as string | null)
+    : (rawEndDate ? parseDate(rawEndDate, 'previsão de encerramento') : null);
+
+  if (startDate && endDate && startDate > endDate) {
+    throw new AppError(400, 'A previsão de encerramento não pode ser anterior à data de início da turma.', 'VALIDATION_ERROR');
+  }
+
   const timestamp = nowIso();
   const currentVersion = Number(current.sync_version ?? 1);
   const nextVersion = currentVersion + 1;
 
   const result = await env.DB.prepare(
-    `UPDATE classes SET course_id = ?, name = ?, class_number = ?, shift = ?, week_day = ?, is_kids = ?, laboratory_id = ?, active = ?, sync_version = ?, updated_at = ? WHERE id = ? AND sync_version = ? AND deleted_at IS NULL`,
-  ).bind(courseId, storedName, classNumber, shift, weekDay, isKids, laboratoryId, active, nextVersion, timestamp, id, currentVersion).run();
+    `UPDATE classes SET course_id = ?, name = ?, class_number = ?, shift = ?, week_day = ?, is_kids = ?, laboratory_id = ?, active = ?, start_date = ?, end_date = ?, sync_version = ?, updated_at = ? WHERE id = ? AND sync_version = ? AND deleted_at IS NULL`,
+  ).bind(courseId, storedName, classNumber, shift, weekDay, isKids, laboratoryId, active, startDate, endDate, nextVersion, timestamp, id, currentVersion).run();
 
   if (result.meta.changes === 0) {
     const latest = await getEntityRow(env, 'classes', id);
@@ -1176,6 +1204,18 @@ export async function saveAttendance(request: Request, env: Env, user: AuthUser)
   const classId = requireString(body.classId, 'classId', { max: 36 });
   const date = parseDate(body.date);
   await requireClassAccess(env, user, classId);
+
+  const classRecord = await env.DB.prepare(
+    `SELECT start_date, end_date FROM classes WHERE id = ? AND deleted_at IS NULL`
+  ).bind(classId).first<{ start_date: string | null; end_date: string | null }>();
+
+  if (classRecord?.start_date && date < classRecord.start_date) {
+    throw new AppError(400, `Não é possível registrar frequência anterior à data de início da turma (${classRecord.start_date}).`, 'ATTENDANCE_BEFORE_CLASS_START', { startDate: classRecord.start_date, date });
+  }
+  if (classRecord?.end_date && date > classRecord.end_date) {
+    throw new AppError(400, `Não é possível registrar frequência posterior à data de encerramento da turma (${classRecord.end_date}).`, 'ATTENDANCE_AFTER_CLASS_END', { endDate: classRecord.end_date, date });
+  }
+
   const timeZone = env.INSTITUTION_TIMEZONE ?? 'America/Sao_Paulo';
   if (user.role === 'professor' && !teacherCanEditDate(date, new Date(), timeZone)) {
     throw new AppError(403, 'A chamada está fora da janela de edição de sete dias.', 'EDIT_WINDOW_CLOSED');

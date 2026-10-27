@@ -15,7 +15,8 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../app-context';
-import { PageDialog, Section, SelectField } from '../components';
+import { DateField, PageDialog, Section, SelectField } from '../components';
+import { formatDate, parseBrazilDate } from '../lib/date';
 import type { LocalRecord } from '../types';
 import {
   buildClassViews,
@@ -45,6 +46,8 @@ const emptyDraft = (): ClassDraft => ({
   laboratoryId: '',
   teacherId: '',
   isKids: false,
+  startDate: '',
+  endDate: '',
 });
 
 function TeacherNames({ row }: { row: ClassView }) {
@@ -165,6 +168,8 @@ export function ClassesPage() {
       laboratoryId: text(row.record, 'laboratory_id') || text(row.record, 'laboratoryId'),
       teacherId: '',
       isKids: row.isKids,
+      startDate: formatDate(text(row.record, 'start_date') || text(row.record, 'startDate')),
+      endDate: formatDate(text(row.record, 'end_date') || text(row.record, 'endDate')),
     });
     setFormError(undefined);
     setDialogOpen(true);
@@ -175,6 +180,29 @@ export function ClassesPage() {
     const error = validateClassDraft(draft, availableCourseIds);
     if (error) {
       setFormError(error);
+      return;
+    }
+
+    let canonicalStartDate: string | null = null;
+    let canonicalEndDate: string | null = null;
+    if (draft.startDate) {
+      try {
+        canonicalStartDate = parseBrazilDate(draft.startDate, { allowFuture: true }) ?? draft.startDate;
+      } catch (err) {
+        setFormError(err instanceof Error ? err.message : 'Data de início inválida.');
+        return;
+      }
+    }
+    if (draft.endDate) {
+      try {
+        canonicalEndDate = parseBrazilDate(draft.endDate, { allowFuture: true }) ?? draft.endDate;
+      } catch (err) {
+        setFormError(err instanceof Error ? err.message : 'Previsão de encerramento inválida.');
+        return;
+      }
+    }
+    if (canonicalStartDate && canonicalEndDate && canonicalStartDate > canonicalEndDate) {
+      setFormError('A previsão de encerramento não pode ser anterior à data de início.');
       return;
     }
 
@@ -195,6 +223,8 @@ export function ClassesPage() {
           week_day: draft.weekDay || null,
           laboratory_id: draft.laboratoryId || null,
           is_kids: draft.isKids ? 1 : 0,
+          start_date: canonicalStartDate,
+          end_date: canonicalEndDate,
           sync_version: existingClass?.sync_version !== undefined ? Number(existingClass.sync_version) : undefined,
         });
       } else {
@@ -208,6 +238,8 @@ export function ClassesPage() {
           week_day: draft.weekDay || null,
           laboratory_id: draft.laboratoryId || null,
           is_kids: draft.isKids ? 1 : 0,
+          start_date: canonicalStartDate,
+          end_date: canonicalEndDate,
           active: 1,
         });
 
@@ -369,8 +401,15 @@ export function ClassesPage() {
                   </td>
                   <td className="py-3 px-4 text-slate-600 font-semibold">{row.courseName}</td>
                   <td className="py-3 px-4 text-slate-500 hidden sm:table-cell">
-                    {shiftLabel(row.shift)}
-                    {row.weekDay ? ` · ${row.weekDay}` : ''}
+                    <div>
+                      {shiftLabel(row.shift)}
+                      {row.weekDay ? ` · ${row.weekDay}` : ''}
+                    </div>
+                    {(row.startDate || row.endDate) && (
+                      <div className="text-[10px] text-slate-400 mt-0.5">
+                        {row.startDate ? formatDate(row.startDate) : '—'} até {row.endDate ? formatDate(row.endDate) : '—'}
+                      </div>
+                    )}
                   </td>
                   <td className="py-3 px-4 text-slate-500 hidden md:table-cell">{row.laboratoryName || '—'}</td>
                   <td className="py-3 px-4">
@@ -481,6 +520,23 @@ export function ClassesPage() {
             value={draft.weekDay}
             onChange={(val) => setDraft((cur) => ({ ...cur, weekDay: val }))}
             options={[{ value: '', label: 'Não definido' }, ...classWeekDays.map((d) => ({ value: d, label: d }))]}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <DateField
+            label="Data de início da turma"
+            value={draft.startDate || ''}
+            onChange={(val) => setDraft((cur) => ({ ...cur, startDate: val }))}
+            allowFuture={true}
+            helperText="Nenhuma chamada pode ser feita antes desta data."
+          />
+          <DateField
+            label="Previsão de encerramento"
+            value={draft.endDate || ''}
+            onChange={(val) => setDraft((cur) => ({ ...cur, endDate: val }))}
+            allowFuture={true}
+            helperText="Limite final para registro de chamadas."
           />
         </div>
 

@@ -1,4 +1,5 @@
 import type { LocalRecord, Role, UserSession } from '../types';
+import { parseBrazilDate } from '../lib/date';
 
 export const classShifts = ['manha', 'tarde', 'noite', 'integral'] as const;
 export const classWeekDays = [
@@ -22,6 +23,8 @@ export interface ClassDraft {
   teacherId: string;
   isKids: boolean;
   classNumber?: number;
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface ClassTeacherView {
@@ -45,6 +48,8 @@ export interface ClassView {
   isKids: boolean;
   active: boolean;
   teachers: ClassTeacherView[];
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface ClassPermissions {
@@ -170,6 +175,8 @@ export function buildClassViews(input: {
         isKids: record.is_kids === 1 || record.is_kids === true || record.isKids === 1 || record.isKids === true,
         active: record.active !== 0 && record.active !== false,
         teachers: ownTeachers,
+        startDate: text(record, 'start_date') || text(record, 'startDate') || undefined,
+        endDate: text(record, 'end_date') || text(record, 'endDate') || undefined,
       };
     })
     .sort((left, right) => {
@@ -193,6 +200,17 @@ export function validateClassDraft(draft: ClassDraft, availableCourseIds: Readon
   if (!availableCourseIds.has(draft.courseId)) return 'Selecione um curso válido.';
   if (!classShifts.includes(draft.shift as ClassShift)) return 'Selecione um turno válido.';
   if (draft.weekDay && !classWeekDays.includes(draft.weekDay as typeof classWeekDays[number])) return 'Selecione um dia da semana válido.';
+
+  if (draft.startDate && draft.endDate) {
+    try {
+      const s = parseBrazilDate(draft.startDate, { allowFuture: true }) ?? draft.startDate;
+      const e = parseBrazilDate(draft.endDate, { allowFuture: true }) ?? draft.endDate;
+      if (s > e) return 'A previsão de encerramento não pode ser anterior à data de início.';
+    } catch {
+      // ignore parsing failure here, handled on save
+    }
+  }
+
   return undefined;
 }
 

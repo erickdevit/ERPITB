@@ -44,6 +44,8 @@ describe('classes model', () => {
     expect(validateClassDraft({ ...base, name: 'A' }, new Set(['course-1']))).toContain('pelo menos 2');
     expect(validateClassDraft({ ...base, shift: 'madrugada' }, new Set(['course-1']))).toContain('turno');
     expect(validateClassDraft({ ...base, courseId: 'inexistente' }, new Set(['course-1']))).toContain('curso');
+    expect(validateClassDraft({ ...base, startDate: '10/05/2026', endDate: '05/05/2026' }, new Set(['course-1']))).toContain('previsão de encerramento');
+    expect(validateClassDraft({ ...base, startDate: '01/05/2026', endDate: '10/05/2026' }, new Set(['course-1']))).toBeUndefined();
   });
 
   it('reaproveita vínculo arquivado e impede remover o último professor', () => {

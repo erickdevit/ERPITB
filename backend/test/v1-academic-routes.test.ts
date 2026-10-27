@@ -372,4 +372,110 @@ describe('Unified REST Router: Versioned Academic Endpoints (/api/v1/*)', () => 
     expect(c2.class_number).toBe(6);
     expect(listRes.data.items[0].class_number).toBeLessThanOrEqual(listRes.data.items[1].class_number);
   });
+
+  it('enforces class start_date and end_date limits on attendance recording', async () => {
+    const { env } = createTestEnvironment();
+
+    // 1. Bootstrap Admin
+    const bootRes = await request(env, '/api/auth/bootstrap', {
+      method: 'POST',
+      headers: { 'x-bootstrap-secret': env.BOOTSTRAP_SECRET },
+      body: { name: 'Admin Master', email: 'admin-dates@itbcursos.com', password: 'Password@123' },
+    });
+    const token = bootRes.data.accessToken;
+
+    // 2. Create Course
+    const courseRes = await request(env, '/api/courses', {
+      method: 'POST',
+      token,
+      body: { code: 'ADM', name: 'Administração' },
+    });
+    const courseId = courseRes.data.id;
+
+    // 3. Reject invalid class where endDate < startDate
+    const invalidClassRes = await request(env, '/api/classes', {
+      method: 'POST',
+      token,
+      body: {
+        courseId,
+        name: 'Turma Inválida',
+        shift: 'manha',
+        startDate: '2026-06-01',
+        endDate: '2026-05-01',
+      },
+    });
+    expect(invalidClassRes.status).toBe(400);
+    expect(invalidClassRes.data.error.message).toContain('previsão de encerramento');
+
+    // 4. Create class with valid start_date and end_date (2026-03-01 to 2026-10-31)
+    const classRes = await request(env, '/api/classes', {
+      method: 'POST',
+      token,
+      body: {
+        courseId,
+        name: 'Turma ADM 2026',
+        shift: 'manha',
+        startDate: '2026-03-01',
+        endDate: '2026-10-31',
+      },
+    });
+    expect(classRes.status).toBe(201);
+    expect(classRes.data.start_date).toBe('2026-03-01');
+    expect(classRes.data.end_date).toBe('2026-10-31');
+    const classId = classRes.data.id;
+
+    // 5. Create student and enroll in class
+    const studentRes = await request(env, '/api/students', {
+      method: 'POST',
+      token,
+      body: { name: 'Aluno Datas Teste', registrationNumber: '2026999', classId },
+    });
+    expect(studentRes.status).toBe(201);
+    const studentId = studentRes.data.id;
+
+    // 6. Attempt attendance BEFORE class start date (e.g. 2026-02-20)
+    const beforeStartRes = await request(env, '/api/attendance/batch', {
+      method: 'PUT',
+      token,
+      body: {
+        classId,
+        date: '2026-02-20',
+        records: [{ studentId, status: 'P' }],
+        justification: 'Tentativa de chamada antes do início da turma',
+      },
+    });
+    expect(beforeStartRes.status).toBe(400);
+    expect(beforeStartRes.data.error.code).toBe('ATTENDANCE_BEFORE_CLASS_START');
+    expect(beforeStartRes.data.error.message).toContain('anterior à data de início da turma');
+
+    // 7. Attempt attendance AFTER class end date (e.g. 2026-11-05)
+    const afterEndRes = await request(env, '/api/attendance/batch', {
+      method: 'PUT',
+      token,
+      body: {
+        classId,
+        date: '2026-11-05',
+        records: [{ studentId, status: 'P' }],
+        justification: 'Tentativa de chamada após encerramento da turma',
+      },
+    });
+    expect(afterEndRes.status).toBe(400);
+    expect(afterEndRes.data.error.code).toBe('ATTENDANCE_AFTER_CLASS_END');
+    expect(afterEndRes.data.error.message).toContain('posterior à data de encerramento da turma');
+
+    // 8. Attempt attendance WITHIN range (e.g. 2026-03-15)
+    const validAttendanceRes = await request(env, '/api/attendance/batch', {
+      method: 'PUT',
+      token,
+      body: {
+        classId,
+        date: '2026-03-15',
+        records: [{ studentId, status: 'P' }],
+        justification: 'Chamada válida dentro do período da turma',
+      },
+    });
+    expect(validAttendanceRes.status).toBe(200);
+    expect(validAttendanceRes.data.items).toHaveLength(1);
+    expect(validAttendanceRes.data.items[0].date).toBe('2026-03-15');
+  });
 });

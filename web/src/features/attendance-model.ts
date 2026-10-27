@@ -1,4 +1,5 @@
 import { latestAttendance } from '../lib/attendance';
+import { formatDate } from '../lib/date';
 import type { LocalMutation } from '../lib/db';
 import type { AttendanceStatus, LocalRecord, Role } from '../types';
 
@@ -41,6 +42,7 @@ export interface SaveAttendanceCallInput {
   generalNotes: string;
   existingClassNote?: LocalRecord;
   createId?: () => string;
+  classRecord?: LocalRecord | { startDate?: string; endDate?: string };
 }
 
 const text = (record: Record<string, unknown> | undefined, field: string) => String(record?.[field] ?? '');
@@ -50,11 +52,29 @@ function differenceInDays(from: string, to: string): number {
   return (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000;
 }
 
-export function attendanceCallAccess(role: Role, date: string, today: string, existingCall: boolean): CallAccess {
-  if (role !== 'professor') return { editable: true };
+export function attendanceCallAccess(
+  role: Role,
+  date: string,
+  today: string,
+  existingCall: boolean,
+  classLimits?: { startDate?: string | null; endDate?: string | null },
+): CallAccess {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{4}-\d{2}-\d{2}$/.test(today)) {
     return { editable: false, message: 'Selecione uma data válida para lançar a chamada.' };
   }
+  if (classLimits?.startDate && date < classLimits.startDate) {
+    return {
+      editable: false,
+      message: `Não é possível registrar frequência anterior à data de início da turma (${formatDate(classLimits.startDate)}).`,
+    };
+  }
+  if (classLimits?.endDate && date > classLimits.endDate) {
+    return {
+      editable: false,
+      message: `Não é possível registrar frequência posterior à data de encerramento da turma (${formatDate(classLimits.endDate)}).`,
+    };
+  }
+  if (role !== 'professor') return { editable: true };
   const age = differenceInDays(date, today);
   if (age < 0) return { editable: false, message: 'Não é possível lançar frequência em uma data futura.' };
   if (age > 7) return { editable: false, message: 'Esta chamada está fora da janela de edição de sete dias.' };
@@ -159,6 +179,12 @@ export function toggleAttendanceStatus(row: AttendanceDraftRow, status: Editable
  */
 export async function saveAttendanceCall(input: SaveAttendanceCallInput): Promise<void> {
   if (!input.classId || !/^\d{4}-\d{2}-\d{2}$/.test(input.date)) throw new Error('Turma e data são obrigatórias para salvar a chamada.');
+  if (input.classRecord) {
+    const sDate = 'start_date' in input.classRecord ? String(input.classRecord.start_date || '') : String((input.classRecord as any).startDate || '');
+    const eDate = 'end_date' in input.classRecord ? String(input.classRecord.end_date || '') : String((input.classRecord as any).endDate || '');
+    if (sDate && input.date < sDate) throw new Error(`Não é possível registrar frequência anterior à data de início da turma (${formatDate(sDate)}).`);
+    if (eDate && input.date > eDate) throw new Error(`Não é possível registrar frequência posterior à data de encerramento da turma (${formatDate(eDate)}).`);
+  }
   if (input.generalNotes.length > 2000) throw new Error('A observação geral deve ter no máximo 2000 caracteres.');
   for (const row of input.rows) {
     if (row.notes.length > 1000) throw new Error(`A anotação de ${text(row.student, 'name')} deve ter no máximo 1000 caracteres.`);
