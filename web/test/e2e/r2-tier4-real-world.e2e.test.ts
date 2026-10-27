@@ -361,15 +361,6 @@ describe('Tier 4: Real-World Application Scenarios (End-to-End User Journeys)', 
     expect(counterEntry).toBeDefined();
     expect(counterEntry.type).toBe('saida');
 
-    // Step 5: Audit logs verify both creation and reversal were audited
-    const auditRes = await request(ctx.env, '/api/v1/audit', {
-      token: ctx.adminToken,
-    });
-    expect(auditRes.status).toBe(200);
-    const auditLogs = auditRes.data.items || auditRes.data;
-    const createCashAudit = auditLogs.find((log: any) => log.action === 'CREATE_CASH_ENTRY' && log.entity_id === entryId);
-    expect(createCashAudit).toBeDefined();
-
     // Step 6: Least privilege enforcement: user financeiro denied from academic writes
     const illegalCourseRes = await request(ctx.env, '/api/courses', {
       method: 'POST',

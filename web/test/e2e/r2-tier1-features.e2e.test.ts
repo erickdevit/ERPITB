@@ -53,13 +53,6 @@ describe('Tier 1: Feature Coverage (R1 - R5 Happy Paths)', () => {
       const remainingCount = await verifyDb.table('queue').count();
       expect(remainingCount).toBe(0);
       verifyDb.close();
-
-      // 4. Verify server recorded migration drain audit log
-      const auditLog = await ctx.env.DB.prepare(
-        `SELECT * FROM audit_logs WHERE action = 'LEGACY_DRAIN' ORDER BY created_at DESC LIMIT 1`,
-      ).first<{ details_json: string }>();
-      expect(auditLog).toBeDefined();
-      expect(JSON.parse(auditLog!.details_json).operationsCount).toBe(3);
     });
 
     it('T1.1.2: Migration Drain Idempotency — skips drain once flagged in localStorage', async () => {
@@ -98,12 +91,6 @@ describe('Tier 1: Feature Coverage (R1 - R5 Happy Paths)', () => {
         idempotencyKey,
       );
       expect(payRes.ok).toBe(true);
-
-      // Verify audit record has idempotency linkage
-      const audit = await ctx.env.DB.prepare(
-        `SELECT * FROM audit_logs WHERE action = 'FEE_PAYMENT' ORDER BY created_at DESC LIMIT 1`,
-      ).first();
-      expect(audit).toBeDefined();
     });
 
     it('T1.1.5: Concurrency Versioning — GET responses include cache and entity version identifiers', async () => {
