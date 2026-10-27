@@ -262,7 +262,9 @@ div.bg-slate-900.animate-pulse {
     justify-content: center !important;
     pointer-events: none !important;
     user-select: none !important;
-    z-index: -1000 !important;
+    /* Keep the watermark above opaque document/card backgrounds so it remains
+       visible across printed content, not only in the gaps between blocks. */
+    z-index: 1000 !important;
     background: transparent !important;
     box-shadow: none !important;
     border: none !important;

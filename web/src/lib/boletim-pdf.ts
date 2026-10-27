@@ -78,6 +78,15 @@ function drawWatermark(doc: jsPDF, watermarkImgDataUrl?: string, watermarkText?:
   });
 }
 
+function drawWatermarkOnEveryPage(doc: jsPDF, watermarkImgDataUrl?: string, watermarkText?: string) {
+  const pageCount = doc.getNumberOfPages();
+  for (let page = 1; page <= pageCount; page += 1) {
+    doc.setPage(page);
+    drawWatermark(doc, watermarkImgDataUrl, watermarkText);
+  }
+  doc.setPage(pageCount);
+}
+
 /**
  * Formats a Date/ISO string to Brazilian format: DD/MM/AAAA HH:mm
  */
@@ -120,11 +129,6 @@ export function buildBoletimPdf(data: UnifiedBoletimData, options?: BoletimPdfOp
   const pageHeight = 210;
   const marginX = 10;
   const contentWidth = pageWidth - marginX * 2; // 277mm
-
-  // ==========================================
-  // BACKGROUND WATERMARK (Centered behind content on PDF)
-  // ==========================================
-  drawWatermark(doc, options?.watermarkLogoDataUrl, options?.watermarkText);
 
   let currentY = 10;
 
@@ -459,6 +463,7 @@ export function buildBoletimPdf(data: UnifiedBoletimData, options?: BoletimPdfOp
     doc.text('QR', qrX + qrSize / 2, qrY + qrSize / 2 + 1.5, { align: 'center' });
   }
 
+  drawWatermarkOnEveryPage(doc, options?.watermarkLogoDataUrl, options?.watermarkText);
   return doc;
 }
 
@@ -477,9 +482,6 @@ export function buildClassBoletimPdf(data: ClassBoletimData, options?: BoletimPd
   const pageHeight = 210;
   const marginX = 10;
   const contentWidth = pageWidth - marginX * 2;
-
-  // Background Watermark on Page 1
-  drawWatermark(doc, options?.watermarkLogoDataUrl, options?.watermarkText);
 
   let currentY = 10;
 
@@ -593,7 +595,6 @@ export function buildClassBoletimPdf(data: ClassBoletimData, options?: BoletimPd
   for (const student of data.students) {
     if (currentY > pageHeight - 35) {
       doc.addPage();
-      drawWatermark(doc, options?.watermarkLogoDataUrl, options?.watermarkText);
       currentY = 15;
     }
 
@@ -654,6 +655,7 @@ export function buildClassBoletimPdf(data: ClassBoletimData, options?: BoletimPd
     sigY
   );
 
+  drawWatermarkOnEveryPage(doc, options?.watermarkLogoDataUrl, options?.watermarkText);
   return doc;
 }
 
