@@ -4,6 +4,8 @@ import { DateField, SelectField } from '../../components';
 import { formatDate, parseBrazilDate } from '../../lib/date';
 import type { LocalRecord } from '../../types';
 import { cleanClassName, extractClassNumber, formatClassDisplayName } from '../classes-model';
+import { filterClassesByAttributes, weekDayFilterOptions } from '../class-filter-controls';
+import { useEntity } from '../../lib/use-entity';
 import type { BiFilters } from './model';
 
 const text = (record: LocalRecord | undefined, field: string) => String(record?.[field] ?? '');
@@ -23,12 +25,18 @@ export function BiFilterBar({
   teachers?: LocalRecord[];
   onReset: () => void;
 }) {
+  const laboratories = useEntity('laboratories');
   const safeCourses = courses ?? [];
   const safeClasses = classes ?? [];
   const safeTeachers = teachers ?? [];
-  const availableClasses = safeClasses.filter(
+  const rawAvailableClasses = safeClasses.filter(
     (item) => !filters.courseId || item.course_id === filters.courseId,
   );
+  const availableClasses = filterClassesByAttributes(rawAvailableClasses, {
+    weekDay: filters.weekDay,
+    shift: filters.shift,
+    laboratoryId: filters.laboratoryId,
+  });
 
   const updateDate = (field: 'from' | 'to', value: string) => {
     try {
@@ -41,7 +49,7 @@ export function BiFilterBar({
 
   return (
     <div className="bg-white border border-slate-200/90 rounded-2xl p-2.5 sm:p-3 shadow-2xs text-left print:hidden">
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-2 sm:gap-2.5 items-end">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9 gap-2 sm:gap-2.5 items-end">
         <div>
           <DateField
             label="Data inicial"
@@ -124,14 +132,38 @@ export function BiFilterBar({
 
         <div>
           <SelectField
+            label="Dia da semana"
+            value={filters.weekDay ?? ''}
+            onChange={(weekDay) => onChange({ ...filters, weekDay: weekDay || undefined, classId: undefined })}
+            options={weekDayFilterOptions}
+          />
+        </div>
+
+        <div>
+          <SelectField
             label="Turno"
             value={filters.shift ?? ''}
-            onChange={(shift) => onChange({ ...filters, shift: shift || undefined })}
+            onChange={(shift) => onChange({ ...filters, shift: shift || undefined, classId: undefined })}
             options={[
               { value: '', label: 'Todos os turnos' },
               { value: 'manha', label: 'Manhã' },
               { value: 'tarde', label: 'Tarde' },
               { value: 'noite', label: 'Noite' },
+            ]}
+          />
+        </div>
+
+        <div>
+          <SelectField
+            label="Laboratório"
+            value={filters.laboratoryId ?? ''}
+            onChange={(labId) => onChange({ ...filters, laboratoryId: labId || undefined, classId: undefined })}
+            options={[
+              { value: '', label: 'Todos os labs' },
+              ...(laboratories.items ?? [])
+                .filter((l) => !l.deleted_at && l.active !== 0 && l.active !== false)
+                .map((l) => ({ value: String(l.id), label: String(l.name || 'Lab') }))
+                .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')),
             ]}
           />
         </div>

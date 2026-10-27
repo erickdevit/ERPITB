@@ -10,6 +10,8 @@ export interface BiFilters {
   classId?: string;
   teacherId?: string;
   shift?: string;
+  weekDay?: string;
+  laboratoryId?: string;
   studentId?: string;
 }
 

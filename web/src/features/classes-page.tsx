@@ -161,8 +161,8 @@ export function ClassesPage() {
       classNumber: row.classNumber,
       courseId: row.courseId,
       shift: row.shift,
-      weekDay: row.weekDay,
-      laboratoryId: text(row.record, 'laboratory_id'),
+      weekDay: row.weekDay || text(row.record, 'week_day') || text(row.record, 'weekDay'),
+      laboratoryId: text(row.record, 'laboratory_id') || text(row.record, 'laboratoryId'),
       teacherId: '',
       isKids: row.isKids,
     });
@@ -185,6 +185,7 @@ export function ClassesPage() {
 
     try {
       if (editingId) {
+        const existingClass = (classes.items ?? []).find((c) => c.id === editingId);
         await store.mutate('classes', {
           id: editingId,
           name: cleanName,
@@ -194,6 +195,7 @@ export function ClassesPage() {
           week_day: draft.weekDay || null,
           laboratory_id: draft.laboratoryId || null,
           is_kids: draft.isKids ? 1 : 0,
+          sync_version: existingClass?.sync_version !== undefined ? Number(existingClass.sync_version) : undefined,
         });
       } else {
         const classId = identifier();
@@ -229,7 +231,7 @@ export function ClassesPage() {
   const deleteClass = async (row: ClassView) => {
     if (!window.confirm(`Deseja realmente excluir a turma "${row.name}"?`)) return;
     try {
-      await store.mutate('classes', { id: row.id }, 'delete');
+      await store.mutate('classes', { id: row.id, sync_version: row.record?.sync_version }, 'delete');
       await classes.reload();
       void sync();
     } catch (e) {

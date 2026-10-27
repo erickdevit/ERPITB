@@ -13,6 +13,7 @@ export interface StudentDraft {
   cpf: string;
   contact: string;
   birthDate: string;
+  status?: 'ativa' | 'trancada';
 }
 
 export interface StudentView {

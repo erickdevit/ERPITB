@@ -17,6 +17,7 @@ import {
 import { useApp } from '../app-context';
 import { DateField, PageDialog, SelectField } from '../components';
 import { SearchableStudentSelect } from './student-select';
+import { ClassFilterFields, filterClassesByAttributes } from './class-filter-controls';
 import { formatDate, parseBrazilDate, todayInSaoPaulo } from '../lib/date';
 import { useEntity } from '../lib/use-entity';
 import { cleanClassName, extractClassNumber, formatClassDisplayName } from './classes-model';
@@ -136,6 +137,10 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ severity: 'success' | 'error'; message: string }>();
 
+  const [filterWeekDay, setFilterWeekDay] = useState('');
+  const [filterShift, setFilterShift] = useState('');
+  const [filterLabId, setFilterLabId] = useState('');
+
   const loading =
     classes.loading ||
     courses.loading ||
@@ -153,19 +158,29 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
     }
   }, [date]);
 
+  const filteredClasses = useMemo(() => {
+    return filterClassesByAttributes(classes.items ?? [], {
+      weekDay: filterWeekDay,
+      shift: filterShift,
+      laboratoryId: filterLabId,
+    });
+  }, [classes.items, filterWeekDay, filterShift, filterLabId]);
+
   const classOptions = useMemo(() => {
-    return (classes.items ?? [])
-      .filter((c) => !c.deleted_at && c.active !== 0 && c.active !== false)
+    return filteredClasses
+      .filter((c) => !c.deleted_at && (c.active !== 0 && c.active !== false || c.id === classId))
       .map((item) => {
         const rawName = text(item, 'name');
         const num = item.class_number !== undefined && item.class_number !== null
           ? Number(item.class_number)
           : extractClassNumber(rawName);
         const clean = cleanClassName(rawName);
+        const course = courses.items.find((crs) => crs.id === item.course_id);
+        const base = formatClassDisplayName(num, clean);
         return {
           value: item.id,
           classNumber: num,
-          label: formatClassDisplayName(num, clean),
+          label: course ? `${base} — ${course.name}` : base,
         };
       })
       .sort((a, b) => {
@@ -174,10 +189,12 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
         if (numA !== numB) return numA - numB;
         return a.label.localeCompare(b.label, 'pt-BR');
       });
-  }, [classes.items]);
+  }, [filteredClasses, courses.items, classId]);
 
   useEffect(() => {
-    if (!classId && classOptions.length) setClassId(classOptions[0]!.value);
+    if (classOptions.length > 0 && !classOptions.some((opt) => opt.value === classId)) {
+      setClassId(classOptions[0]!.value);
+    }
   }, [classId, classOptions]);
 
   // Load canonical taught class sessions count from server or distinct attendance dates
@@ -649,7 +666,19 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   return (
     <div className="flex flex-col gap-3">
       {/* Unified Single-Row Toolbar */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs">
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs space-y-2.5">
+        {/* Class Filters: Dia da semana, Turno, Lab */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pb-2.5 border-b border-slate-100">
+          <ClassFilterFields
+            weekDay={filterWeekDay}
+            onWeekDayChange={setFilterWeekDay}
+            shift={filterShift}
+            onShiftChange={setFilterShift}
+            laboratoryId={filterLabId}
+            onLaboratoryIdChange={setFilterLabId}
+          />
+        </div>
+
         <div className="flex flex-col md:flex-row md:items-end gap-2.5">
           {/* Turma */}
           <div className="flex-1 min-w-[180px]">
@@ -972,7 +1001,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
               title="Incluir aluno na turma"
               onClick={() =>
                 setQuickAddStudent({
-                  mode: unenrolledStudents.length > 0 ? 'existing' : 'new',
+                  mode: 'new',
                   existingStudentId: '',
                   name: '',
                   registrationNumber: '',
@@ -1168,6 +1197,17 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
         <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-xl">
           <button
             type="button"
+            onClick={() => setQuickAddStudent((cur) => (cur ? { ...cur, mode: 'new', error: undefined } : cur))}
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+              quickAddStudent?.mode === 'new'
+                ? 'bg-white text-slate-900 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Cadastrar novo aluno
+          </button>
+          <button
+            type="button"
             onClick={() =>
               setQuickAddStudent((cur) => (cur ? { ...cur, mode: 'existing', error: undefined } : cur))
             }
@@ -1179,33 +1219,9 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
           >
             Aluno já cadastrado
           </button>
-          <button
-            type="button"
-            onClick={() => setQuickAddStudent((cur) => (cur ? { ...cur, mode: 'new', error: undefined } : cur))}
-            className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
-              quickAddStudent?.mode === 'new'
-                ? 'bg-white text-slate-900 shadow-2xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Cadastrar novo aluno
-          </button>
         </div>
 
-        {quickAddStudent?.mode === 'existing' ? (
-          <SearchableStudentSelect
-            label="Selecione o aluno"
-            value={quickAddStudent.existingStudentId}
-            onChange={(val) =>
-              setQuickAddStudent((cur) => (cur ? { ...cur, existingStudentId: val, error: undefined } : cur))
-            }
-            students={unenrolledStudents}
-            enrollments={enrollments.items}
-            classes={classes.items}
-            disabled={unenrolledStudents.length === 0}
-            placeholder={unenrolledStudents.length > 0 ? 'Buscar por nome ou matrícula...' : 'Todos os alunos ativos já estão matriculados'}
-          />
-        ) : (
+        {quickAddStudent?.mode === 'new' ? (
           <>
             <div className="flex flex-col gap-1.5 text-left">
               <label htmlFor="quick-add-name" className="text-xs font-semibold text-slate-700">
@@ -1255,6 +1271,19 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
               />
             </div>
           </>
+        ) : (
+          <SearchableStudentSelect
+            label="Selecione o aluno"
+            value={quickAddStudent?.existingStudentId ?? ''}
+            onChange={(val) =>
+              setQuickAddStudent((cur) => (cur ? { ...cur, existingStudentId: val, error: undefined } : cur))
+            }
+            students={unenrolledStudents}
+            enrollments={enrollments.items}
+            classes={classes.items}
+            disabled={unenrolledStudents.length === 0}
+            placeholder={unenrolledStudents.length > 0 ? 'Buscar por nome ou matrícula...' : 'Todos os alunos ativos já estão matriculados'}
+          />
         )}
       </PageDialog>
 

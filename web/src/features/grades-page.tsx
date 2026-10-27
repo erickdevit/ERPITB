@@ -39,6 +39,7 @@ import { useEntity, clearEntityMemoryCache } from '../lib/use-entity';
 import type { LocalRecord } from '../types';
 import { ClassBoletimView } from './reports/class-boletim-view';
 import { StudentReportCardView } from './reports/student-report-card-view';
+import { ClassFilterFields, filterClassesByAttributes } from './class-filter-controls';
 import {
   cleanClassName,
   extractClassNumber,
@@ -189,29 +190,36 @@ export function GradesPage() {
     items: [],
   });
 
-  const activeClasses = useMemo(
-    () =>
-      classes.items
-        .filter((c) => !c.deleted_at && c.active !== 0 && c.active !== false)
-        .sort((left, right) => {
-          const leftName = text(left, 'name');
-          const rightName = text(right, 'name');
-          const leftNum = left.class_number !== undefined && left.class_number !== null
-            ? Number(left.class_number)
-            : extractClassNumber(leftName);
-          const rightNum = right.class_number !== undefined && right.class_number !== null
-            ? Number(right.class_number)
-            : extractClassNumber(rightName);
-          const numA = leftNum ?? 999999;
-          const numB = rightNum ?? 999999;
-          if (numA !== numB) return numA - numB;
-          return leftName.localeCompare(rightName, 'pt-BR');
-        }),
-    [classes.items],
-  );
+  const [filterWeekDay, setFilterWeekDay] = useState('');
+  const [filterShift, setFilterShift] = useState('');
+  const [filterLabId, setFilterLabId] = useState('');
+
+  const activeClasses = useMemo(() => {
+    const filtered = filterClassesByAttributes(classes.items ?? [], {
+      weekDay: filterWeekDay,
+      shift: filterShift,
+      laboratoryId: filterLabId,
+    });
+    return filtered
+      .filter((c) => !c.deleted_at && c.active !== 0 && c.active !== false)
+      .sort((left, right) => {
+        const leftName = text(left, 'name');
+        const rightName = text(right, 'name');
+        const leftNum = left.class_number !== undefined && left.class_number !== null
+          ? Number(left.class_number)
+          : extractClassNumber(leftName);
+        const rightNum = right.class_number !== undefined && right.class_number !== null
+          ? Number(right.class_number)
+          : extractClassNumber(rightName);
+        const numA = leftNum ?? 999999;
+        const numB = rightNum ?? 999999;
+        if (numA !== numB) return numA - numB;
+        return leftName.localeCompare(rightName, 'pt-BR');
+      });
+  }, [classes.items, filterWeekDay, filterShift, filterLabId]);
 
   useEffect(() => {
-    if (!classId && activeClasses.length > 0) {
+    if (activeClasses.length > 0 && !activeClasses.some((c) => c.id === classId)) {
       setClassId(activeClasses[0]!.id);
     }
   }, [classId, activeClasses]);
@@ -707,6 +715,18 @@ export function GradesPage() {
       <div className={`space-y-6 ${selectedStudentForBoletim ? 'print:hidden' : ''}`}>
       {/* Top Filter & View Switcher Bar */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-4 print:hidden">
+        {/* Class attribute filters: Dia da semana, Turno, Lab */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pb-3 border-b border-slate-100">
+          <ClassFilterFields
+            weekDay={filterWeekDay}
+            onWeekDayChange={setFilterWeekDay}
+            shift={filterShift}
+            onShiftChange={setFilterShift}
+            laboratoryId={filterLabId}
+            onLaboratoryIdChange={setFilterLabId}
+          />
+        </div>
+
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1 max-w-2xl">
             <SelectField

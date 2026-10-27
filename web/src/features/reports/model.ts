@@ -22,6 +22,9 @@ export interface ReportFilters {
   classId?: string;
   studentId?: string;
   teacherId?: string;
+  weekDay?: string;
+  shift?: string;
+  laboratoryId?: string;
 }
 
 export interface ReportInput {

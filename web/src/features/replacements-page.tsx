@@ -13,6 +13,7 @@ import { DateField, PageDialog, Section, SelectField } from '../components';
 import { formatDate, parseBrazilDate, todayInSaoPaulo } from '../lib/date';
 import { useEntity } from '../lib/use-entity';
 import type { LocalRecord } from '../types';
+import { ClassFilterFields, filterClassesByAttributes } from './class-filter-controls';
 import { cleanClassName, extractClassNumber, formatClassDisplayName } from './classes-model';
 
 const text = (record: Record<string, unknown> | undefined, key: string) => String(record?.[key] ?? '');
@@ -31,6 +32,9 @@ export function ReplacementsPage({
 
   const [search, setSearch] = useState('');
   const [filterClassId, setFilterClassId] = useState('');
+  const [filterWeekDay, setFilterWeekDay] = useState('');
+  const [filterShift, setFilterShift] = useState('');
+  const [filterLabId, setFilterLabId] = useState('');
   const [completeItem, setCompleteItem] = useState<LocalRecord>();
   const [scheduleDate, setScheduleDate] = useState(formatDate(today));
   const [scheduleTime, setScheduleTime] = useState('14:00');
@@ -38,10 +42,23 @@ export function ReplacementsPage({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formError, setFormError] = useState<string>();
 
+  const filteredClasses = useMemo(() => {
+    return filterClassesByAttributes(classes.items ?? [], {
+      weekDay: filterWeekDay,
+      shift: filterShift,
+      laboratoryId: filterLabId,
+    });
+  }, [classes.items, filterWeekDay, filterShift, filterLabId]);
+
+  const filteredClassIds = useMemo(() => {
+    if (!filterWeekDay && !filterShift && !filterLabId) return null;
+    return new Set(filteredClasses.map((c) => c.id));
+  }, [filterWeekDay, filterShift, filterLabId, filteredClasses]);
+
   const classOptions = useMemo(
     () => [
       { value: '', label: 'Todas as turmas' },
-      ...(classes.items ?? [])
+      ...filteredClasses
         .filter((c) => !c.deleted_at && c.active !== 0 && c.active !== false)
         .map((c) => {
           const rawName = text(c, 'name');
@@ -62,7 +79,7 @@ export function ReplacementsPage({
           return a.label.localeCompare(b.label, 'pt-BR');
         }),
     ],
-    [classes.items],
+    [filteredClasses],
   );
 
   const rows = useMemo(() => {
@@ -72,6 +89,7 @@ export function ReplacementsPage({
         const isCompleted = Boolean(item.completed_at || item.status === 'completed');
         if (history ? !isCompleted : isCompleted) return false;
         if (filterClassId && item.class_id !== filterClassId) return false;
+        if (filteredClassIds && !filterClassId && (!item.class_id || !filteredClassIds.has(String(item.class_id)))) return false;
 
         const student = (students.items ?? []).find((s) => s.id === item.student_id);
         const cls = (classes.items ?? []).find((c) => c.id === item.class_id);
@@ -161,7 +179,19 @@ export function ReplacementsPage({
   return (
     <div className="flex flex-col gap-3.5 text-left">
       {/* Filter Bar */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs">
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs space-y-2.5">
+        {/* Class attribute filters: Dia da semana, Turno, Lab */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pb-2.5 border-b border-slate-100">
+          <ClassFilterFields
+            weekDay={filterWeekDay}
+            onWeekDayChange={setFilterWeekDay}
+            shift={filterShift}
+            onShiftChange={setFilterShift}
+            laboratoryId={filterLabId}
+            onLaboratoryIdChange={setFilterLabId}
+          />
+        </div>
+
         <div className="flex flex-col sm:flex-row sm:items-end gap-2.5 sm:gap-3">
           <div className="flex-1 min-w-[200px]">
             <div className="flex flex-col gap-1.5">

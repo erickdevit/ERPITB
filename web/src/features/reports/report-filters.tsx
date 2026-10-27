@@ -6,6 +6,7 @@ import { formatDate, parseBrazilDate } from '../../lib/date';
 import type { LocalRecord, Role } from '../../types';
 import { canManage } from '../../types';
 import { cleanClassName, extractClassNumber, formatClassDisplayName } from '../classes-model';
+import { ClassFilterFields, filterClassesByAttributes } from '../class-filter-controls';
 import type { ReportFilters, ReportType } from './model';
 import { reportTypeOptions } from './model';
 
@@ -52,7 +53,12 @@ export function ReportFiltersBar({
   const teacherClasses = safeClasses.filter((item) => active(item) && (!teacherClassIds || teacherClassIds.has(item.id)));
   const teacherCourseIds = new Set(teacherClasses.map((item) => item.course_id));
   const availableCourses = safeCourses.filter((item) => active(item) && (!teacherClassIds || teacherCourseIds.has(item.id)));
-  const availableClasses = teacherClasses.filter((item) => !filters.courseId || item.course_id === filters.courseId);
+  const rawAvailableClasses = teacherClasses.filter((item) => !filters.courseId || item.course_id === filters.courseId);
+  const availableClasses = filterClassesByAttributes(rawAvailableClasses, {
+    weekDay: filters.weekDay,
+    shift: filters.shift,
+    laboratoryId: filters.laboratoryId,
+  });
   const studentIds = new Set(
     safeEnrollments
       .filter((item) => !item.deleted_at && item.status === 'ativa' && (!filters.classId || item.class_id === filters.classId))
@@ -172,42 +178,52 @@ export function ReportFiltersBar({
         )}
 
         {showClass && (
-          <div>
-            <SelectField
-              label="Turma"
-              value={filters.classId ?? ''}
-              onChange={(classId) =>
-                onChange({
-                  ...filters,
-                  classId: classId || undefined,
-                  studentId: undefined,
-                })
-              }
-              options={[
-                { value: '', label: 'Todas as turmas' },
-                ...availableClasses
-                  .map((c) => {
-                    const cName = text(c, 'name');
-                    const num = c.class_number !== undefined && c.class_number !== null
-                      ? Number(c.class_number)
-                      : extractClassNumber(cName);
-                    const clean = cleanClassName(cName);
-                    return {
-                      value: c.id,
-                      classNumber: num,
-                      label: formatClassDisplayName(num, clean),
-                    };
-                  })
-                  .sort((a, b) => {
-                    const numA = a.classNumber ?? 999999;
-                    const numB = b.classNumber ?? 999999;
-                    if (numA !== numB) return numA - numB;
-                    return a.label.localeCompare(b.label, 'pt-BR');
-                  })
-                  .map(({ value, label }) => ({ value, label })),
-              ]}
+          <>
+            <ClassFilterFields
+              weekDay={filters.weekDay ?? ''}
+              onWeekDayChange={(val) => onChange({ ...filters, weekDay: val || undefined, classId: undefined })}
+              shift={filters.shift ?? ''}
+              onShiftChange={(val) => onChange({ ...filters, shift: val || undefined, classId: undefined })}
+              laboratoryId={filters.laboratoryId ?? ''}
+              onLaboratoryIdChange={(val) => onChange({ ...filters, laboratoryId: val || undefined, classId: undefined })}
             />
-          </div>
+            <div>
+              <SelectField
+                label="Turma"
+                value={filters.classId ?? ''}
+                onChange={(classId) =>
+                  onChange({
+                    ...filters,
+                    classId: classId || undefined,
+                    studentId: undefined,
+                  })
+                }
+                options={[
+                  { value: '', label: 'Todas as turmas' },
+                  ...availableClasses
+                    .map((c) => {
+                      const cName = text(c, 'name');
+                      const num = c.class_number !== undefined && c.class_number !== null
+                        ? Number(c.class_number)
+                        : extractClassNumber(cName);
+                      const clean = cleanClassName(cName);
+                      return {
+                        value: c.id,
+                        classNumber: num,
+                        label: formatClassDisplayName(num, clean),
+                      };
+                    })
+                    .sort((a, b) => {
+                      const numA = a.classNumber ?? 999999;
+                      const numB = b.classNumber ?? 999999;
+                      if (numA !== numB) return numA - numB;
+                      return a.label.localeCompare(b.label, 'pt-BR');
+                    })
+                    .map(({ value, label }) => ({ value, label })),
+                ]}
+              />
+            </div>
+          </>
         )}
 
         {((filters.type === 'student' && filters.classId) || filters.type === 'studentBoletim') && (

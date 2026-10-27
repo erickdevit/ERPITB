@@ -88,6 +88,7 @@ function CatalogPage({ type }: CatalogProps) {
           name: trimmedName,
           ...(isCourse ? { code: code.trim() || null } : {}),
           active: activeState ? 1 : 0,
+          sync_version: editingItem.sync_version !== undefined ? Number(editingItem.sync_version) : undefined,
         });
       } else {
         await store.mutate(type, {
@@ -109,7 +110,7 @@ function CatalogPage({ type }: CatalogProps) {
   const remove = async (item: LocalRecord) => {
     if (!window.confirm(`Deseja realmente excluir "${text(item, 'name')}"?`)) return;
     try {
-      await store.mutate(type, { id: item.id }, 'delete');
+      await store.mutate(type, { id: item.id, sync_version: item.sync_version }, 'delete');
       await entity.reload();
       void sync();
     } catch (e) {

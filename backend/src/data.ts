@@ -400,9 +400,9 @@ export async function createClass(request: Request, env: Env, user: AuthUser): P
     name: storedName,
     class_number: classNumber,
     shift: oneOf(body.shift, 'turno', ['manha', 'tarde', 'noite', 'integral'] as const),
-    week_day: typeof body.weekDay === 'string' ? body.weekDay : null,
-    is_kids: boolInt(body.isKids, false),
-    laboratory_id: typeof body.laboratoryId === 'string' && body.laboratoryId.length > 0 ? body.laboratoryId : null,
+    week_day: typeof (body.weekDay ?? body.week_day) === 'string' && String(body.weekDay ?? body.week_day).trim().length > 0 ? String(body.weekDay ?? body.week_day).trim() : null,
+    is_kids: boolInt(body.isKids ?? body.is_kids, false),
+    laboratory_id: typeof (body.laboratoryId ?? body.laboratory_id) === 'string' && String(body.laboratoryId ?? body.laboratory_id).length > 0 ? String(body.laboratoryId ?? body.laboratory_id) : null,
     active: boolInt(body.active), sync_version: 1, created_at: timestamp, updated_at: timestamp,
   };
   const teacherId = typeof body.teacherId === 'string' && body.teacherId.length > 0 ? requireString(body.teacherId, 'professor', { max: 36 }) : null;
@@ -470,9 +470,11 @@ export async function updateClass(request: Request, env: Env, user: AuthUser, id
   }
 
   const shift = body.shift === undefined ? String(current.shift) : oneOf(body.shift, 'turno', ['manha', 'tarde', 'noite', 'integral'] as const);
-  const weekDay = body.weekDay === undefined ? (current.week_day as string | null) : (typeof body.weekDay === 'string' ? body.weekDay : null);
-  const isKids = body.isKids === undefined ? Number(current.is_kids ?? 0) : boolInt(body.isKids, false);
-  const laboratoryId = body.laboratoryId === undefined ? (current.laboratory_id as string | null) : (typeof body.laboratoryId === 'string' && body.laboratoryId.length > 0 ? body.laboratoryId : null);
+  const rawWeekDay = body.weekDay !== undefined ? body.weekDay : body.week_day;
+  const weekDay = rawWeekDay === undefined ? (current.week_day as string | null) : (typeof rawWeekDay === 'string' && rawWeekDay.trim().length > 0 ? rawWeekDay.trim() : null);
+  const isKids = body.isKids === undefined ? (body.is_kids !== undefined ? Number(body.is_kids) : Number(current.is_kids ?? 0)) : boolInt(body.isKids, false);
+  const rawLabId = body.laboratoryId !== undefined ? body.laboratoryId : body.laboratory_id;
+  const laboratoryId = rawLabId === undefined ? (current.laboratory_id as string | null) : (typeof rawLabId === 'string' && rawLabId.length > 0 ? rawLabId : null);
   const active = body.active === undefined ? Number(current.active) : boolInt(body.active);
   const timestamp = nowIso();
   const currentVersion = Number(current.sync_version ?? 1);

@@ -49,6 +49,7 @@ import {
   extractClassNumber,
   formatClassDisplayName,
 } from '../classes-model';
+import { ClassFilterFields, filterClassesByAttributes } from '../class-filter-controls';
 
 function formatCents(cents: number): string {
   return (cents / 100).toLocaleString('pt-BR', {
@@ -103,6 +104,9 @@ export function FinanceDashboardPage() {
   const [filterYear, setFilterYear] = useState<string>(String(now.getFullYear()));
   const [selectedClassId, setSelectedClassId] = useState<string>('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [filterWeekDay, setFilterWeekDay] = useState('');
+  const [filterShift, setFilterShift] = useState('');
+  const [filterLabId, setFilterLabId] = useState('');
 
   const [loading, setLoading] = useState(true);
   const [feesSummary, setFeesSummary] = useState<any>({});
@@ -139,9 +143,17 @@ export function FinanceDashboardPage() {
     };
   }, [api, filterMonth, filterYear]);
 
+  const filteredClasses = useMemo(() => {
+    return filterClassesByAttributes(classes.items ?? [], {
+      weekDay: filterWeekDay,
+      shift: filterShift,
+      laboratoryId: filterLabId,
+    });
+  }, [classes.items, filterWeekDay, filterShift, filterLabId]);
+
   // Turma options sorted in ascending numeric order
   const classOptions = useMemo(() => {
-    const raw = (classes.items ?? []).filter(
+    const raw = filteredClasses.filter(
       (c) => !c.deleted_at && c.active !== 0 && c.active !== false,
     );
     return raw
@@ -188,6 +200,9 @@ export function FinanceDashboardPage() {
     handleCurrentMonth();
     setSelectedClassId('');
     setSelectedStatus('all');
+    setFilterWeekDay('');
+    setFilterShift('');
+    setFilterLabId('');
   };
 
   // Filtered fees based on interactive controls
@@ -531,6 +546,17 @@ export function FinanceDashboardPage() {
               </button>
             </div>
 
+            {/* Class attribute filters: Dia da semana, Turno, Lab */}
+            <ClassFilterFields
+              compact
+              weekDay={filterWeekDay}
+              onWeekDayChange={setFilterWeekDay}
+              shift={filterShift}
+              onShiftChange={setFilterShift}
+              laboratoryId={filterLabId}
+              onLaboratoryIdChange={setFilterLabId}
+            />
+
             {/* Turma Filter */}
             <select
               aria-label="Filtrar por turma"
@@ -561,7 +587,7 @@ export function FinanceDashboardPage() {
             </select>
 
             {/* Reset button */}
-            {(selectedClassId || selectedStatus !== 'all') && (
+            {(selectedClassId || selectedStatus !== 'all' || filterWeekDay || filterShift || filterLabId) && (
               <button
                 type="button"
                 onClick={handleResetFilters}

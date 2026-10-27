@@ -235,6 +235,20 @@ async function normalizePayload(env: Env, user: AuthUser, operation: SyncOperati
     }
   }
   if (operation.entity === 'classes') {
+    if (data.week_day === '') data.week_day = null;
+    if (data.weekDay === '') data.weekDay = null;
+    if (data.week_day === undefined && data.weekDay !== undefined) {
+      data.week_day = data.weekDay;
+    }
+    if (data.laboratory_id === undefined && data.laboratoryId !== undefined) {
+      data.laboratory_id = data.laboratoryId || null;
+    }
+    if (data.course_id === undefined && data.courseId !== undefined) {
+      data.course_id = data.courseId;
+    }
+    if (data.is_kids === undefined && data.isKids !== undefined) {
+      data.is_kids = data.isKids ? 1 : 0;
+    }
     const rawName = String(data.name ?? existing?.name ?? '').trim();
     let classNumber = data.class_number !== undefined && data.class_number !== null
       ? Number(data.class_number)

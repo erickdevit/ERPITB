@@ -4,6 +4,7 @@ import { planEnrollmentMove } from './enrollment';
 import { classRevocationTargets, type EntitySnapshot } from './revocation';
 import { emailLookupHash, passwordVerifier, verifierMatches } from './offline-auth';
 import { getDeviceId } from './storage';
+import { clearEntityMemoryCache } from './use-entity';
 import type { Action, Entity, LocalRecord, SyncOperation, UserSession } from '../types';
 
 interface KeyRow { accountId: string; key: StoredKey }
@@ -269,8 +270,12 @@ export class LocalStore {
           if (res.status === 'rejected') {
             throw new Error(res.message || 'Operação rejeitada pelo servidor.');
           }
+          if (res.status === 'conflict') {
+            throw new Error(res.message || 'Houve um conflito de versão ao salvar o registro no servidor. Recarregue a página.');
+          }
         }
 
+        clearEntityMemoryCache();
         // Canonical state resides on D1; do not persist business entities in IndexedDB during online runtime
         return;
       }

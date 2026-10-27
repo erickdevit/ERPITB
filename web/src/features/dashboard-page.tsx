@@ -28,6 +28,7 @@ import {
 } from 'recharts';
 import { useApp } from '../app-context';
 import { DateField } from '../components';
+import { ClassFilterFields, filterClassesByAttributes } from './class-filter-controls';
 import { buildAnalytics, type AnalyticsResult } from '../lib/analytics';
 import { formatDate, parseBrazilDate, todayInSaoPaulo } from '../lib/date';
 import { useEntity } from '../lib/use-entity';
@@ -232,13 +233,24 @@ export function DashboardPage() {
   const classTeachers = useEntity('class_teachers');
 
   const [selectedClassId, setSelectedClassId] = useState<string>('');
+  const [filterWeekDay, setFilterWeekDay] = useState('');
+  const [filterShift, setFilterShift] = useState('');
+  const [filterLabId, setFilterLabId] = useState('');
   const [preset, setPreset] = useState<PeriodPreset>(30);
   const [range, setRange] = useState(() => rangeFor(30));
   const [teacherNames, setTeacherNames] = useState<Record<string, string>>(() => ({ [session.id]: session.name }));
   const [teacherDirectoryOffline, setTeacherDirectoryOffline] = useState(false);
 
+  const filteredClasses = useMemo(() => {
+    return filterClassesByAttributes(classes.items ?? [], {
+      weekDay: filterWeekDay,
+      shift: filterShift,
+      laboratoryId: filterLabId,
+    });
+  }, [classes.items, filterWeekDay, filterShift, filterLabId]);
+
   const classOptions = useMemo(() => {
-    const rawClasses = (classes.items ?? []).filter((c) => !c.deleted_at && c.active !== 0 && c.active !== false);
+    const rawClasses = filteredClasses.filter((c) => !c.deleted_at && c.active !== 0 && c.active !== false);
     const views = buildClassViews({
       classes: rawClasses,
       courses: courses.items ?? [],
@@ -255,7 +267,7 @@ export function DashboardPage() {
         displayName: v.displayName,
       })),
     ];
-  }, [classes.items, courses.items, classTeachers.items, session]);
+  }, [filteredClasses, courses.items, classTeachers.items, session]);
 
   useEffect(() => {
     if (session.role === 'professor') {
@@ -443,7 +455,17 @@ export function DashboardPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            {/* Turma Top Filter */}
+            {/* Turma and Attribute Top Filters */}
+            <ClassFilterFields
+              compact
+              weekDay={filterWeekDay}
+              onWeekDayChange={setFilterWeekDay}
+              shift={filterShift}
+              onShiftChange={setFilterShift}
+              laboratoryId={filterLabId}
+              onLaboratoryIdChange={setFilterLabId}
+            />
+
             <div className="flex items-center gap-1.5">
               <label htmlFor="dashboard-class-filter" className="text-xs font-bold text-slate-700 shrink-0">
                 Turma:

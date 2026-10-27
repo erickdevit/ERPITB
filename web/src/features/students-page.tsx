@@ -24,6 +24,7 @@ import { buildUnifiedBoletimData } from '../lib/boletim';
 import { StudentReportCardView } from './reports/student-report-card-view';
 import { useEntity } from '../lib/use-entity';
 import type { LocalRecord } from '../types';
+import { ClassFilterFields, filterClassesByAttributes } from './class-filter-controls';
 import {
   cleanClassName,
   extractClassNumber,
@@ -51,6 +52,7 @@ const emptyDraft = (initialClassId = ''): StudentDraft => ({
   contact: '',
   birthDate: '',
   classId: initialClassId,
+  status: 'ativa',
 });
 
 function RateChip({ row }: { row: StudentView }) {
@@ -90,6 +92,9 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
   const [search, setSearch] = useState('');
   const [filterClassId, setFilterClassId] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [filterWeekDay, setFilterWeekDay] = useState('');
+  const [filterShift, setFilterShift] = useState('');
+  const [filterLabId, setFilterLabId] = useState('');
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string>();
@@ -132,6 +137,19 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
     [classes.items, classTeachers.items, session],
   );
 
+  const filteredVisibleClasses = useMemo(() => {
+    return filterClassesByAttributes(visibleClasses, {
+      weekDay: filterWeekDay,
+      shift: filterShift,
+      laboratoryId: filterLabId,
+    });
+  }, [visibleClasses, filterWeekDay, filterShift, filterLabId]);
+
+  const filteredClassIds = useMemo(() => {
+    if (!filterWeekDay && !filterShift && !filterLabId) return null;
+    return new Set(filteredVisibleClasses.map((c) => c.id));
+  }, [filterWeekDay, filterShift, filterLabId, filteredVisibleClasses]);
+
   const rows = useMemo(() => {
     const raw = buildStudentViews({
       students: students.items ?? [],
@@ -141,14 +159,18 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
       attendance: attendance.items ?? [],
       session,
     });
-    return filterStudentViews(raw, {
+    let filtered = filterStudentViews(raw, {
       query: search,
       classId: filterClassId,
       teacherId: '',
       performance: '',
       enrollmentStatus: filterStatus === 'all' ? '' : filterStatus,
     });
-  }, [students.items, enrollments.items, classes.items, classTeachers.items, attendance.items, session, search, filterClassId, filterStatus]);
+    if (filteredClassIds && !filterClassId) {
+      filtered = filtered.filter((s) => s.classId && filteredClassIds.has(s.classId));
+    }
+    return filtered;
+  }, [students.items, enrollments.items, classes.items, classTeachers.items, attendance.items, session, search, filterClassId, filterStatus, filteredClassIds]);
 
   const classOptions = useMemo(
     () => [
@@ -174,16 +196,18 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
 
   const openEdit = (row: StudentView) => {
     setEditingId(row.id);
-    const activeEnr = (enrollments.items ?? []).find(
-      (e) => !e.deleted_at && e.student_id === row.id && e.status === 'ativa',
+    const existingEnr = (enrollments.items ?? []).find(
+      (e) => !e.deleted_at && e.student_id === row.id && (e.status === 'ativa' || e.status === 'trancada'),
     );
+    const currentStatus = (existingEnr?.status === 'trancada' || row.enrollmentStatus === 'trancada') ? 'trancada' : 'ativa';
     setDraft({
       name: row.name,
       registrationNumber: row.registrationNumber,
       cpf: row.cpf || '',
       contact: row.contact,
       birthDate: formatDate(row.birthDate),
-      classId: activeEnr ? String(activeEnr.class_id) : row.classId,
+      classId: existingEnr ? String(existingEnr.class_id) : row.classId,
+      status: currentStatus,
     });
     setFormError(undefined);
     setDialogOpen(true);
@@ -212,6 +236,7 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
       }
 
       if (editingId) {
+        const currentStudent = (students.items ?? []).find((s) => s.id === editingId);
         await store.mutate('students', {
           id: editingId,
           name: draft.name.trim(),
@@ -220,10 +245,27 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
           birth_date: birthDateIso || null,
           contact: draft.contact.trim() || null,
           active: 1,
+          sync_version: currentStudent?.sync_version !== undefined ? Number(currentStudent.sync_version) : undefined,
         });
 
         if (draft.classId && store.moveStudent) {
           await store.moveStudent(editingId, draft.classId);
+        }
+
+        const targetStatus = draft.status || 'ativa';
+        const existingEnr = (enrollments.items ?? []).find(
+          (e) => !e.deleted_at && e.student_id === editingId && (e.status === 'ativa' || e.status === 'trancada'),
+        );
+        if (existingEnr && existingEnr.status !== targetStatus) {
+          const today = new Date().toISOString().slice(0, 10);
+          await store.mutate('enrollments', {
+            id: existingEnr.id,
+            class_id: existingEnr.class_id,
+            student_id: existingEnr.student_id,
+            status: targetStatus,
+            left_at: targetStatus === 'trancada' ? today : null,
+            sync_version: existingEnr.sync_version !== undefined ? Number(existingEnr.sync_version) : undefined,
+          });
         }
       } else {
         const studentId = identifier();
@@ -246,7 +288,7 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
                 id: identifier(),
                 student_id: studentId,
                 class_id: draft.classId,
-                status: 'ativa',
+                status: draft.status || 'ativa',
               },
               action: 'upsert',
             },
@@ -286,9 +328,9 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
     setConfirmAction(null);
     try {
       if (type === 'inactivate') {
-        await store.mutate('students', { id: row.id, active: 0 });
+        await store.mutate('students', { id: row.id, active: 0, sync_version: row.record?.sync_version });
       } else {
-        await store.mutate('students', { id: row.id }, 'delete');
+        await store.mutate('students', { id: row.id, sync_version: row.record?.sync_version }, 'delete');
       }
       await students.reload();
       void sync();
@@ -314,47 +356,59 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
         )}
 
         {/* Filter Bar */}
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs print:hidden">
-        <div className="flex flex-col lg:flex-row lg:items-end gap-2.5 sm:gap-3">
-          <div className="flex-1 min-w-[200px]">
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="search-student-page" className="text-xs font-medium text-slate-700">
-                Buscar aluno
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <Search className="w-4 h-4" />
-                </div>
-                <input
-                  id="search-student-page"
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Nome ou matrícula do aluno..."
-                  className="w-full pl-9 pr-3 py-2 text-sm text-slate-900 bg-white border border-slate-200/90 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all placeholder:text-slate-400"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="w-full lg:w-48">
-            <SelectField
-              label="Turma"
-              value={filterClassId}
-              onChange={setFilterClassId}
-              options={[
-                { value: '', label: 'Todas as turmas' },
-                ...visibleClasses.map((c) => {
-                  const rawName = text(c, 'name');
-                  const num = c.class_number !== undefined && c.class_number !== null
-                    ? Number(c.class_number)
-                    : extractClassNumber(rawName);
-                  const clean = cleanClassName(rawName);
-                  return { value: c.id, label: formatClassDisplayName(num, clean) };
-                }),
-              ]}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs space-y-2.5 print:hidden">
+          {/* Class Filters: Dia da semana, Turno, Lab */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pb-2.5 border-b border-slate-100">
+            <ClassFilterFields
+              weekDay={filterWeekDay}
+              onWeekDayChange={setFilterWeekDay}
+              shift={filterShift}
+              onShiftChange={setFilterShift}
+              laboratoryId={filterLabId}
+              onLaboratoryIdChange={setFilterLabId}
             />
           </div>
+
+          <div className="flex flex-col lg:flex-row lg:items-end gap-2.5 sm:gap-3">
+            <div className="flex-1 min-w-[200px]">
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="search-student-page" className="text-xs font-medium text-slate-700">
+                  Buscar aluno
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <Search className="w-4 h-4" />
+                  </div>
+                  <input
+                    id="search-student-page"
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Nome ou matrícula do aluno..."
+                    className="w-full pl-9 pr-3 py-2 text-sm text-slate-900 bg-white border border-slate-200/90 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all placeholder:text-slate-400"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="w-full lg:w-48">
+              <SelectField
+                label="Turma"
+                value={filterClassId}
+                onChange={setFilterClassId}
+                options={[
+                  { value: '', label: 'Todas as turmas' },
+                  ...filteredVisibleClasses.map((c) => {
+                    const rawName = text(c, 'name');
+                    const num = c.class_number !== undefined && c.class_number !== null
+                      ? Number(c.class_number)
+                      : extractClassNumber(rawName);
+                    const clean = cleanClassName(rawName);
+                    return { value: c.id, label: formatClassDisplayName(num, clean) };
+                  }),
+                ]}
+              />
+            </div>
 
           <div className="w-full lg:w-44">
             <SelectField
@@ -570,12 +624,23 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
           />
         </div>
 
-        <SelectField
-          label="Turma inicial"
-          value={draft.classId}
-          onChange={(val) => setDraft((cur) => ({ ...cur, classId: val }))}
-          options={classOptions}
-        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <SelectField
+            label="Turma de matrícula"
+            value={draft.classId}
+            onChange={(val) => setDraft((cur) => ({ ...cur, classId: val }))}
+            options={classOptions}
+          />
+          <SelectField
+            label="Situação da matrícula"
+            value={draft.status || 'ativa'}
+            onChange={(val) => setDraft((cur) => ({ ...cur, status: val as 'ativa' | 'trancada' }))}
+            options={[
+              { value: 'ativa', label: 'Ativa' },
+              { value: 'trancada', label: 'Trancada' },
+            ]}
+          />
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <DateField

@@ -112,7 +112,7 @@ describe('AttendancePage', () => {
     await screen.findByText('Ana Souza');
     await user.selectOptions(screen.getByLabelText('Turma'), 'class-1');
     await user.click(screen.getByRole('button', { name: 'Incluir aluno na turma' }));
-    await screen.findByText('Aluno já cadastrado');
+    await user.click(screen.getByRole('button', { name: 'Aluno já cadastrado' }));
     const searchInput = screen.getByPlaceholderText('Buscar por nome ou matrícula...');
     await user.type(searchInput, '002');
 
