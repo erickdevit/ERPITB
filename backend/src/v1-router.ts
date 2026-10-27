@@ -57,6 +57,7 @@ import {
   listConflicts,
   resolveConflict,
   listAudit,
+  invalidateWorkerCache,
 } from './data';
 import {
   listGradeTables,
@@ -267,6 +268,8 @@ export async function handleV1Route(request: Request, env: Env, user: AuthUser, 
       VALUES (?, ?, 'LOCK_ENROLLMENT', 'enrollments', ?, ?, ?)
     `).bind(uuid(), user.id, studentId, JSON.stringify({ classId }), timestamp).run();
 
+    invalidateWorkerCache(['students', 'enrollments']);
+
     return json({ ok: true, message: 'Matrícula trancada com sucesso. O aluno não aparecerá nas próximas chamadas.' }, 200);
   }
 
@@ -305,6 +308,8 @@ export async function handleV1Route(request: Request, env: Env, user: AuthUser, 
       INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at)
       VALUES (?, ?, 'UNLOCK_ENROLLMENT', 'enrollments', ?, ?, ?)
     `).bind(uuid(), user.id, studentId, JSON.stringify({ classId }), timestamp).run();
+
+    invalidateWorkerCache(['students', 'enrollments']);
 
     return json({ ok: true, message: 'Matrícula reativada com sucesso. O aluno voltará a constar como ativo nas chamadas.' }, 200);
   }
@@ -382,6 +387,8 @@ export async function handleV1Route(request: Request, env: Env, user: AuthUser, 
       INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at)
       VALUES (?, ?, 'TRANSFER_STUDENT', 'enrollments', ?, ?, ?)
     `).bind(uuid(), user.id, studentId, JSON.stringify({ fromClassId, toClassId, targetEnrollmentId }), timestamp).run();
+
+    invalidateWorkerCache(['students', 'enrollments']);
 
     return json({
       ok: true,

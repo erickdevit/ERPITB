@@ -88,6 +88,25 @@ async function ensureDbSchema(env: Env): Promise<void> {
   } catch {
     // Index already exists
   }
+  const perfIndexes = [
+    `CREATE INDEX IF NOT EXISTS idx_attendance_records_v1 ON attendance_records(class_id, date, status) WHERE deleted_at IS NULL`,
+    `CREATE INDEX IF NOT EXISTS idx_attendance_class_date ON attendance_records(class_id, date DESC) WHERE deleted_at IS NULL`,
+    `CREATE INDEX IF NOT EXISTS idx_attendance_student_deleted ON attendance_records(student_id, date DESC) WHERE deleted_at IS NULL`,
+    `CREATE INDEX IF NOT EXISTS idx_attendance_date_deleted ON attendance_records(date) WHERE deleted_at IS NULL`,
+    `CREATE INDEX IF NOT EXISTS idx_attendance_deleted_date ON attendance_records(deleted_at, date DESC)`,
+    `CREATE INDEX IF NOT EXISTS idx_attendance_user ON attendance_records(recorded_by_user_id) WHERE deleted_at IS NULL`,
+    `CREATE INDEX IF NOT EXISTS idx_students_deleted_reg ON students(deleted_at, registration_number)`,
+    `CREATE INDEX IF NOT EXISTS idx_enrollments_deleted_created ON enrollments(deleted_at, created_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS idx_enrollments_class_active ON enrollments(class_id, status) WHERE deleted_at IS NULL`,
+  ];
+  for (const sql of perfIndexes) {
+    try {
+      const stmt = env.DB.prepare(sql);
+      if (typeof stmt?.run === 'function') await stmt.run();
+    } catch {
+      // Safe: index already exists or D1 temporarily limited
+    }
+  }
   try {
     const p3 = env.DB.prepare(
       `SELECT id, name FROM classes WHERE class_number IS NULL AND deleted_at IS NULL`

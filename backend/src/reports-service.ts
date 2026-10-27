@@ -1,4 +1,5 @@
 import { decryptText } from './crypto';
+import { withCacheOrD1Fallback } from './data';
 import { AppError } from './http';
 import { requireScope } from './rbac';
 import type { AttendanceStatus, AuthUser, Env } from './types';
@@ -34,8 +35,22 @@ export async function generateReportData(env: Env, user: AuthUser, url: URL): Pr
     throw new AppError(403, 'Acesso restrito ao setor financeiro.', 'FORBIDDEN');
   }
 
-  // 1. Institutional Report
-  if (type === 'institutional') {
+  const cacheKey = `reports:${user.role}:${type}:${classId || ''}:${courseId || ''}:${studentId || ''}:${from}:${to}`;
+  const defaultFallback: ReportPayload = {
+    type,
+    title: 'Relatório Operacional',
+    description: 'Relatório gerado pelo servidor.',
+    metrics: [],
+    headers: ['Item', 'Descrição'],
+    rows: [],
+    context: [`Período: ${from} a ${to}`],
+    notices: [],
+    matrix: false,
+  };
+
+  return withCacheOrD1Fallback(cacheKey, 60_000, async () => {
+    // 1. Institutional Report
+    if (type === 'institutional') {
     const courses = await env.DB.prepare(`
       SELECT co.id, co.name,
              COUNT(DISTINCT c.id) AS classes_count,
@@ -496,4 +511,5 @@ export async function generateReportData(env: Env, user: AuthUser, url: URL): Pr
     notices: [],
     matrix: false,
   };
+  }, defaultFallback);
 }

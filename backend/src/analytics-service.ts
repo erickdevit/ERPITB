@@ -1,4 +1,5 @@
 import { decryptText } from './crypto';
+import { withCacheOrD1Fallback } from './data';
 import { AppError } from './http';
 import { requireScope } from './rbac';
 import type { AttendanceStatus, AuthUser, Env, FeeStatus, PaymentMethod } from './types';
@@ -25,185 +26,190 @@ export async function getAnalyticsData(env: Env, user: AuthUser, url: URL): Prom
   const studentId = url.searchParams.get('studentId') || undefined;
   const teacherId = url.searchParams.get('teacherId') || (user.role === 'professor' ? user.id : undefined);
 
-  // 1. Determine allowed classes based on role and filters
-  let classFilterSql = 'c.deleted_at IS NULL';
-  const classParams: unknown[] = [];
+  const cacheKey = `analytics:${user.role}:${type || ''}:${user.id}:${courseId || ''}:${classId || ''}:${studentId || ''}:${teacherId || ''}:${from}:${to}`;
 
-  if (courseId) {
-    classFilterSql += ' AND c.course_id = ?';
-    classParams.push(courseId);
-  }
-  if (classId) {
-    classFilterSql += ' AND c.id = ?';
-    classParams.push(classId);
-  }
-  if (teacherId) {
-    classFilterSql += ' AND c.id IN (SELECT class_id FROM class_teachers WHERE user_id = ? AND deleted_at IS NULL)';
-    classParams.push(teacherId);
-  }
+  const defaultBaseline = {
+    attendanceRate: 100,
+    distinctCalls: 0,
+    activeStudents: 0,
+    riskStudents: 0,
+    records: 0,
+    present: 0,
+    absent: 0,
+    justified: 0,
+    delayed: 0,
+    replacements: 0,
+    evolution: [],
+    byClass: [],
+    topAbsentees: [],
+    academic: {
+      overallGpa: 0,
+      passingRate: 100,
+      evaluatedStudentsCount: 0,
+      passingStudentsCount: 0,
+      failingStudentsCount: 0,
+      gradeDistribution: { A_9_10: 0, B_7_9: 0, C_5_7: 0, D_below_5: 0 },
+      byCategory: [],
+    },
+    financial: null,
+  };
 
-  const classesQuery = await env.DB.prepare(`
-    SELECT c.id, c.name, c.course_id, c.shift, co.name AS course_name
-      FROM classes c
-      JOIN courses co ON co.id = c.course_id AND co.deleted_at IS NULL
-     WHERE ${classFilterSql}
-  `).bind(...classParams).all<{ id: string; name: string; course_id: string; shift: string; course_name: string }>();
+  return withCacheOrD1Fallback(cacheKey, 60_000, async () => {
+    // 1. Determine allowed classes based on role and filters
+    let classFilterSql = 'c.deleted_at IS NULL';
+    const classParams: unknown[] = [];
 
-  const allowedClasses = classesQuery.results;
-  const allowedClassIds = allowedClasses.map((c) => c.id);
-
-  if (allowedClassIds.length === 0) {
-    return {
-      attendanceRate: 100,
-      distinctCalls: 0,
-      activeStudents: 0,
-      riskStudents: 0,
-      records: 0,
-      present: 0,
-      absent: 0,
-      justified: 0,
-      delayed: 0,
-      replacements: 0,
-      evolution: [],
-      byClass: [],
-      topAbsentees: [],
-      academic: {
-        overallGpa: 0,
-        passingRate: 100,
-        evaluatedStudentsCount: 0,
-        passingStudentsCount: 0,
-        failingStudentsCount: 0,
-        gradeDistribution: { A_9_10: 0, B_7_9: 0, C_5_7: 0, D_below_5: 0 },
-        byCategory: [],
-      },
-      financial: null,
-    };
-  }
-
-  const inPlaceholders = allowedClassIds.map(() => '?').join(',');
-
-  // 2. Query Attendance records within date range and allowed classes
-  const attParams: unknown[] = [...allowedClassIds, from, to];
-  let studentFilterSql = '';
-  if (studentId) {
-    studentFilterSql = ' AND a.student_id = ?';
-    attParams.push(studentId);
-  }
-
-  const attRecords = await env.DB.prepare(`
-    SELECT a.id, a.class_id, a.student_id, a.date, a.status,
-           s.encrypted_name, s.registration_number, c.name AS class_name
-      FROM attendance_records a
-      JOIN students s ON s.id = a.student_id AND s.deleted_at IS NULL
-      JOIN classes c ON c.id = a.class_id
-     WHERE a.class_id IN (${inPlaceholders})
-       AND a.date >= ? AND a.date <= ?
-       AND a.deleted_at IS NULL
-       ${studentFilterSql}
-     ORDER BY a.date ASC
-  `).bind(...attParams).all<{
-    id: string; class_id: string; student_id: string; date: string; status: AttendanceStatus;
-    encrypted_name: string; registration_number: string; class_name: string;
-  }>();
-
-  // 3. Count distinct sessions (lessons)
-  const sessionCountRow = await env.DB.prepare(`
-    SELECT COUNT(DISTINCT session_date) AS total FROM (
-      SELECT date AS session_date FROM class_sessions WHERE class_id IN (${inPlaceholders}) AND date >= ? AND date <= ? AND deleted_at IS NULL
-      UNION
-      SELECT date AS session_date FROM attendance_records WHERE class_id IN (${inPlaceholders}) AND date >= ? AND date <= ? AND deleted_at IS NULL
-    )
-  `).bind(...allowedClassIds, from, to, ...allowedClassIds, from, to).first<{ total: number }>();
-  const distinctCalls = sessionCountRow?.total ?? 0;
-
-  // 4. Count active enrollments
-  const enrollCountRow = await env.DB.prepare(`
-    SELECT COUNT(DISTINCT student_id) AS total
-      FROM enrollments
-     WHERE class_id IN (${inPlaceholders}) AND status = 'ativa' AND deleted_at IS NULL
-  `).bind(...allowedClassIds).first<{ total: number }>();
-  const activeStudents = enrollCountRow?.total ?? 0;
-
-  // 5. Aggregate attendance totals
-  let present = 0;
-  let absent = 0;
-  let justified = 0;
-  let delayed = 0;
-  let replacements = 0;
-  const records = attRecords.results.length;
-
-  const dailyMap = new Map<string, { present: number; records: number }>();
-  const classMap = new Map<string, StatusCounts & { id: string; name: string; courseId: string }>();
-  const studentMap = new Map<string, {
-    studentId: string; encryptedName: string; registrationNumber: string;
-    classId: string; className: string; absences: number; present: number; total: number;
-    consecutiveAbsences: number; maxConsecutiveAbsences: number;
-  }>();
-
-  for (const c of allowedClasses) {
-    classMap.set(c.id, {
-      id: c.id,
-      name: c.name,
-      courseId: c.course_id,
-      present: 0,
-      absent: 0,
-      justified: 0,
-      delayed: 0,
-      replacements: 0,
-      records: 0,
-    });
-  }
-
-  for (const r of attRecords.results) {
-    if (r.status === 'P') present += 1;
-    else if (r.status === 'F') absent += 1;
-    else if (r.status === 'J') justified += 1;
-    else if (r.status === 'A') delayed += 1;
-    else if (r.status === 'R' || r.status === 'RC') replacements += 1;
-
-    // Daily
-    const dayEntry = dailyMap.get(r.date) ?? { present: 0, records: 0 };
-    dayEntry.records += 1;
-    if (r.status === 'P' || r.status === 'RC') dayEntry.present += 1;
-    dailyMap.set(r.date, dayEntry);
-
-    // Class
-    const classEntry = classMap.get(r.class_id);
-    if (classEntry) {
-      classEntry.records += 1;
-      if (r.status === 'P') classEntry.present += 1;
-      else if (r.status === 'F') classEntry.absent += 1;
-      else if (r.status === 'J') classEntry.justified += 1;
-      else if (r.status === 'A') classEntry.delayed += 1;
-      else if (r.status === 'R' || r.status === 'RC') classEntry.replacements += 1;
+    if (courseId) {
+      classFilterSql += ' AND c.course_id = ?';
+      classParams.push(courseId);
+    }
+    if (classId) {
+      classFilterSql += ' AND c.id = ?';
+      classParams.push(classId);
+    }
+    if (teacherId) {
+      classFilterSql += ' AND c.id IN (SELECT class_id FROM class_teachers WHERE user_id = ? AND deleted_at IS NULL)';
+      classParams.push(teacherId);
     }
 
-    // Student
-    const sEntry = studentMap.get(r.student_id) ?? {
-      studentId: r.student_id,
-      encryptedName: r.encrypted_name,
-      registrationNumber: r.registration_number,
-      classId: r.class_id,
-      className: r.class_name,
-      absences: 0,
-      present: 0,
-      total: 0,
-      consecutiveAbsences: 0,
-      maxConsecutiveAbsences: 0,
-    };
-    sEntry.total += 1;
-    if (r.status === 'F') {
-      sEntry.absences += 1;
-      sEntry.consecutiveAbsences += 1;
-      if (sEntry.consecutiveAbsences > sEntry.maxConsecutiveAbsences) {
-        sEntry.maxConsecutiveAbsences = sEntry.consecutiveAbsences;
+    const classesQuery = await env.DB.prepare(`
+      SELECT c.id, c.name, c.course_id, c.shift, co.name AS course_name
+        FROM classes c
+        JOIN courses co ON co.id = c.course_id AND co.deleted_at IS NULL
+       WHERE ${classFilterSql}
+    `).bind(...classParams).all<{ id: string; name: string; course_id: string; shift: string; course_name: string }>();
+
+    const allowedClasses = classesQuery.results;
+    const allowedClassIds = allowedClasses.map((c) => c.id);
+
+    if (allowedClassIds.length === 0) {
+      return defaultBaseline;
+    }
+
+    const classNameMap = new Map(allowedClasses.map((c) => [c.id, c.name]));
+    const inPlaceholders = allowedClassIds.map(() => '?').join(',');
+
+    // 2. Query Attendance records within date range and allowed classes
+    const attParams: unknown[] = [...allowedClassIds, from, to];
+    let studentFilterSql = '';
+    if (studentId) {
+      studentFilterSql = ' AND a.student_id = ?';
+      attParams.push(studentId);
+    }
+
+    const attRecords = await env.DB.prepare(`
+      SELECT a.id, a.class_id, a.student_id, a.date, a.status,
+             s.encrypted_name, s.registration_number
+        FROM attendance_records a
+        JOIN students s ON s.id = a.student_id AND s.deleted_at IS NULL
+       WHERE a.class_id IN (${inPlaceholders})
+         AND a.date >= ? AND a.date <= ?
+         AND a.deleted_at IS NULL
+         ${studentFilterSql}
+       ORDER BY a.date ASC
+    `).bind(...attParams).all<{
+      id: string; class_id: string; student_id: string; date: string; status: AttendanceStatus;
+      encrypted_name: string; registration_number: string;
+    }>();
+
+    // 3. Count distinct sessions (lessons)
+    const sessionCountRow = await env.DB.prepare(`
+      SELECT COUNT(DISTINCT session_date) AS total FROM (
+        SELECT date AS session_date FROM class_sessions WHERE class_id IN (${inPlaceholders}) AND date >= ? AND date <= ? AND deleted_at IS NULL
+        UNION
+        SELECT date AS session_date FROM attendance_records WHERE class_id IN (${inPlaceholders}) AND date >= ? AND date <= ? AND deleted_at IS NULL
+      )
+    `).bind(...allowedClassIds, from, to, ...allowedClassIds, from, to).first<{ total: number }>();
+    const distinctCalls = sessionCountRow?.total ?? 0;
+
+    // 4. Count active enrollments
+    const enrollCountRow = await env.DB.prepare(`
+      SELECT COUNT(DISTINCT student_id) AS total
+        FROM enrollments
+       WHERE class_id IN (${inPlaceholders}) AND status = 'ativa' AND deleted_at IS NULL
+    `).bind(...allowedClassIds).first<{ total: number }>();
+    const activeStudents = enrollCountRow?.total ?? 0;
+
+    // 5. Aggregate attendance totals
+    let present = 0;
+    let absent = 0;
+    let justified = 0;
+    let delayed = 0;
+    let replacements = 0;
+    const records = attRecords.results.length;
+
+    const dailyMap = new Map<string, { present: number; records: number }>();
+    const classMap = new Map<string, StatusCounts & { id: string; name: string; courseId: string }>();
+    const studentMap = new Map<string, {
+      studentId: string; encryptedName: string; registrationNumber: string;
+      classId: string; className: string; absences: number; present: number; total: number;
+      consecutiveAbsences: number; maxConsecutiveAbsences: number;
+    }>();
+
+    for (const c of allowedClasses) {
+      classMap.set(c.id, {
+        id: c.id,
+        name: c.name,
+        courseId: c.course_id,
+        present: 0,
+        absent: 0,
+        justified: 0,
+        delayed: 0,
+        replacements: 0,
+        records: 0,
+      });
+    }
+
+    for (const r of attRecords.results) {
+      if (r.status === 'P') present += 1;
+      else if (r.status === 'F') absent += 1;
+      else if (r.status === 'J') justified += 1;
+      else if (r.status === 'A') delayed += 1;
+      else if (r.status === 'R' || r.status === 'RC') replacements += 1;
+
+      // Daily
+      const dayEntry = dailyMap.get(r.date) ?? { present: 0, records: 0 };
+      dayEntry.records += 1;
+      if (r.status === 'P' || r.status === 'RC') dayEntry.present += 1;
+      dailyMap.set(r.date, dayEntry);
+
+      // Class
+      const classEntry = classMap.get(r.class_id);
+      if (classEntry) {
+        classEntry.records += 1;
+        if (r.status === 'P') classEntry.present += 1;
+        else if (r.status === 'F') classEntry.absent += 1;
+        else if (r.status === 'J') classEntry.justified += 1;
+        else if (r.status === 'A') classEntry.delayed += 1;
+        else if (r.status === 'R' || r.status === 'RC') classEntry.replacements += 1;
       }
-    } else {
-      if (r.status === 'P' || r.status === 'RC') sEntry.present += 1;
-      sEntry.consecutiveAbsences = 0;
+
+      // Student
+      const sEntry = studentMap.get(r.student_id) ?? {
+        studentId: r.student_id,
+        encryptedName: r.encrypted_name,
+        registrationNumber: r.registration_number,
+        classId: r.class_id,
+        className: classNameMap.get(r.class_id) ?? 'Turma',
+        absences: 0,
+        present: 0,
+        total: 0,
+        consecutiveAbsences: 0,
+        maxConsecutiveAbsences: 0,
+      };
+      sEntry.total += 1;
+      if (r.status === 'F') {
+        sEntry.absences += 1;
+        sEntry.consecutiveAbsences += 1;
+        if (sEntry.consecutiveAbsences > sEntry.maxConsecutiveAbsences) {
+          sEntry.maxConsecutiveAbsences = sEntry.consecutiveAbsences;
+        }
+      } else {
+        if (r.status === 'P' || r.status === 'RC') sEntry.present += 1;
+        sEntry.consecutiveAbsences = 0;
+      }
+      studentMap.set(r.student_id, sEntry);
     }
-    studentMap.set(r.student_id, sEntry);
-  }
 
   const attendanceRate = records > 0 ? Math.round((present / records) * 1000) / 10 : 100;
 
@@ -423,27 +429,28 @@ export async function getAnalyticsData(env: Env, user: AuthUser, url: URL): Prom
     };
   }
 
-  if (user.role === 'financeiro') {
+    if (user.role === 'financeiro') {
+      return {
+        financial,
+      };
+    }
+
     return {
+      attendanceRate,
+      distinctCalls,
+      activeStudents,
+      riskStudents,
+      records,
+      present,
+      absent,
+      justified,
+      delayed,
+      replacements,
+      evolution,
+      byClass,
+      topAbsentees,
+      academic,
       financial,
     };
-  }
-
-  return {
-    attendanceRate,
-    distinctCalls,
-    activeStudents,
-    riskStudents,
-    records,
-    present,
-    absent,
-    justified,
-    delayed,
-    replacements,
-    evolution,
-    byClass,
-    topAbsentees,
-    academic,
-    financial,
-  };
+  }, defaultBaseline);
 }

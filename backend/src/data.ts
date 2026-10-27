@@ -88,12 +88,81 @@ async function clientEntityRow(env: Env, entity: string, row: JsonRecord, user?:
   return result;
 }
 
+interface CacheEntry<T> {
+  data: T;
+  cachedAt: number;
+  ttlMs: number;
+}
+const workerQueryCache = new Map<string, CacheEntry<unknown>>();
+
+export function getCached<T>(key: string): T | undefined {
+  const entry = workerQueryCache.get(key);
+  if (!entry) return undefined;
+  if (Date.now() - entry.cachedAt > entry.ttlMs) {
+    workerQueryCache.delete(key);
+    return undefined;
+  }
+  return entry.data as T;
+}
+
+export function setCached<T>(key: string, data: T, ttlMs = 60_000): void {
+  workerQueryCache.set(key, {
+    data,
+    cachedAt: Date.now(),
+    ttlMs,
+  });
+}
+
+export function invalidateWorkerCache(patterns?: string | string[]): void {
+  if (!patterns) {
+    workerQueryCache.clear();
+    return;
+  }
+  const patternList = Array.isArray(patterns) ? patterns : [patterns];
+  for (const key of workerQueryCache.keys()) {
+    if (patternList.some((pat) => key.includes(pat))) {
+      workerQueryCache.delete(key);
+    }
+  }
+}
+
+export async function withCacheOrD1Fallback<T>(
+  cacheKey: string,
+  ttlMs: number,
+  fetcher: () => Promise<T>,
+  fallbackValue?: T,
+): Promise<T> {
+  const cached = getCached<T>(cacheKey);
+  if (cached !== undefined) {
+    return cached;
+  }
+  try {
+    const fresh = await fetcher();
+    setCached(cacheKey, fresh, ttlMs);
+    return fresh;
+  } catch (err) {
+    const isQuotaError = String(err).includes('7500') ||
+      String(err).toLowerCase().includes('daily row read limit') ||
+      String(err).toLowerCase().includes('exceeded d1');
+    const stale = workerQueryCache.get(cacheKey);
+    if (isQuotaError && stale) {
+      return stale.data as T;
+    }
+    if (isQuotaError && fallbackValue !== undefined) {
+      return fallbackValue;
+    }
+    throw err;
+  }
+}
+
 export async function listLaboratories(env: Env, user: AuthUser): Promise<unknown> {
   requireScope(user, 'laboratories:read', 'classes:read');
-  const rows = await env.DB.prepare(
-    `SELECT id, name, active, sync_version, created_at, updated_at FROM laboratories WHERE deleted_at IS NULL ORDER BY name`,
-  ).all();
-  return { items: rows.results };
+  return withCacheOrD1Fallback('laboratories:all', 60_000, async () => {
+    const rows = await env.DB.prepare(
+      `SELECT id, name, active, sync_version, created_at, updated_at FROM laboratories WHERE deleted_at IS NULL ORDER BY name`,
+    ).all();
+    return { items: rows.results };
+  }, { items: [] });
 }
 
 export async function createLaboratory(request: Request, env: Env, user: AuthUser): Promise<unknown> {
@@ -115,6 +184,7 @@ export async function createLaboratory(request: Request, env: Env, user: AuthUse
     change(env, user, 'laboratories', row.id, 'upsert', row),
     audit(env, user, 'CREATE', 'laboratories', row.id),
   ]);
+  invalidateWorkerCache('laboratories');
   return row;
 }
 
@@ -154,6 +224,7 @@ export async function updateLaboratory(request: Request, env: Env, user: AuthUse
 
   const row = await getEntityRow(env, 'laboratories', id);
   await env.DB.batch([change(env, user, 'laboratories', id, 'upsert', row), audit(env, user, 'UPDATE', 'laboratories', id)]);
+  invalidateWorkerCache('laboratories');
 
   return new Response(JSON.stringify(row), {
     status: 200,
@@ -163,17 +234,20 @@ export async function updateLaboratory(request: Request, env: Env, user: AuthUse
 
 export async function listCourses(env: Env, user: AuthUser): Promise<unknown> {
   requireScope(user, 'courses:read', 'classes:read');
-  const rows = user.role === 'professor'
-    ? await env.DB.prepare(
-      `SELECT DISTINCT co.id, co.code, co.name, co.active, co.sync_version, co.created_at, co.updated_at
-         FROM courses co JOIN classes c ON c.course_id = co.id
-         JOIN class_teachers ct ON ct.class_id = c.id AND ct.user_id = ? AND ct.deleted_at IS NULL
-        WHERE co.deleted_at IS NULL AND c.deleted_at IS NULL ORDER BY co.name`,
-    ).bind(user.id).all()
-    : await env.DB.prepare(
-      `SELECT id, code, name, active, sync_version, created_at, updated_at FROM courses WHERE deleted_at IS NULL ORDER BY name`,
-    ).all();
-  return { items: rows.results };
+  const cacheKey = `courses:${user.role === 'professor' ? user.id : 'all'}`;
+  return withCacheOrD1Fallback(cacheKey, 60_000, async () => {
+    const rows = user.role === 'professor'
+      ? await env.DB.prepare(
+        `SELECT DISTINCT co.id, co.code, co.name, co.active, co.sync_version, co.created_at, co.updated_at
+           FROM courses co JOIN classes c ON c.course_id = co.id
+           JOIN class_teachers ct ON ct.class_id = c.id AND ct.user_id = ? AND ct.deleted_at IS NULL
+          WHERE co.deleted_at IS NULL AND c.deleted_at IS NULL ORDER BY co.name`,
+      ).bind(user.id).all()
+      : await env.DB.prepare(
+        `SELECT id, code, name, active, sync_version, created_at, updated_at FROM courses WHERE deleted_at IS NULL ORDER BY name`,
+      ).all();
+    return { items: rows.results };
+  }, { items: [] });
 }
 
 export async function getCourse(env: Env, user: AuthUser, id: string): Promise<Response> {
@@ -209,6 +283,7 @@ export async function createCourse(request: Request, env: Env, user: AuthUser): 
     change(env, user, 'courses', row.id, 'upsert', row),
     audit(env, user, 'CREATE', 'courses', row.id),
   ]);
+  invalidateWorkerCache('courses');
   return row;
 }
 
@@ -237,6 +312,7 @@ export async function updateCourse(request: Request, env: Env, user: AuthUser, i
 
   const row = await getEntityRow(env, 'courses', id);
   await env.DB.batch([change(env, user, 'courses', id, 'upsert', row), audit(env, user, 'UPDATE', 'courses', id)]);
+  invalidateWorkerCache('courses');
 
   return new Response(JSON.stringify(row), {
     status: 200,
@@ -289,36 +365,42 @@ export async function deleteEntity(env: Env, user: AuthUser, table: 'laboratorie
   }
   const tombstone = { id, deleted_at: timestamp, updated_at: timestamp };
   await env.DB.batch([change(env, user, table, id, 'delete', tombstone), audit(env, user, 'DELETE', table, id)]);
+  invalidateWorkerCache(table);
+  invalidateWorkerCache('analytics');
+  invalidateWorkerCache('reports');
   return { ok: true };
 }
 
 export async function listClasses(env: Env, user: AuthUser): Promise<unknown> {
   requireScope(user, 'classes:read');
-  const filter = user.role === 'professor'
-    ? `JOIN class_teachers ct ON ct.class_id = c.id AND ct.user_id = ? AND ct.deleted_at IS NULL`
-    : '';
+  const cacheKey = `classes:${user.role === 'professor' ? user.id : 'all'}`;
+  return withCacheOrD1Fallback(cacheKey, 60_000, async () => {
+    const filter = user.role === 'professor'
+      ? `JOIN class_teachers ct ON ct.class_id = c.id AND ct.user_id = ? AND ct.deleted_at IS NULL`
+      : '';
 
-  try {
-    const statement = env.DB.prepare(
-      `SELECT c.id, c.course_id, c.name, c.class_number, c.shift, c.week_day, c.is_kids, c.laboratory_id, c.active, c.sync_version, c.created_at, c.updated_at,
-              co.code AS course_code, co.name AS course_name, l.name AS laboratory_name
-         FROM classes c JOIN courses co ON co.id = c.course_id
-         LEFT JOIN laboratories l ON l.id = c.laboratory_id ${filter}
-        WHERE c.deleted_at IS NULL ORDER BY COALESCE(c.class_number, 999999) ASC, co.name ASC, c.name ASC`,
-    );
-    const rows = user.role === 'professor' ? await statement.bind(user.id).all() : await statement.all();
-    return { items: rows.results };
-  } catch (err) {
-    const fallbackStatement = env.DB.prepare(
-      `SELECT c.id, c.course_id, c.name, NULL AS class_number, c.shift, c.week_day, c.is_kids, c.laboratory_id, c.active, c.sync_version, c.created_at, c.updated_at,
-              co.code AS course_code, co.name AS course_name, l.name AS laboratory_name
-         FROM classes c JOIN courses co ON co.id = c.course_id
-         LEFT JOIN laboratories l ON l.id = c.laboratory_id ${filter}
-        WHERE c.deleted_at IS NULL ORDER BY co.name ASC, c.name ASC`,
-    );
-    const fallbackRows = user.role === 'professor' ? await fallbackStatement.bind(user.id).all() : await fallbackStatement.all();
-    return { items: fallbackRows.results };
-  }
+    try {
+      const statement = env.DB.prepare(
+        `SELECT c.id, c.course_id, c.name, c.class_number, c.shift, c.week_day, c.is_kids, c.laboratory_id, c.active, c.sync_version, c.created_at, c.updated_at,
+                co.code AS course_code, co.name AS course_name, l.name AS laboratory_name
+           FROM classes c JOIN courses co ON co.id = c.course_id
+           LEFT JOIN laboratories l ON l.id = c.laboratory_id ${filter}
+          WHERE c.deleted_at IS NULL ORDER BY COALESCE(c.class_number, 999999) ASC, co.name ASC, c.name ASC`,
+      );
+      const rows = user.role === 'professor' ? await statement.bind(user.id).all() : await statement.all();
+      return { items: rows.results };
+    } catch (err) {
+      const fallbackStatement = env.DB.prepare(
+        `SELECT c.id, c.course_id, c.name, NULL AS class_number, c.shift, c.week_day, c.is_kids, c.laboratory_id, c.active, c.sync_version, c.created_at, c.updated_at,
+                co.code AS course_code, co.name AS course_name, l.name AS laboratory_name
+           FROM classes c JOIN courses co ON co.id = c.course_id
+           LEFT JOIN laboratories l ON l.id = c.laboratory_id ${filter}
+          WHERE c.deleted_at IS NULL ORDER BY co.name ASC, c.name ASC`,
+      );
+      const fallbackRows = user.role === 'professor' ? await fallbackStatement.bind(user.id).all() : await fallbackStatement.all();
+      return { items: fallbackRows.results };
+    }
+  }, { items: [] });
 }
 
 export async function getClass(env: Env, user: AuthUser, id: string): Promise<Response> {
@@ -420,6 +502,10 @@ export async function createClass(request: Request, env: Env, user: AuthUser): P
     audit(env, user, 'CREATE', 'classes', row.id, { teacherId: teacherId ?? undefined }),
   ]);
 
+  invalidateWorkerCache('classes');
+  invalidateWorkerCache('analytics');
+  invalidateWorkerCache('reports');
+
   broadcastEvent('entity_changed', {
     entity: 'classes',
     operation: 'upsert',
@@ -491,6 +577,10 @@ export async function updateClass(request: Request, env: Env, user: AuthUser, id
 
   const row = await getEntityRow(env, 'classes', id);
   await env.DB.batch([change(env, user, 'classes', id, 'upsert', row), audit(env, user, 'UPDATE', 'classes', id)]);
+
+  invalidateWorkerCache('classes');
+  invalidateWorkerCache('analytics');
+  invalidateWorkerCache('reports');
 
   broadcastEvent('entity_changed', {
     entity: 'classes',
@@ -683,6 +773,9 @@ export async function assignTeacher(request: Request, env: Env, user: AuthUser, 
   ).bind(id, classId, userId, timestamp, timestamp).run();
   const row = await getEntityRow(env, 'class_teachers', id);
   await env.DB.batch([change(env, user, 'class_teachers', id, 'upsert', row), audit(env, user, 'ASSIGN', 'class_teachers', id)]);
+  invalidateWorkerCache('classes');
+  invalidateWorkerCache('analytics');
+  invalidateWorkerCache('reports');
   return row;
 }
 
@@ -698,6 +791,9 @@ export async function removeTeacher(env: Env, user: AuthUser, classId: string, t
     change(env, user, 'class_teachers', row.id, 'delete', { id: row.id, class_id: classId, user_id: teacherId, deleted_at: timestamp }),
     audit(env, user, 'REMOVE', 'class_teachers', row.id),
   ]);
+  invalidateWorkerCache('classes');
+  invalidateWorkerCache('analytics');
+  invalidateWorkerCache('reports');
   return { ok: true };
 }
 
@@ -730,22 +826,25 @@ export async function listStudents(url: URL, env: Env, user: AuthUser): Promise<
   requireScope(user, 'students:read');
   const classId = url.searchParams.get('classId');
   if (classId) await requireClassAccess(env, user, classId);
-  const rows = classId
-    ? await env.DB.prepare(
-      `SELECT s.*, e.status AS enrollment_status, e.id AS enrollment_id, e.class_id
-         FROM students s JOIN enrollments e ON e.student_id = s.id
-        WHERE e.class_id = ? AND e.deleted_at IS NULL AND s.deleted_at IS NULL ORDER BY s.registration_number`,
-    ).bind(classId).all<StudentRow>()
-    : user.role === 'professor'
-    ? await env.DB.prepare(
-      `SELECT DISTINCT s.id, s.encrypted_name, s.encrypted_cpf, s.encrypted_contact, s.registration_number, s.birth_date, s.active, s.sync_version, s.created_at, s.updated_at, e.status AS enrollment_status, e.id AS enrollment_id, e.class_id
-         FROM students s JOIN enrollments e ON e.student_id = s.id
-         JOIN class_teachers ct ON ct.class_id = e.class_id
-        WHERE ct.user_id = ? AND ct.deleted_at IS NULL AND e.deleted_at IS NULL AND s.deleted_at IS NULL
-        ORDER BY s.registration_number`,
-    ).bind(user.id).all<StudentRow>()
-    : await env.DB.prepare(`SELECT * FROM students WHERE deleted_at IS NULL ORDER BY registration_number`).all<StudentRow>();
-  return { items: await Promise.all(rows.results.map((row) => clearStudent(env, row, user))) };
+  const cacheKey = `students:${user.role}:${user.id}:${classId || ''}`;
+  return withCacheOrD1Fallback(cacheKey, 60_000, async () => {
+    const rows = classId
+      ? await env.DB.prepare(
+        `SELECT s.*, e.status AS enrollment_status, e.id AS enrollment_id, e.class_id
+           FROM students s JOIN enrollments e ON e.student_id = s.id
+          WHERE e.class_id = ? AND e.deleted_at IS NULL AND s.deleted_at IS NULL ORDER BY s.registration_number`,
+      ).bind(classId).all<StudentRow>()
+      : user.role === 'professor'
+      ? await env.DB.prepare(
+        `SELECT DISTINCT s.id, s.encrypted_name, s.encrypted_cpf, s.encrypted_contact, s.registration_number, s.birth_date, s.active, s.sync_version, s.created_at, s.updated_at, e.status AS enrollment_status, e.id AS enrollment_id, e.class_id
+           FROM students s JOIN enrollments e ON e.student_id = s.id
+           JOIN class_teachers ct ON ct.class_id = e.class_id
+          WHERE ct.user_id = ? AND ct.deleted_at IS NULL AND e.deleted_at IS NULL AND s.deleted_at IS NULL
+          ORDER BY s.registration_number`,
+      ).bind(user.id).all<StudentRow>()
+      : await env.DB.prepare(`SELECT * FROM students WHERE deleted_at IS NULL ORDER BY registration_number`).all<StudentRow>();
+    return { items: await Promise.all(rows.results.map((row) => clearStudent(env, row, user))) };
+  }, { items: [] });
 }
 
 export async function getStudent(env: Env, user: AuthUser, id: string): Promise<Response> {
@@ -800,6 +899,10 @@ export async function createStudent(request: Request, env: Env, user: AuthUser):
     change(env, user, 'enrollments', enrollment.id, 'upsert', enrollment),
     audit(env, user, 'CREATE', 'students', clear.id, { classId }),
   ]);
+  invalidateWorkerCache('students');
+  invalidateWorkerCache('enrollments');
+  invalidateWorkerCache('analytics');
+  invalidateWorkerCache('reports');
   broadcastEvent('entity_changed', { entity: 'students', operation: 'upsert', id: clear.id, timestamp }, { env });
   const hasPii = canAccessStudentPii(user);
   if (!hasPii) {
@@ -837,6 +940,9 @@ export async function updateStudent(request: Request, env: Env, user: AuthUser, 
   }
   const row = await getEntityRow(env, 'students', id) as StudentRow;
   await env.DB.batch([change(env, user, 'students', id, 'upsert', row), audit(env, user, 'UPDATE', 'students', id)]);
+  invalidateWorkerCache('students');
+  invalidateWorkerCache('analytics');
+  invalidateWorkerCache('reports');
   broadcastEvent('entity_changed', { entity: 'students', operation: 'upsert', id, timestamp }, { env });
   const cleared = await clearStudent(env, row, user);
 
@@ -868,6 +974,9 @@ export async function inactivateStudent(env: Env, user: AuthUser, id: string, re
   }
   const row = await getEntityRow(env, 'students', id);
   await env.DB.batch([change(env, user, 'students', id, 'upsert', row), audit(env, user, 'INACTIVATE', 'students', id)]);
+  invalidateWorkerCache('students');
+  invalidateWorkerCache('analytics');
+  invalidateWorkerCache('reports');
   broadcastEvent('entity_changed', { entity: 'students', operation: 'upsert', id, timestamp }, { env });
   return { ok: true };
 }
@@ -892,6 +1001,10 @@ export async function enrollStudent(request: Request, env: Env, user: AuthUser, 
   ).bind(id, classId, studentId, status, timestamp, timestamp).run();
   const row = await getEntityRow(env, 'enrollments', id);
   await env.DB.batch([change(env, user, 'enrollments', id, 'upsert', row), audit(env, user, 'ENROLL', 'enrollments', id)]);
+  invalidateWorkerCache('enrollments');
+  invalidateWorkerCache('students');
+  invalidateWorkerCache('analytics');
+  invalidateWorkerCache('reports');
   return row;
 }
 
@@ -903,15 +1016,18 @@ export async function listEnrollments(env: Env, user: AuthUser, url: URL): Promi
 
   if (classId) await requireClassAccess(env, user, classId);
 
-  let sql = `SELECT * FROM enrollments WHERE deleted_at IS NULL`;
-  const binds: unknown[] = [];
-  if (classId) { sql += ` AND class_id = ?`; binds.push(classId); }
-  if (studentId) { sql += ` AND student_id = ?`; binds.push(studentId); }
-  if (status) { sql += ` AND status = ?`; binds.push(status); }
-  sql += ` ORDER BY created_at DESC`;
+  const cacheKey = `enrollments:${user.role}:${user.id}:${classId || ''}:${studentId || ''}:${status || ''}`;
+  return withCacheOrD1Fallback(cacheKey, 60_000, async () => {
+    let sql = `SELECT * FROM enrollments WHERE deleted_at IS NULL`;
+    const binds: unknown[] = [];
+    if (classId) { sql += ` AND class_id = ?`; binds.push(classId); }
+    if (studentId) { sql += ` AND student_id = ?`; binds.push(studentId); }
+    if (status) { sql += ` AND status = ?`; binds.push(status); }
+    sql += ` ORDER BY created_at DESC`;
 
-  const rows = await env.DB.prepare(sql).bind(...binds).all();
-  return { items: rows.results };
+    const rows = await env.DB.prepare(sql).bind(...binds).all();
+    return { items: rows.results };
+  }, { items: [] });
 }
 
 export async function getEnrollment(env: Env, user: AuthUser, id: string): Promise<Response> {
@@ -954,6 +1070,11 @@ export async function updateEnrollment(request: Request, env: Env, user: AuthUse
     audit(env, user, 'UPDATE', 'enrollments', id, { status }),
   ]);
 
+  invalidateWorkerCache('enrollments');
+  invalidateWorkerCache('students');
+  invalidateWorkerCache('analytics');
+  invalidateWorkerCache('reports');
+
   const updated = await env.DB.prepare(`SELECT * FROM enrollments WHERE id = ?`).bind(id).first();
   broadcastEvent('entity_changed', { entity: 'enrollments', operation: 'upsert', id, timestamp }, { env });
   return new Response(JSON.stringify(updated), {
@@ -985,6 +1106,11 @@ export async function deleteEnrollment(request: Request, env: Env, user: AuthUse
     audit(env, user, 'DELETE', 'enrollments', id),
   ]);
 
+  invalidateWorkerCache('enrollments');
+  invalidateWorkerCache('students');
+  invalidateWorkerCache('analytics');
+  invalidateWorkerCache('reports');
+
   broadcastEvent('entity_changed', { entity: 'enrollments', operation: 'delete', id, timestamp }, { env });
   return new Response(JSON.stringify({ ok: true }), {
     status: 200,
@@ -1006,32 +1132,42 @@ export async function listAttendance(url: URL, env: Env, user: AuthUser): Promis
   const date = url.searchParams.get('date');
   const from = url.searchParams.get('from');
   const to = url.searchParams.get('to');
-  let sql = `SELECT a.*, s.encrypted_name, s.registration_number FROM attendance_records a JOIN students s ON s.id = a.student_id WHERE a.deleted_at IS NULL`;
-  const binds: unknown[] = [];
-  if (classId) {
-    sql += ` AND a.class_id = ?`;
-    binds.push(classId);
-  } else if (user.role === 'professor') {
-    sql += ` AND a.class_id IN (SELECT class_id FROM class_teachers WHERE user_id = ? AND deleted_at IS NULL)`;
-    binds.push(user.id);
-  }
-  if (date) { sql += ` AND a.date = ?`; binds.push(parseDate(date)); }
-  if (from) { sql += ` AND a.date >= ?`; binds.push(parseDate(from, 'data inicial')); }
-  if (to) { sql += ` AND a.date <= ?`; binds.push(parseDate(to, 'data final')); }
-  sql += ` ORDER BY a.date DESC, s.registration_number`;
-  const result = await env.DB.prepare(sql).bind(...binds).all<StudentRow & JsonRecord>();
-  const items = await Promise.all(result.results.map(async (row) => {
-    const { encrypted_name, ...item } = row;
-    let student_name = `Aluno ${item.registration_number || item.student_id || ''}`;
-    try {
-      student_name = await decryptText(env, encrypted_name);
-    } catch {
-      // fallback
+  const limitParam = url.searchParams.get('limit');
+  const cacheKey = `attendance:${user.role}:${user.id}:${classId || ''}:${date || ''}:${from || ''}:${to || ''}:${limitParam || ''}`;
+
+  return withCacheOrD1Fallback(cacheKey, 60_000, async () => {
+    let sql = `SELECT a.*, s.encrypted_name, s.registration_number FROM attendance_records a JOIN students s ON s.id = a.student_id WHERE a.deleted_at IS NULL`;
+    const binds: unknown[] = [];
+    if (classId) {
+      sql += ` AND a.class_id = ?`;
+      binds.push(classId);
+    } else if (user.role === 'professor') {
+      sql += ` AND a.class_id IN (SELECT class_id FROM class_teachers WHERE user_id = ? AND deleted_at IS NULL)`;
+      binds.push(user.id);
     }
-    return { ...item, student_name };
-  }));
-  const generalNote = classId && date ? await env.DB.prepare(`SELECT notes FROM class_notes WHERE class_id = ? AND date = ? AND deleted_at IS NULL`).bind(classId, parseDate(date)).first<{ notes: string | null }>() : null;
-  return { items, generalNotes: generalNote?.notes ?? null };
+    if (date) { sql += ` AND a.date = ?`; binds.push(parseDate(date)); }
+    if (from) { sql += ` AND a.date >= ?`; binds.push(parseDate(from, 'data inicial')); }
+    if (to) { sql += ` AND a.date <= ?`; binds.push(parseDate(to, 'data final')); }
+    sql += ` ORDER BY a.date DESC, s.registration_number`;
+    if (!classId && !date && !from && !to) {
+      const maxLimit = limitParam ? Math.min(Math.max(1, parseInt(limitParam, 10) || 500), 2000) : 500;
+      sql += ` LIMIT ?`;
+      binds.push(maxLimit);
+    }
+    const result = await env.DB.prepare(sql).bind(...binds).all<StudentRow & JsonRecord>();
+    const items = await Promise.all(result.results.map(async (row) => {
+      const { encrypted_name, ...item } = row;
+      let student_name = `Aluno ${item.registration_number || item.student_id || ''}`;
+      try {
+        student_name = await decryptText(env, encrypted_name);
+      } catch {
+        // fallback
+      }
+      return { ...item, student_name };
+    }));
+    const generalNote = classId && date ? await env.DB.prepare(`SELECT notes FROM class_notes WHERE class_id = ? AND date = ? AND deleted_at IS NULL`).bind(classId, parseDate(date)).first<{ notes: string | null }>() : null;
+    return { items, generalNotes: generalNote?.notes ?? null };
+  }, { items: [], generalNotes: null });
 }
 
 export async function saveAttendance(request: Request, env: Env, user: AuthUser): Promise<unknown> {
@@ -1106,6 +1242,12 @@ export async function saveAttendance(request: Request, env: Env, user: AuthUser)
   );
   statements.push(audit(env, user, 'ATTENDANCE_BATCH', 'attendance_records', classId, { date, count: saved.length, generalNotes, justification: body.justification ?? null }));
   await env.DB.batch(statements);
+
+  invalidateWorkerCache('attendance');
+  invalidateWorkerCache('analytics');
+  invalidateWorkerCache('reports');
+  invalidateWorkerCache('dashboard');
+
   broadcastEvent('entity_changed', { entity: 'attendance_records', operation: 'upsert', classId, date, timestamp }, { env });
   return { items: saved };
 }
@@ -1117,68 +1259,82 @@ export async function dashboard(url: URL, env: Env, user: AuthUser): Promise<unk
   const from = parseDate(url.searchParams.get('from') ?? new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10), 'data inicial');
   const to = parseDate(url.searchParams.get('to') ?? new Date().toISOString().slice(0, 10), 'data final');
   if (from > to) throw new AppError(400, 'O período informado é inválido.', 'VALIDATION_ERROR');
-  const classJoin = user.role === 'professor'
-    ? `JOIN class_teachers ct ON ct.class_id = c.id AND ct.user_id = ? AND ct.deleted_at IS NULL`
-    : '';
-  const statement = env.DB.prepare(
-    `SELECT c.id, c.name, co.name AS course_name,
-            COUNT(a.id) AS records,
-            ROUND(100.0 * SUM(CASE WHEN a.status = 'P' THEN 1 ELSE 0 END) / NULLIF(COUNT(a.id), 0), 1) AS attendance_rate,
-            SUM(CASE WHEN a.status = 'P' THEN 1 ELSE 0 END) AS present,
-            SUM(CASE WHEN a.status = 'F' THEN 1 ELSE 0 END) AS absent,
-            SUM(CASE WHEN a.status = 'J' THEN 1 ELSE 0 END) AS justified,
-            SUM(CASE WHEN a.status = 'A' THEN 1 ELSE 0 END) AS delayed
-       FROM classes c JOIN courses co ON co.id = c.course_id ${classJoin}
-       LEFT JOIN attendance_records a ON a.class_id = c.id AND a.deleted_at IS NULL AND a.date BETWEEN ? AND ?
-      WHERE c.deleted_at IS NULL GROUP BY c.id, c.name, co.name ORDER BY c.name`,
-  );
-  const classes = user.role === 'professor' ? await statement.bind(user.id, from, to).all<JsonRecord>() : await statement.bind(from, to).all<JsonRecord>();
-  const totals = classes.results.reduce<{ records: number; present: number; absent: number; justified: number; delayed: number }>((acc, row) => {
-    acc.records += Number(row.records ?? 0); acc.present += Number(row.present ?? 0);
-    acc.absent += Number(row.absent ?? 0); acc.justified += Number(row.justified ?? 0); acc.delayed += Number(row.delayed ?? 0); return acc;
-  }, { records: 0, present: 0, absent: 0, justified: 0, delayed: 0 });
-  const dailySql = user.role === 'professor'
-    ? `SELECT a.date, ROUND(100.0 * SUM(CASE WHEN a.status = 'P' THEN 1 ELSE 0 END) / COUNT(*), 1) AS rate FROM attendance_records a JOIN class_teachers ct ON ct.class_id = a.class_id AND ct.user_id = ? AND ct.deleted_at IS NULL WHERE a.deleted_at IS NULL AND a.date BETWEEN ? AND ? GROUP BY a.date ORDER BY a.date`
-    : `SELECT a.date, ROUND(100.0 * SUM(CASE WHEN a.status = 'P' THEN 1 ELSE 0 END) / COUNT(*), 1) AS rate FROM attendance_records a WHERE a.deleted_at IS NULL AND a.date BETWEEN ? AND ? GROUP BY a.date ORDER BY a.date`;
-  const dailyStatement = env.DB.prepare(dailySql);
-  const daily = user.role === 'professor' ? await dailyStatement.bind(user.id, from, to).all() : await dailyStatement.bind(from, to).all();
-  const absenteeSql = user.role === 'professor'
-    ? `SELECT s.encrypted_name, s.registration_number, SUM(CASE WHEN a.status = 'F' THEN 1 ELSE 0 END) AS absences, ROUND(100.0 * SUM(CASE WHEN a.status = 'P' THEN 1 ELSE 0 END) / COUNT(*), 1) AS attendance_rate FROM attendance_records a JOIN students s ON s.id = a.student_id JOIN class_teachers ct ON ct.class_id = a.class_id AND ct.user_id = ? AND ct.deleted_at IS NULL WHERE a.deleted_at IS NULL AND a.date BETWEEN ? AND ? GROUP BY s.id, s.encrypted_name, s.registration_number HAVING absences > 0 ORDER BY absences DESC, attendance_rate ASC LIMIT 5`
-    : `SELECT s.encrypted_name, s.registration_number, SUM(CASE WHEN a.status = 'F' THEN 1 ELSE 0 END) AS absences, ROUND(100.0 * SUM(CASE WHEN a.status = 'P' THEN 1 ELSE 0 END) / COUNT(*), 1) AS attendance_rate FROM attendance_records a JOIN students s ON s.id = a.student_id WHERE a.deleted_at IS NULL AND a.date BETWEEN ? AND ? GROUP BY s.id, s.encrypted_name, s.registration_number HAVING absences > 0 ORDER BY absences DESC, attendance_rate ASC LIMIT 5`;
-  const absenteeStatement = env.DB.prepare(absenteeSql);
-  const absenteeRows = user.role === 'professor' ? await absenteeStatement.bind(user.id, from, to).all<{ encrypted_name: string; registration_number: string; absences: number; attendance_rate: number }>() : await absenteeStatement.bind(from, to).all<{ encrypted_name: string; registration_number: string; absences: number; attendance_rate: number }>();
-  const topAbsentees = await Promise.all(absenteeRows.results.map(async (row) => {
-    let name = `Aluno ${row.registration_number || ''}`;
-    try {
-      name = await decryptText(env, row.encrypted_name);
-    } catch {
-      // fallback
-    }
-    return {
-      name,
-      registrationNumber: row.registration_number,
-      absences: Number(row.absences),
-      attendanceRate: Number(row.attendance_rate),
-    };
-  }));
-  const teacherSql = `SELECT u.id, u.name, COUNT(DISTINCT ct.class_id) AS classes, COUNT(DISTINCT e.student_id) AS students
-     FROM users u JOIN class_teachers ct ON ct.user_id = u.id AND ct.deleted_at IS NULL
-     JOIN classes c ON c.id = ct.class_id AND c.deleted_at IS NULL
-     LEFT JOIN enrollments e ON e.class_id = c.id AND e.status = 'ativa' AND e.deleted_at IS NULL
-    WHERE u.role = 'professor' AND u.active = 1 ${user.role === 'professor' ? 'AND u.id = ?' : ''}
-      AND EXISTS (SELECT 1 FROM attendance_records ap WHERE ap.class_id = c.id AND ap.deleted_at IS NULL AND ap.date BETWEEN ? AND ?)
-    GROUP BY u.id, u.name ORDER BY classes DESC, u.name`;
-  const teacherStatement = env.DB.prepare(teacherSql);
-  const teacherWorkload = user.role === 'professor' ? await teacherStatement.bind(user.id, from, to).all() : await teacherStatement.bind(from, to).all();
-  return {
-    globalAttendanceRate: totals.records ? Math.round((totals.present / totals.records) * 1000) / 10 : 0,
-    distribution: totals,
-    classes: classes.results,
-    evolution: daily.results,
-    topAbsentees,
-    teacherWorkload: teacherWorkload.results,
+
+  const cacheKey = `dashboard:${user.role}:${user.id}:${from}:${to}`;
+  const defaultFallback = {
+    globalAttendanceRate: 100,
+    distribution: { records: 0, present: 0, absent: 0, justified: 0, delayed: 0 },
+    classes: [],
+    evolution: [],
+    topAbsentees: [],
+    teacherWorkload: [],
     period: { from, to },
   };
+
+  return withCacheOrD1Fallback(cacheKey, 60_000, async () => {
+    const classJoin = user.role === 'professor'
+      ? `JOIN class_teachers ct ON ct.class_id = c.id AND ct.user_id = ? AND ct.deleted_at IS NULL`
+      : '';
+    const statement = env.DB.prepare(
+      `SELECT c.id, c.name, co.name AS course_name,
+              COUNT(a.id) AS records,
+              ROUND(100.0 * SUM(CASE WHEN a.status = 'P' THEN 1 ELSE 0 END) / NULLIF(COUNT(a.id), 0), 1) AS attendance_rate,
+              SUM(CASE WHEN a.status = 'P' THEN 1 ELSE 0 END) AS present,
+              SUM(CASE WHEN a.status = 'F' THEN 1 ELSE 0 END) AS absent,
+              SUM(CASE WHEN a.status = 'J' THEN 1 ELSE 0 END) AS justified,
+              SUM(CASE WHEN a.status = 'A' THEN 1 ELSE 0 END) AS delayed
+         FROM classes c JOIN courses co ON co.id = c.course_id ${classJoin}
+         LEFT JOIN attendance_records a ON a.class_id = c.id AND a.deleted_at IS NULL AND a.date BETWEEN ? AND ?
+        WHERE c.deleted_at IS NULL GROUP BY c.id, c.name, co.name ORDER BY c.name`,
+    );
+    const classes = user.role === 'professor' ? await statement.bind(user.id, from, to).all<JsonRecord>() : await statement.bind(from, to).all<JsonRecord>();
+    const totals = classes.results.reduce<{ records: number; present: number; absent: number; justified: number; delayed: number }>((acc, row) => {
+      acc.records += Number(row.records ?? 0); acc.present += Number(row.present ?? 0);
+      acc.absent += Number(row.absent ?? 0); acc.justified += Number(row.justified ?? 0); acc.delayed += Number(row.delayed ?? 0); return acc;
+    }, { records: 0, present: 0, absent: 0, justified: 0, delayed: 0 });
+    const dailySql = user.role === 'professor'
+      ? `SELECT a.date, ROUND(100.0 * SUM(CASE WHEN a.status = 'P' THEN 1 ELSE 0 END) / COUNT(*), 1) AS rate FROM attendance_records a JOIN class_teachers ct ON ct.class_id = a.class_id AND ct.user_id = ? AND ct.deleted_at IS NULL WHERE a.deleted_at IS NULL AND a.date BETWEEN ? AND ? GROUP BY a.date ORDER BY a.date`
+      : `SELECT a.date, ROUND(100.0 * SUM(CASE WHEN a.status = 'P' THEN 1 ELSE 0 END) / COUNT(*), 1) AS rate FROM attendance_records a WHERE a.deleted_at IS NULL AND a.date BETWEEN ? AND ? GROUP BY a.date ORDER BY a.date`;
+    const dailyStatement = env.DB.prepare(dailySql);
+    const daily = user.role === 'professor' ? await dailyStatement.bind(user.id, from, to).all() : await dailyStatement.bind(from, to).all();
+    const absenteeSql = user.role === 'professor'
+      ? `SELECT s.encrypted_name, s.registration_number, SUM(CASE WHEN a.status = 'F' THEN 1 ELSE 0 END) AS absences, ROUND(100.0 * SUM(CASE WHEN a.status = 'P' THEN 1 ELSE 0 END) / COUNT(*), 1) AS attendance_rate FROM attendance_records a JOIN students s ON s.id = a.student_id JOIN class_teachers ct ON ct.class_id = a.class_id AND ct.user_id = ? AND ct.deleted_at IS NULL WHERE a.deleted_at IS NULL AND a.date BETWEEN ? AND ? GROUP BY s.id, s.encrypted_name, s.registration_number HAVING absences > 0 ORDER BY absences DESC, attendance_rate ASC LIMIT 5`
+      : `SELECT s.encrypted_name, s.registration_number, SUM(CASE WHEN a.status = 'F' THEN 1 ELSE 0 END) AS absences, ROUND(100.0 * SUM(CASE WHEN a.status = 'P' THEN 1 ELSE 0 END) / COUNT(*), 1) AS attendance_rate FROM attendance_records a JOIN students s ON s.id = a.student_id WHERE a.deleted_at IS NULL AND a.date BETWEEN ? AND ? GROUP BY s.id, s.encrypted_name, s.registration_number HAVING absences > 0 ORDER BY absences DESC, attendance_rate ASC LIMIT 5`;
+    const absenteeStatement = env.DB.prepare(absenteeSql);
+    const absenteeRows = user.role === 'professor' ? await absenteeStatement.bind(user.id, from, to).all<{ encrypted_name: string; registration_number: string; absences: number; attendance_rate: number }>() : await absenteeStatement.bind(from, to).all<{ encrypted_name: string; registration_number: string; absences: number; attendance_rate: number }>();
+    const topAbsentees = await Promise.all(absenteeRows.results.map(async (row) => {
+      let name = `Aluno ${row.registration_number || ''}`;
+      try {
+        name = await decryptText(env, row.encrypted_name);
+      } catch {
+        // fallback
+      }
+      return {
+        name,
+        registrationNumber: row.registration_number,
+        absences: Number(row.absences),
+        attendanceRate: Number(row.attendance_rate),
+      };
+    }));
+    const teacherSql = `SELECT u.id, u.name, COUNT(DISTINCT ct.class_id) AS classes, COUNT(DISTINCT e.student_id) AS students
+       FROM users u JOIN class_teachers ct ON ct.user_id = u.id AND ct.deleted_at IS NULL
+       JOIN classes c ON c.id = ct.class_id AND c.deleted_at IS NULL
+       LEFT JOIN enrollments e ON e.class_id = c.id AND e.status = 'ativa' AND e.deleted_at IS NULL
+      WHERE u.role = 'professor' AND u.active = 1 ${user.role === 'professor' ? 'AND u.id = ?' : ''}
+        AND EXISTS (SELECT 1 FROM attendance_records ap WHERE ap.class_id = c.id AND ap.deleted_at IS NULL AND ap.date BETWEEN ? AND ?)
+      GROUP BY u.id, u.name ORDER BY classes DESC, u.name`;
+    const teacherStatement = env.DB.prepare(teacherSql);
+    const teacherWorkload = user.role === 'professor' ? await teacherStatement.bind(user.id, from, to).all() : await teacherStatement.bind(from, to).all();
+    return {
+      globalAttendanceRate: totals.records ? Math.round((totals.present / totals.records) * 1000) / 10 : 0,
+      distribution: totals,
+      classes: classes.results,
+      evolution: daily.results,
+      topAbsentees,
+      teacherWorkload: teacherWorkload.results,
+      period: { from, to },
+    };
+  }, defaultFallback);
 }
 
 export async function listConflicts(env: Env, user: AuthUser): Promise<unknown> {

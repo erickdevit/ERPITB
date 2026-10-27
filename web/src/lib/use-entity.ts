@@ -20,54 +20,90 @@ const entityEndpointMap: Record<Entity, string> = {
 
 // In-memory transient cache to prevent redundant HTTP roundtrips across components
 const inMemoryCache = new Map<string, { items: LocalRecord[]; timestamp: number }>();
+const inFlightRequests = new Map<string, Promise<LocalRecord[]>>();
+const CACHE_TTL_MS = 60_000; // 60 seconds TTL
 
-export function clearEntityMemoryCache() {
-  inMemoryCache.clear();
+export function clearEntityMemoryCache(entity?: Entity | string) {
+  if (entity) {
+    for (const key of inMemoryCache.keys()) {
+      if (key.startsWith(`${entity}_`)) {
+        inMemoryCache.delete(key);
+      }
+    }
+  } else {
+    inMemoryCache.clear();
+  }
 }
 
 export function useEntity(entity: Entity, includeDeleted = false) {
   const { store, api, refresh } = useApp();
+  const cacheKey = `${entity}_${includeDeleted}`;
   const [items, setItems] = useState<LocalRecord[]>(() => {
-    const cached = inMemoryCache.get(`${entity}_${includeDeleted}`);
+    const cached = inMemoryCache.get(cacheKey);
     return cached?.items ?? [];
   });
-  const [loading, setLoading] = useState(!inMemoryCache.has(`${entity}_${includeDeleted}`));
+  const [loading, setLoading] = useState(!inMemoryCache.has(cacheKey));
   const fetching = useRef(false);
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (force = true) => {
+    const cached = inMemoryCache.get(cacheKey);
+    if (!force && cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      setItems(cached.items);
+      setLoading(false);
+      return;
+    }
+
     if (fetching.current) return;
     fetching.current = true;
     try {
       let values: LocalRecord[] = [];
       const endpoint = entityEndpointMap[entity];
 
-      if (api && endpoint) {
+      if (inFlightRequests.has(cacheKey)) {
+        values = await inFlightRequests.get(cacheKey)!;
+      } else {
+        const fetchPromise = (async () => {
+          let fetched: LocalRecord[] = [];
+          if (api && endpoint) {
+            try {
+              const res = await api.get<{ items: LocalRecord[] }>(endpoint);
+              if (Array.isArray(res?.items)) {
+                fetched = res.items;
+              }
+            } catch {
+              // Fallback to existing memory cache if API not reachable or quota exceeded (503)
+              if (cached?.items && cached.items.length > 0) {
+                return cached.items;
+              }
+              // Fallback to store if API not reachable or in mock test environment
+              if (store && typeof store.list === 'function') {
+                fetched = await store.list(entity, includeDeleted);
+              }
+            }
+          } else if (store && typeof store.list === 'function') {
+            fetched = await store.list(entity, includeDeleted);
+          }
+          return entity === 'attendance_records' ? latestAttendance(fetched) : fetched;
+        })();
+
+        inFlightRequests.set(cacheKey, fetchPromise);
         try {
-          const res = await api.get<{ items: LocalRecord[] }>(endpoint);
-          if (Array.isArray(res?.items)) {
-            values = res.items;
-          }
-        } catch {
-          // Fallback to store if API not reachable or in mock test environment
-          if (store && typeof store.list === 'function') {
-            values = await store.list(entity, includeDeleted);
-          }
+          values = await fetchPromise;
+        } finally {
+          inFlightRequests.delete(cacheKey);
         }
-      } else if (store && typeof store.list === 'function') {
-        values = await store.list(entity, includeDeleted);
       }
 
-      const processed = entity === 'attendance_records' ? latestAttendance(values) : values;
-      inMemoryCache.set(`${entity}_${includeDeleted}`, { items: processed, timestamp: Date.now() });
-      setItems(processed);
+      inMemoryCache.set(cacheKey, { items: values, timestamp: Date.now() });
+      setItems(values);
       setLoading(false);
     } finally {
       fetching.current = false;
     }
-  }, [api, entity, includeDeleted, store]);
+  }, [api, cacheKey, entity, includeDeleted, store]);
 
   useEffect(() => {
-    void reload();
+    void reload(false);
   }, [refresh, reload]);
 
   return { items, loading, reload };

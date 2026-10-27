@@ -82,7 +82,8 @@ export function ApplicationProvider({
   useServerEvents({
     enabled: Boolean(session?.accessToken) && typeof EventSource !== 'undefined' && !(import.meta as any).env?.VITEST,
     token: session?.accessToken,
-    onEntityChanged: () => {
+    onEntityChanged: (entityName) => {
+      clearEntityMemoryCache(entityName as any);
       setRefresh((value) => value + 1);
     },
     onBrandingUpdated: (next) => {
@@ -105,11 +106,13 @@ export function ApplicationProvider({
     syncing.current = true;
     setSyncState('syncing');
     try {
-      clearEntityMemoryCache();
-      await drainLegacyClientStorage(api);
+      const res = await drainLegacyClientStorage(api);
+      if (res?.drained && res.count > 0) {
+        clearEntityMemoryCache();
+        setRefresh((value) => value + 1);
+      }
       setSyncState('idle');
       setMessage(undefined);
-      setRefresh((value) => value + 1);
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         if (store && typeof store.clearSession === 'function') {
@@ -119,7 +122,6 @@ export function ApplicationProvider({
         return;
       }
       setSyncState('idle');
-      setRefresh((value) => value + 1);
     } finally {
       syncing.current = false;
     }
@@ -128,12 +130,9 @@ export function ApplicationProvider({
   useEffect(() => {
     void sync();
     const online = () => void sync();
-    const focus = () => void sync();
     window.addEventListener('online', online);
-    window.addEventListener('focus', focus);
     return () => {
       window.removeEventListener('online', online);
-      window.removeEventListener('focus', focus);
     };
   }, [sync]);
 
