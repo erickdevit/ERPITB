@@ -263,7 +263,7 @@ export function StudentReportCardView({
                 Frequência
               </span>
               <span className="text-sm font-bold text-slate-800 block">
-                {data.overallAttendanceRate.toFixed(1).replace('.', ',')}%
+                {totalClassesHeld > 0 ? `${data.overallAttendanceRate.toFixed(1).replace('.', ',')}%` : '—'}
               </span>
             </div>
             <div className="min-w-0 border-l border-slate-200/90 pl-2 sm:pl-3 print:hidden">

@@ -214,8 +214,19 @@ describe('Branding, API Keys, Sessions and Enrollment Locking', () => {
     const lockRes = await request(env, `/api/v1/students/${studentId}/lock`, {
       method: 'POST',
       token: adminToken,
+      body: { classId: classRes.data.id },
     });
     expect(lockRes.status).toBe(200);
     expect(lockRes.data.ok).toBe(true);
+
+    // Unlock / Reactivate student enrollment
+    const unlockRes = await request(env, `/api/v1/students/${studentId}/unlock`, {
+      method: 'POST',
+      token: adminToken,
+      body: { classId: classRes.data.id },
+    });
+    expect(unlockRes.status).toBe(200);
+    expect(unlockRes.data.ok).toBe(true);
+    expect(unlockRes.data.message).toContain('reativada com sucesso');
   });
 });

@@ -18,6 +18,8 @@ export interface AttendanceDraftRow {
   existingReplacement?: LocalRecord;
   replacement?: ReplacementDraft;
   statusChanged: boolean;
+  enrollmentStatus?: 'ativa' | 'trancada' | 'concluida';
+  enrollmentId?: string;
 }
 
 export interface CallAccess {
@@ -75,9 +77,21 @@ export function buildAttendanceDraftRows(input: {
   const safeReplacements = input.replacements ?? [];
   const safeStudents = input.students ?? [];
 
-  const activeStudentIds = new Set(safeEnrollments
-    .filter((item) => !item.deleted_at && item.class_id === input.classId && item.status === 'ativa')
-    .map((item) => String(item.student_id)));
+  const enrollmentByStudent = new Map(
+    safeEnrollments
+      .filter((item) => !item.deleted_at && item.class_id === input.classId)
+      .map((item) => [String(item.student_id), item]),
+  );
+  const eligibleStudentIds = new Set(
+    safeEnrollments
+      .filter(
+        (item) =>
+          !item.deleted_at &&
+          item.class_id === input.classId &&
+          (item.status === 'ativa' || item.status === 'trancada'),
+      )
+      .map((item) => String(item.student_id)),
+  );
   const records = latestAttendance(safeAttendance).filter((item) => !item.deleted_at
     && item.class_id === input.classId && item.date === input.date);
   const recordByStudent = new Map(records.map((item) => [String(item.student_id), item]));
@@ -86,15 +100,30 @@ export function buildAttendanceDraftRows(input: {
     .map((item) => [String(item.attendance_record_id), item]));
 
   return safeStudents
-    .filter((student) => isActive(student) && (activeStudentIds.has(student.id) || recordByStudent.has(student.id)))
+    .filter((student) => isActive(student) && (eligibleStudentIds.has(student.id) || recordByStudent.has(student.id)))
     .sort((left, right) => text(left, 'name').localeCompare(text(right, 'name'), 'pt-BR'))
     .map((student) => {
       const existingAttendance = recordByStudent.get(student.id);
       const persistedStatus = text(existingAttendance, 'status') as AttendanceStatus | '';
       const existingReplacement = existingAttendance ? replacementByAttendance.get(existingAttendance.id) : undefined;
+      const enrollment = enrollmentByStudent.get(student.id);
+      const enrollmentStatus = (enrollment ? String(enrollment.status) : 'ativa') as 'ativa' | 'trancada' | 'concluida';
+
+      let defaultStatus: EditableAttendanceStatus | undefined;
+      if (persistedStatus === 'RC') {
+        defaultStatus = 'R';
+      } else if (persistedStatus) {
+        defaultStatus = persistedStatus as EditableAttendanceStatus;
+      } else if (enrollmentStatus === 'trancada') {
+        // Locked students do not get defaulted to 'P' on uncalled dates
+        defaultStatus = undefined;
+      } else {
+        defaultStatus = 'P';
+      }
+
       return {
         student,
-        status: persistedStatus === 'RC' ? 'R' : (persistedStatus || 'P') as EditableAttendanceStatus,
+        status: defaultStatus,
         notes: text(existingAttendance, 'notes'),
         existingAttendance,
         existingReplacement,
@@ -104,6 +133,8 @@ export function buildAttendanceDraftRows(input: {
           notes: text(existingReplacement, 'notes'),
         } : undefined,
         statusChanged: false,
+        enrollmentStatus,
+        enrollmentId: enrollment ? String(enrollment.id) : undefined,
       };
     });
 }

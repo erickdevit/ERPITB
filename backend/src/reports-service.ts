@@ -57,13 +57,13 @@ export async function generateReportData(env: Env, user: AuthUser, url: URL): Pr
 
     const totalRecords = attRow?.total_records ?? 0;
     const presentRecords = attRow?.present_count ?? 0;
-    const overallRate = totalRecords > 0 ? Math.round((presentRecords / totalRecords) * 1000) / 10 : 100;
+    const overallRate = totalRecords > 0 ? Math.round((presentRecords / totalRecords) * 1000) / 10 : null;
 
     const rows = courses.results.map((c) => [
       c.name,
       c.classes_count,
       c.students_count,
-      `${overallRate}%`,
+      overallRate !== null ? `${overallRate}%` : '—',
     ]);
 
     return {
@@ -74,7 +74,7 @@ export async function generateReportData(env: Env, user: AuthUser, url: URL): Pr
         { label: 'Cursos Ativos', value: String(courses.results.length) },
         { label: 'Total de Turmas', value: String(courses.results.reduce((a, b) => a + b.classes_count, 0)) },
         { label: 'Alunos Ativos', value: String(courses.results.reduce((a, b) => a + b.students_count, 0)) },
-        { label: 'Frequência Geral', value: `${overallRate}%` },
+        { label: 'Frequência Geral', value: overallRate !== null ? `${overallRate}%` : '—' },
       ],
       headers: ['Curso', 'Turmas', 'Alunos Ativos', 'Taxa Média'],
       rows,
@@ -153,7 +153,7 @@ export async function generateReportData(env: Env, user: AuthUser, url: URL): Pr
       }
 
       const totalMarked = presences + absences;
-      const freqRate = totalMarked > 0 ? `${Math.round((presences / totalMarked) * 100)}%` : '100%';
+      const freqRate = totalMarked > 0 ? `${Math.round((presences / totalMarked) * 100)}%` : '—';
 
       rows.push([e.registration_number, name, ...statusCols, presences, absences, freqRate]);
     }
@@ -325,7 +325,7 @@ export async function generateReportData(env: Env, user: AuthUser, url: URL): Pr
 
     const totalAtt = attRow?.total ?? 0;
     const presences = attRow?.presences ?? 0;
-    const freqRate = totalAtt > 0 ? Math.round((presences / totalAtt) * 1000) / 10 : 100;
+    const freqRate = totalAtt > 0 ? `${(Math.round((presences / totalAtt) * 1000) / 10).toFixed(1)}%` : '—';
 
     return {
       type,

@@ -32,11 +32,26 @@ export async function ensureClassSession(
 export async function listClassSessions(env: Env, user: AuthUser, classId: string): Promise<{ items: ClassSession[]; total: number }> {
   requireScope(user, 'classes:read', 'attendance:read');
   const rows = await env.DB.prepare(`
-    SELECT id, class_id, date, recorded_by_user_id, summary, created_at, updated_at
-      FROM class_sessions
-     WHERE class_id = ? AND deleted_at IS NULL
+    SELECT COALESCE(cs.id, 'session-' || ar.date) AS id,
+           COALESCE(cs.class_id, ar.class_id) AS class_id,
+           COALESCE(cs.date, ar.date) AS date,
+           COALESCE(cs.recorded_by_user_id, ar.recorded_by_user_id) AS recorded_by_user_id,
+           cs.summary,
+           COALESCE(cs.created_at, ar.created_at) AS created_at,
+           COALESCE(cs.updated_at, ar.updated_at) AS updated_at
+      FROM (
+        SELECT class_id, date, MIN(recorded_by_user_id) AS recorded_by_user_id, MIN(created_at) AS created_at, MAX(updated_at) AS updated_at
+          FROM attendance_records
+         WHERE class_id = ? AND deleted_at IS NULL
+         GROUP BY class_id, date
+      ) ar
+      LEFT JOIN class_sessions cs ON cs.class_id = ar.class_id AND cs.date = ar.date AND cs.deleted_at IS NULL
+     UNION
+    SELECT cs.id, cs.class_id, cs.date, cs.recorded_by_user_id, cs.summary, cs.created_at, cs.updated_at
+      FROM class_sessions cs
+     WHERE cs.class_id = ? AND cs.deleted_at IS NULL
      ORDER BY date DESC
-  `).bind(classId).all<{
+  `).bind(classId, classId).all<{
     id: string; class_id: string; date: string; recorded_by_user_id: string;
     summary: string | null; created_at: string; updated_at: string;
   }>();

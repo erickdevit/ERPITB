@@ -309,10 +309,17 @@ function classGradesReport(input: ReportInput, filters: ReportFilters): ReportVi
     students,
   });
 
+  const distinctClassDates = new Set(
+    scope.attendance
+      .filter((r) => r.class_id === classRecord.id && r.date)
+      .map((r) => String(r.date))
+  );
+  const totalClassSessions = distinctClassDates.size;
+
   const rows: ExportValue[][] = summary.studentSummaries.map((student) => {
     const studentAtt = scope.attendance.filter((r) => r.student_id === student.studentId);
-    const present = studentAtt.filter((r) => r.status === 'P').length;
-    const freq = studentAtt.length ? percent(pct(present, studentAtt.length)) : '—';
+    const present = studentAtt.filter((r) => r.status === 'P' || r.status === 'RC').length;
+    const freq = totalClassSessions > 0 ? percent(pct(present, totalClassSessions)) : '—';
     return [
       student.registrationNumber,
       student.studentName,
@@ -503,14 +510,15 @@ function studentBoletimReport(input: ReportInput, filters: ReportFilters): Repor
     mod.presences,
     mod.absences,
     mod.justified,
-    percent(mod.attendanceRate),
+    mod.classesHeld > 0 ? percent(mod.attendanceRate) : '—',
     mod.grades.map((g) => `${g.name}: ${g.score !== null ? g.score.toFixed(1) : '—'}`).join(' | ') || '—',
     mod.finalGrade !== null ? mod.finalGrade.toFixed(1) : '—',
     mod.academicStatus,
   ]);
 
+  const hasAnyClassesHeld = boletim.modules.some((m) => m.classesHeld > 0);
   const metrics: ReportMetric[] = [
-    { label: 'Frequência Geral', value: percent(boletim.overallAttendanceRate) },
+    { label: 'Frequência Geral', value: hasAnyClassesHeld ? percent(boletim.overallAttendanceRate) : '—' },
     { label: 'Média Geral', value: boletim.overallGpa !== null ? boletim.overallGpa.toFixed(1) : '—' },
     { label: 'Situação Final', value: boletim.overallAcademicStatus },
   ];

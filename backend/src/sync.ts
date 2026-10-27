@@ -43,7 +43,7 @@ function validateOperation(value: unknown): SyncOperation {
   };
 }
 
-async function teacherOwnsClass(env: Env, userId: string, classId: string): Promise<boolean> {
+export async function teacherOwnsClass(env: Env, userId: string, classId: string): Promise<boolean> {
   const row = await env.DB.prepare(
     `SELECT 1 AS allowed FROM class_teachers WHERE user_id = ? AND class_id = ? AND deleted_at IS NULL LIMIT 1`,
   ).bind(userId, classId).first();
@@ -432,12 +432,24 @@ async function applyOperation(env: Env, user: AuthUser, deviceId: string, operat
     payload = { id: targetId, ...normalized, sync_version: version, created_at: existing?.created_at ?? timestamp, updated_at: timestamp, deleted_at: null };
   }
   const result = { operationId: operation.operationId, status: 'applied', version };
-  await env.DB.batch([
+  const batchStatements = [
     statement,
     env.DB.prepare(`INSERT INTO sync_changes (entity_name, entity_id, operation, payload_json, changed_by_user_id, changed_at) VALUES (?, ?, ?, ?, ?, ?)`).bind(operation.entity, targetId, operation.action, JSON.stringify(payload), user.id, timestamp),
     env.DB.prepare(`INSERT INTO sync_operations (operation_id, device_id, user_id, result_json, created_at) VALUES (?, ?, ?, ?, ?)`).bind(operation.operationId, deviceId, user.id, JSON.stringify(result), timestamp),
     env.DB.prepare(`INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at) VALUES (?, ?, 'SYNC_APPLY', ?, ?, ?, ?)`).bind(uuid(), user.id, operation.entity, targetId, JSON.stringify({ operationId: operation.operationId, deviceId }), timestamp),
-  ]);
+  ];
+  if (operation.entity === 'attendance_records' && operation.action === 'upsert' && payload.class_id && payload.date) {
+    batchStatements.push(
+      env.DB.prepare(`
+        INSERT INTO class_sessions (id, class_id, date, recorded_by_user_id, summary, created_at, updated_at)
+        VALUES (?, ?, ?, ?, NULL, ?, ?)
+        ON CONFLICT(class_id, date) DO UPDATE SET
+          deleted_at = NULL,
+          updated_at = excluded.updated_at
+      `).bind(uuid(), payload.class_id, payload.date, user.id, timestamp, timestamp)
+    );
+  }
+  await env.DB.batch(batchStatements);
   return result;
 }
 

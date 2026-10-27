@@ -10,6 +10,7 @@ import {
   Save,
   Search,
   UserCog,
+  UserCheck,
   UserMinus,
 } from 'lucide-react';
 import { useApp } from '../app-context';
@@ -116,7 +117,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   const [quickEditStudent, setQuickEditStudent] = useState<QuickEditStudentState>();
   const [quickAddStudent, setQuickAddStudent] = useState<QuickAddStudentState>();
   const [confirmActionModal, setConfirmActionModal] = useState<{
-    type: 'lock' | 'archive';
+    type: 'lock' | 'unlock' | 'archive';
     studentId: string;
     studentName: string;
   }>();
@@ -336,6 +337,11 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
     setConfirmActionModal({ type: 'lock', studentId, studentName });
   };
 
+  const handleQuickUnlockEnrollment = (studentId: string, studentName: string) => {
+    if (!classId) return;
+    setConfirmActionModal({ type: 'unlock', studentId, studentName });
+  };
+
   const handleSafeArchiveStudent = (studentId: string, studentName: string) => {
     setConfirmActionModal({ type: 'archive', studentId, studentName });
   };
@@ -349,7 +355,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
       if (!classId) return;
       try {
         if (api && typeof api.lockStudentEnrollment === 'function') {
-          await api.lockStudentEnrollment(studentId);
+          await api.lockStudentEnrollment(studentId, classId);
         } else {
           const enr = enrollments.items.find(
             (e) => !e.deleted_at && e.class_id === classId && e.student_id === studentId && e.status === 'ativa',
@@ -370,6 +376,36 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
         setNotice({
           severity: 'error',
           message: error instanceof Error ? error.message : 'Não foi possível trancar a matrícula.',
+        });
+      }
+      return;
+    }
+
+    if (type === 'unlock') {
+      if (!classId) return;
+      try {
+        if (api && typeof api.unlockStudentEnrollment === 'function') {
+          await api.unlockStudentEnrollment(studentId, classId);
+        } else {
+          const enr = enrollments.items.find(
+            (e) => !e.deleted_at && e.class_id === classId && e.student_id === studentId && e.status === 'trancada',
+          );
+          if (enr) {
+            await store.mutateBatch([
+              {
+                entity: 'enrollments',
+                data: { ...enr, status: 'ativa', left_at: null },
+              },
+            ]);
+          }
+        }
+        await Promise.all([enrollments.reload(), students.reload()]);
+        setNotice({ severity: 'success', message: `Matrícula de ${studentName} reativada com sucesso.` });
+        void sync();
+      } catch (error) {
+        setNotice({
+          severity: 'error',
+          message: error instanceof Error ? error.message : 'Não foi possível reativar a matrícula.',
         });
       }
       return;
@@ -619,9 +655,16 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                         {text(row.student, 'name').slice(0, 1).toUpperCase()}
                       </div>
                       <div className="min-w-0 text-left">
-                        <p className="text-sm sm:text-base font-bold text-slate-900 truncate">
-                          {text(row.student, 'name')}
-                        </p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-sm sm:text-base font-bold text-slate-900 truncate">
+                            {text(row.student, 'name')}
+                          </p>
+                          {row.enrollmentStatus === 'trancada' && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200 shrink-0">
+                              Trancada
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -632,18 +675,24 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                         {(['P', 'F', 'J', 'A', 'R'] as EditableAttendanceStatus[]).map((statusKey) => {
                           const selected = row.status === statusKey;
                           const cfg = statusConfig[statusKey];
+                          const isLocked = row.enrollmentStatus === 'trancada';
                           return (
                             <button
                               key={statusKey}
                               type="button"
-                              disabled={!access.editable}
+                              disabled={!access.editable || isLocked}
+                              title={
+                                isLocked
+                                  ? 'Matrícula trancada nesta turma. Reative a matrícula para lançar frequência.'
+                                  : undefined
+                              }
                               aria-pressed={selected}
                               onClick={() => selectStatus(rowIndex, statusKey)}
                               className={`w-11 h-11 lg:w-9 lg:h-9 min-w-[44px] min-h-[44px] lg:min-w-[36px] lg:min-h-[36px] rounded-md text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center ${
                                 selected
                                   ? `${cfg.activeBg} ${cfg.activeText} shadow-xs scale-105`
                                   : `text-slate-600 ${cfg.hoverBg}`
-                              } disabled:opacity-50`}
+                              } disabled:opacity-40 disabled:cursor-not-allowed`}
                             >
                               {statusKey}
                             </button>
@@ -706,16 +755,28 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                         <UserCog className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
                       </button>
 
-                      {/* Quick Lock Enrollment Button */}
-                      <button
-                        type="button"
-                        aria-label={`Trancar matrícula de ${text(row.student, 'name')}`}
-                        title="Trancar matrícula nesta turma"
-                        onClick={() => handleQuickLockEnrollment(row.student.id, text(row.student, 'name'))}
-                        className="p-2 min-w-[40px] min-h-[40px] lg:min-w-[34px] lg:min-h-[34px] flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-amber-700 hover:bg-amber-50 hover:border-amber-200 transition-colors cursor-pointer"
-                      >
-                        <UserMinus className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
-                      </button>
+                      {/* Quick Lock / Unlock Enrollment Button */}
+                      {row.enrollmentStatus === 'trancada' ? (
+                        <button
+                          type="button"
+                          aria-label={`Reativar matrícula de ${text(row.student, 'name')}`}
+                          title="Reativar / Destrancar matrícula nesta turma"
+                          onClick={() => handleQuickUnlockEnrollment(row.student.id, text(row.student, 'name'))}
+                          className="p-2 min-w-[40px] min-h-[40px] lg:min-w-[34px] lg:min-h-[34px] flex items-center justify-center rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-400 transition-colors cursor-pointer shadow-2xs"
+                        >
+                          <UserCheck className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          aria-label={`Trancar matrícula de ${text(row.student, 'name')}`}
+                          title="Trancar matrícula nesta turma"
+                          onClick={() => handleQuickLockEnrollment(row.student.id, text(row.student, 'name'))}
+                          className="p-2 min-w-[40px] min-h-[40px] lg:min-w-[34px] lg:min-h-[34px] flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-amber-700 hover:bg-amber-50 hover:border-amber-200 transition-colors cursor-pointer"
+                        >
+                          <UserMinus className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
+                        </button>
+                      )}
 
                       {/* Safe Archive Student Button (no physical DELETE; preserves academic & financial history) */}
                       <button
@@ -785,18 +846,24 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
         </>
       )}
 
-      {/* Confirm Lock / Archive Student Modal (Replaces Browser window.confirm) */}
+      {/* Confirm Lock / Unlock / Archive Student Modal (Replaces Browser window.confirm) */}
       <PageDialog
         open={Boolean(confirmActionModal)}
         title={
           confirmActionModal?.type === 'lock'
             ? 'Trancar matrícula do aluno'
+            : confirmActionModal?.type === 'unlock'
+            ? 'Reativar matrícula do aluno'
             : 'Excluir / Arquivar aluno da turma'
         }
         onClose={() => setConfirmActionModal(undefined)}
         onSave={() => void executeConfirmedStudentAction()}
         saveText={
-          confirmActionModal?.type === 'lock' ? 'Confirmar trancamento' : 'Confirmar exclusão'
+          confirmActionModal?.type === 'lock'
+            ? 'Confirmar trancamento'
+            : confirmActionModal?.type === 'unlock'
+            ? 'Confirmar reativação'
+            : 'Confirmar exclusão'
         }
       >
         {confirmActionModal?.type === 'lock' ? (
@@ -808,6 +875,16 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
             <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
               O histórico de presenças, notas e registros financeiros será integralmente preservado, e o aluno não
               aparecerá nas chamadas futuras desta turma.
+            </div>
+          </div>
+        ) : confirmActionModal?.type === 'unlock' ? (
+          <div className="space-y-3 text-left text-xs sm:text-sm text-slate-700">
+            <p>
+              Deseja reativar a matrícula de{' '}
+              <strong className="text-slate-900">{confirmActionModal.studentName}</strong> nesta turma?
+            </p>
+            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900">
+              O aluno voltará a constar como ativo nesta turma e apto para novos lançamentos de frequência e notas.
             </div>
           </div>
         ) : (

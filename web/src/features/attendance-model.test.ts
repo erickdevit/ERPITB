@@ -69,6 +69,33 @@ describe('attendance drafts', () => {
     expect(result.find((r) => r.student.id === 'student-2')).toMatchObject({ status: 'P', statusChanged: false });
   });
 
+  it('includes locked enrollments (status: trancada) without defaulting status to P', () => {
+    const result = buildAttendanceDraftRows({
+      classId: 'class-1', date: '2026-08-15',
+      students: [student('student-1', 'Ana'), student('student-2', 'Bia')],
+      enrollments: [
+        { id: 'e1', class_id: 'class-1', student_id: 'student-1', status: 'ativa' },
+        { id: 'e2', class_id: 'class-1', student_id: 'student-2', status: 'trancada' },
+      ],
+      attendance: [],
+    });
+
+    expect(result.map((row) => row.student.id)).toEqual(['student-1', 'student-2']);
+    const activeStudent = result.find((r) => r.student.id === 'student-1');
+    const lockedStudent = result.find((r) => r.student.id === 'student-2');
+
+    expect(activeStudent).toMatchObject({
+      enrollmentStatus: 'ativa',
+      enrollmentId: 'e1',
+      status: 'P',
+    });
+    expect(lockedStudent).toMatchObject({
+      enrollmentStatus: 'trancada',
+      enrollmentId: 'e2',
+      status: undefined,
+    });
+  });
+
   it('deselects a status on the second click and removes a pending replacement from the draft', () => {
     const row: AttendanceDraftRow = { student: student('student-1', 'Ana'), status: 'R', notes: '', statusChanged: false, replacement: { scheduledDate: '2026-08-16', scheduledTime: '09:00', notes: '' } };
     expect(toggleAttendanceStatus(row, 'R')).toMatchObject({ status: undefined, replacement: undefined, statusChanged: true });

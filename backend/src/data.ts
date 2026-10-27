@@ -1255,7 +1255,7 @@ export async function getPublicStudentData(env: Env, rawIdentifier: string): Pro
   const justified = records.filter((r) => r.status === 'J').length;
   const delayed = records.filter((r) => r.status === 'A').length;
   const replacement = records.filter((r) => r.status === 'R').length;
-  const attendanceRate = totalLessons > 0 ? Math.round((present / totalLessons) * 1000) / 10 : 100;
+  const attendanceRate = totalLessons > 0 ? Math.round((present / totalLessons) * 1000) / 10 : 0;
 
   // Monthly breakdown
   const monthlyMap = new Map<string, { present: number; total: number }>();

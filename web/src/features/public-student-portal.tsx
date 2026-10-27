@@ -360,17 +360,23 @@ export function PublicStudentPortal() {
                 <div className="flex items-baseline sm:justify-end gap-1.5">
                   <span
                     className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${
-                      isHealthyAttendance ? 'text-emerald-600' : 'text-rose-600'
+                      metrics.totalLessons === 0
+                        ? 'text-slate-400'
+                        : isHealthyAttendance
+                        ? 'text-emerald-600'
+                        : 'text-rose-600'
                     }`}
                   >
-                    {metrics.attendanceRate.toFixed(1)}%
+                    {metrics.totalLessons > 0 ? `${metrics.attendanceRate.toFixed(1)}%` : '—'}
                   </span>
                   <span className="text-xs font-semibold text-slate-400">
                     ({metrics.present}/{metrics.totalLessons} aulas)
                   </span>
                 </div>
                 <div className="text-[11px] font-medium text-slate-500 mt-0.5">
-                  {isHealthyAttendance ? (
+                  {metrics.totalLessons === 0 ? (
+                    <span className="text-slate-400 font-medium">Nenhuma aula registrada ainda</span>
+                  ) : isHealthyAttendance ? (
                     <span className="text-emerald-700 font-semibold flex items-center sm:justify-end gap-1">
                       <CheckCircle2 className="w-3.5 h-3.5" /> Frequência Regular (Acima de 75%)
                     </span>

@@ -3,7 +3,7 @@ import { requirePermission, requireScope } from './rbac';
 import { sha256Hex } from './crypto';
 import { checkIdempotency, saveIdempotency } from './idempotency';
 import { broadcastEvent, handleEventsStream } from './events-service';
-import { push } from './sync';
+import { push, teacherOwnsClass } from './sync';
 import {
   createCashEntry,
   createFee,
@@ -233,14 +233,30 @@ export async function handleV1Route(request: Request, env: Env, user: AuthUser, 
 
   const lockMatch = path.match(/^\/v1\/students\/([^/]+)\/lock$/);
   if (lockMatch && method === 'POST') {
-    requirePermission(user, 'students:write');
     const studentId = lockMatch[1]!;
+    const body = await readJson<Record<string, unknown>>(request.clone() as unknown as Request).catch(() => ({} as Record<string, unknown>));
+    const classId = typeof body.classId === 'string' && body.classId.trim() ? body.classId.trim() : null;
+
+    if (user.role === 'professor') {
+      if (!classId || !(await teacherOwnsClass(env, user.id, classId))) {
+        throw new AppError(403, 'Acesso não permitido para esta turma.', 'FORBIDDEN');
+      }
+    } else {
+      requirePermission(user, 'students:write');
+    }
+
     const timestamp = nowIso();
-    const result = await env.DB.prepare(`
-      UPDATE enrollments
-         SET status = 'trancada', updated_at = ?
-       WHERE student_id = ? AND status = 'ativa' AND deleted_at IS NULL
-    `).bind(timestamp, studentId).run();
+    const result = classId
+      ? await env.DB.prepare(`
+          UPDATE enrollments
+             SET status = 'trancada', updated_at = ?
+           WHERE student_id = ? AND class_id = ? AND status = 'ativa' AND deleted_at IS NULL
+        `).bind(timestamp, studentId, classId).run()
+      : await env.DB.prepare(`
+          UPDATE enrollments
+             SET status = 'trancada', updated_at = ?
+           WHERE student_id = ? AND status = 'ativa' AND deleted_at IS NULL
+        `).bind(timestamp, studentId).run();
 
     if (result.meta.changes === 0) {
       throw new AppError(404, 'Nenhuma matrícula ativa encontrada para trancar.', 'NOT_FOUND');
@@ -248,10 +264,49 @@ export async function handleV1Route(request: Request, env: Env, user: AuthUser, 
 
     await env.DB.prepare(`
       INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at)
-      VALUES (?, ?, 'LOCK_ENROLLMENT', 'enrollments', ?, '{}', ?)
-    `).bind(uuid(), user.id, studentId, timestamp).run();
+      VALUES (?, ?, 'LOCK_ENROLLMENT', 'enrollments', ?, ?, ?)
+    `).bind(uuid(), user.id, studentId, JSON.stringify({ classId }), timestamp).run();
 
-    return { ok: true, message: 'Matrícula trancada com sucesso. O aluno não aparecerá nas próximas chamadas.' };
+    return json({ ok: true, message: 'Matrícula trancada com sucesso. O aluno não aparecerá nas próximas chamadas.' }, 200);
+  }
+
+  const unlockMatch = path.match(/^\/v1\/students\/([^/]+)\/unlock$/);
+  if (unlockMatch && method === 'POST') {
+    const studentId = unlockMatch[1]!;
+    const body = await readJson<Record<string, unknown>>(request.clone() as unknown as Request).catch(() => ({} as Record<string, unknown>));
+    const classId = typeof body.classId === 'string' && body.classId.trim() ? body.classId.trim() : null;
+
+    if (user.role === 'professor') {
+      if (!classId || !(await teacherOwnsClass(env, user.id, classId))) {
+        throw new AppError(403, 'Acesso não permitido para esta turma.', 'FORBIDDEN');
+      }
+    } else {
+      requirePermission(user, 'students:write');
+    }
+
+    const timestamp = nowIso();
+    const result = classId
+      ? await env.DB.prepare(`
+          UPDATE enrollments
+             SET status = 'ativa', updated_at = ?
+           WHERE student_id = ? AND class_id = ? AND status = 'trancada' AND deleted_at IS NULL
+        `).bind(timestamp, studentId, classId).run()
+      : await env.DB.prepare(`
+          UPDATE enrollments
+             SET status = 'ativa', updated_at = ?
+           WHERE student_id = ? AND status = 'trancada' AND deleted_at IS NULL
+        `).bind(timestamp, studentId).run();
+
+    if (result.meta.changes === 0) {
+      throw new AppError(404, 'Nenhuma matrícula trancada encontrada para reativar.', 'NOT_FOUND');
+    }
+
+    await env.DB.prepare(`
+      INSERT INTO audit_logs (id, user_id, action, entity_name, entity_id, details_json, created_at)
+      VALUES (?, ?, 'UNLOCK_ENROLLMENT', 'enrollments', ?, ?, ?)
+    `).bind(uuid(), user.id, studentId, JSON.stringify({ classId }), timestamp).run();
+
+    return json({ ok: true, message: 'Matrícula reativada com sucesso. O aluno voltará a constar como ativo nas chamadas.' }, 200);
   }
 
   // 10. Enrollments Endpoints

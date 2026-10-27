@@ -22,6 +22,11 @@ const mocks = vi.hoisted(() => {
       mutateBatch: vi.fn().mockResolvedValue(undefined),
     },
     sync: vi.fn().mockResolvedValue(undefined),
+    api: {
+      lockStudentEnrollment: vi.fn().mockResolvedValue({ ok: true }),
+      unlockStudentEnrollment: vi.fn().mockResolvedValue({ ok: true }),
+      getClassSessions: vi.fn().mockResolvedValue({ sessions: [] }),
+    },
   };
 });
 
@@ -29,6 +34,7 @@ vi.mock('../app-context', () => ({
   useApp: () => ({
     store: mocks.store,
     sync: mocks.sync,
+    api: mocks.api,
     session: { id: 'teacher-1', name: 'Professor', role: 'professor' },
   }),
 }));
@@ -40,6 +46,7 @@ vi.mock('../lib/use-entity', () => ({
 describe('AttendancePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.entities.enrollments = [{ id: 'enrollment-1', class_id: 'class-1', student_id: 'student-1', status: 'ativa' }];
     mocks.entities.attendance_records = [];
     mocks.entities.class_notes = [];
     mocks.entities.replacements = [];
@@ -98,5 +105,53 @@ describe('AttendancePage', () => {
     expect(screen.getByRole('button', { name: 'Salvar chamada' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'P' })).toBeDisabled();
     expect(screen.getByLabelText('Observação geral da turma nesta chamada')).toBeDisabled();
+  });
+
+  it('allows locking an active enrollment directly from the attendance page', async () => {
+    const user = userEvent.setup();
+    render(<AttendancePage today="2026-08-15" />);
+    await screen.findByText('Ana Souza');
+
+    const lockBtn = screen.getByLabelText('Trancar matrícula de Ana Souza');
+    expect(lockBtn).toBeInTheDocument();
+    await user.click(lockBtn);
+
+    const dialog = await screen.findByRole('dialog', { name: /Trancar matrícula do aluno/i });
+    expect(within(dialog).getByText(/Deseja trancar a matrícula de/i)).toBeInTheDocument();
+
+    const confirmBtn = within(dialog).getByRole('button', { name: /Confirmar trancamento/i });
+    await user.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(mocks.api.lockStudentEnrollment).toHaveBeenCalledWith('student-1', 'class-1');
+    });
+    expect(mocks.reload).toHaveBeenCalled();
+    expect(mocks.sync).toHaveBeenCalled();
+  });
+
+  it('allows reactivating a locked enrollment directly from the attendance page', async () => {
+    const user = userEvent.setup();
+    mocks.entities.enrollments = [{ id: 'enrollment-1', class_id: 'class-1', student_id: 'student-1', status: 'trancada' }];
+    render(<AttendancePage today="2026-08-15" />);
+    await screen.findByText('Ana Souza');
+
+    expect(screen.getByText('Trancada')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'P' })).toBeDisabled();
+
+    const unlockBtn = screen.getByLabelText('Reativar matrícula de Ana Souza');
+    expect(unlockBtn).toBeInTheDocument();
+    await user.click(unlockBtn);
+
+    const dialog = await screen.findByRole('dialog', { name: /Reativar matrícula do aluno/i });
+    expect(within(dialog).getByText(/Deseja reativar a matrícula de/i)).toBeInTheDocument();
+
+    const confirmBtn = within(dialog).getByRole('button', { name: /Confirmar reativação/i });
+    await user.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(mocks.api.unlockStudentEnrollment).toHaveBeenCalledWith('student-1', 'class-1');
+    });
+    expect(mocks.reload).toHaveBeenCalled();
+    expect(mocks.sync).toHaveBeenCalled();
   });
 });

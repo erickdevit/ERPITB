@@ -216,9 +216,18 @@ export function buildUnifiedBoletimData(params: {
       .filter((t) => t.class_id === classRecord.id)
       .sort((a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0) || String(a.created_at ?? '').localeCompare(String(b.created_at ?? '')));
 
+    // Distinct dates on which lessons were actually registered and launched for this class:
+    const distinctClassDates = Array.from(
+      new Set(
+        deduplicatedAttendance
+          .filter((a) => a.class_id === classRecord.id && a.date)
+          .map((a) => String(a.date))
+      )
+    ).sort();
+
     if (classTables.length === 0) {
       // Class has no grade tables defined
-      const classesHeld = classAttendance.length;
+      const classesHeld = distinctClassDates.length;
       const presences = classAttendance.filter((a) => a.status === 'P' || a.status === 'RC').length;
       const absences = classAttendance.filter((a) => a.status === 'F' || a.status === 'R').length;
       const justified = classAttendance.filter((a) => a.status === 'J').length;
@@ -241,15 +250,17 @@ export function buildUnifiedBoletimData(params: {
     }
 
     for (const table of classTables) {
-      let moduleAttendance = classAttendance;
+      let moduleDates = distinctClassDates;
       if (table.start_date) {
-        moduleAttendance = moduleAttendance.filter((a) => String(a.date) >= String(table.start_date));
+        moduleDates = moduleDates.filter((d) => d >= String(table.start_date));
       }
       if (table.end_date) {
-        moduleAttendance = moduleAttendance.filter((a) => String(a.date) <= String(table.end_date));
+        moduleDates = moduleDates.filter((d) => d <= String(table.end_date));
       }
 
-      const classesHeld = moduleAttendance.length;
+      const classesHeld = moduleDates.length;
+      const moduleDateSet = new Set(moduleDates);
+      const moduleAttendance = classAttendance.filter((a) => classesHeld === 0 || moduleDateSet.has(String(a.date)));
       const presences = moduleAttendance.filter((a) => a.status === 'P' || a.status === 'RC').length;
       const absences = moduleAttendance.filter((a) => a.status === 'F' || a.status === 'R').length;
       const justified = moduleAttendance.filter((a) => a.status === 'J').length;
@@ -425,13 +436,15 @@ export function buildClassBoletimData(params: {
 
   const dedupedAttendance = latestAttendance(params.attendanceRecords ?? []);
   const classAttendance = dedupedAttendance.filter((a) => !a.deleted_at && a.class_id === classRecord.id);
+  const distinctClassDates = new Set(classAttendance.filter((a) => a.date).map((a) => String(a.date)));
+  const totalClassSessions = distinctClassDates.size;
 
   const studentAttendanceRate = new Map<string, number>();
   for (const s of activeStudents) {
     const studentRecords = classAttendance.filter((a) => a.student_id === s.id);
     const present = studentRecords.filter((a) => a.status === 'P' || a.status === 'RC').length;
-    if (studentRecords.length > 0) {
-      const rate = Math.round((present / studentRecords.length) * 1000) / 10;
+    if (totalClassSessions > 0) {
+      const rate = Math.round((present / totalClassSessions) * 1000) / 10;
       studentAttendanceRate.set(s.id, rate);
     }
   }

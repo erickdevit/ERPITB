@@ -209,6 +209,13 @@ export const openApiSpec = {
         responses: { 200: { description: 'Matrícula trancada com sucesso' } },
       },
     },
+    '/v1/students/{id}/unlock': {
+      post: {
+        summary: 'Reativa a matrícula trancada do aluno nesta turma ou geral',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { 200: { description: 'Matrícula reativada com sucesso' } },
+      },
+    },
     '/v1/laboratories': {
       get: {
         summary: 'Lista laboratórios e polos',

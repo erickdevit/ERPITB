@@ -295,8 +295,12 @@ export class ApiClient {
   }
 
   // Enrollment & Student Actions
-  lockStudentEnrollment(studentId: string) {
-    return this.post<{ ok: boolean; message: string }>(`/v1/students/${studentId}/lock`);
+  lockStudentEnrollment(studentId: string, classId?: string) {
+    return this.post<{ ok: boolean; message: string }>(`/v1/students/${studentId}/lock`, { classId });
+  }
+
+  unlockStudentEnrollment(studentId: string, classId?: string) {
+    return this.post<{ ok: boolean; message: string }>(`/v1/students/${studentId}/unlock`, { classId });
   }
 
   getClassSessions(classId: string) {
