@@ -720,7 +720,7 @@ export function DashboardPage() {
               <BarChart
                 data={comparisonData}
                 layout="vertical"
-                margin={{ top: 8, right: 54, bottom: 8, left: 8 }}
+                margin={{ top: 8, right: 72, bottom: 8, left: 8 }}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" horizontal={false} />
                 <XAxis
@@ -759,9 +759,9 @@ export function DashboardPage() {
                     if (!entry) return null;
                     const rawName = entry.displayName || entry.name;
                     const isZero = entry.records === 0;
-                    const displayName = rawName.length > 24 ? `${rawName.slice(0, 23)}…` : rawName;
-                    const nameEstimateWidth = (displayName.length + (isZero ? 24 : 0)) * 7.5;
-                    const minPctX = x + 12 + nameEstimateWidth + 12;
+                    const displayName = rawName;
+                    const nameEstimateWidth = (displayName.length + (isZero ? 24 : 0)) * 7.2;
+                    const minPctX = x + 12 + nameEstimateWidth + 14;
                     const pctX = Math.max(x + width + 8, minPctX);
 
                     return (
@@ -769,7 +769,7 @@ export function DashboardPage() {
                         <text
                           x={x + 12}
                           y={y + height / 2}
-                          fill={isZero ? '#94A3B8' : width > 160 ? '#FFFFFF' : '#0F172A'}
+                          fill={isZero ? '#94A3B8' : width > (nameEstimateWidth + 24) ? '#FFFFFF' : '#0F172A'}
                           fontSize={12}
                           fontWeight={600}
                           dominantBaseline="central"

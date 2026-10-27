@@ -926,7 +926,7 @@ export function FinanceDashboardPage() {
                 <BarChart
                   data={classBreakdownData}
                   layout="vertical"
-                  margin={{ top: 8, right: 60, bottom: 8, left: 8 }}
+                  margin={{ top: 8, right: 72, bottom: 8, left: 8 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" horizontal={false} />
                   <XAxis
@@ -961,7 +961,10 @@ export function FinanceDashboardPage() {
                       const { x, y, width, height, index } = props;
                       const entry = classBreakdownData[index];
                       if (!entry) return null;
-                      const displayName = entry.name.length > 25 ? `${entry.name.slice(0, 24)}…` : entry.name;
+                      const displayName = entry.name;
+                      const nameEstimateWidth = displayName.length * 7.2;
+                      const minPctX = x + 12 + nameEstimateWidth + 14;
+                      const pctX = Math.max(x + width + 8, minPctX);
                       return (
                         <g>
                           <text
@@ -976,7 +979,7 @@ export function FinanceDashboardPage() {
                             {displayName}
                           </text>
                           <text
-                            x={x + width + 8}
+                            x={pctX}
                             y={y + height / 2}
                             fill="#0F172A"
                             fontSize={11}
@@ -1033,7 +1036,7 @@ export function FinanceDashboardPage() {
                 <BarChart
                   data={categoryBreakdownData}
                   layout="vertical"
-                  margin={{ top: 8, right: 32, bottom: 8, left: 16 }}
+                  margin={{ top: 8, right: 36, bottom: 8, left: 8 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" horizontal={false} />
                   <XAxis
@@ -1045,7 +1048,7 @@ export function FinanceDashboardPage() {
                   <YAxis
                     type="category"
                     dataKey="category"
-                    width={110}
+                    width={130}
                     tick={{ fontSize: 11, fill: '#334155', fontWeight: 600 }}
                     stroke="#E2E8F0"
                   />

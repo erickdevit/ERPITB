@@ -178,7 +178,12 @@ export function buildBoletimPdf(data: UnifiedBoletimData, options?: BoletimPdfOp
   doc.setFontSize(7.5);
   doc.setTextColor(15, 23, 42); // slate-900
   const nameLines = doc.splitTextToSize(student.name || 'Aluno', 60);
-  doc.text(nameLines[0] ?? (student.name || 'Aluno'), marginX + 4, currentY + 11);
+  if (nameLines.length > 1) {
+    doc.text(nameLines[0], marginX + 4, currentY + 9.5);
+    doc.text(nameLines[1], marginX + 4, currentY + 13);
+  } else {
+    doc.text(nameLines[0] ?? (student.name || 'Aluno'), marginX + 4, currentY + 11);
+  }
 
   // 2. Matrícula
   const colMatriculaX = marginX + 68;

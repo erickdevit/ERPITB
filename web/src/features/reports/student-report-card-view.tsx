@@ -217,12 +217,12 @@ export function StudentReportCardView({
 
         {/* 2. UNIFIED STUDENT CREDENTIALS & ACADEMIC SUMMARY ROW (SINGLE STRICT ROW) */}
         <div className="bg-slate-50/80 border border-slate-200/90 rounded-xl p-3 sm:p-3.5 print:bg-white print:border-slate-300 w-full overflow-x-auto print:overflow-visible">
-          <div className="grid grid-cols-7 items-center gap-2 sm:gap-3 text-xs min-w-[680px] print:grid-cols-6 print:min-w-0">
+          <div className="grid grid-cols-7 items-center gap-2 sm:gap-3 text-xs min-w-[760px] print:grid-cols-6 print:min-w-0">
             <div className="min-w-0">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                 Aluno
               </span>
-              <span className="text-xs font-bold text-slate-900 block truncate" title={data.student.name}>
+              <span className="text-xs font-bold text-slate-900 block break-words whitespace-normal" title={data.student.name}>
                 {data.student.name}
               </span>
             </div>
@@ -230,7 +230,7 @@ export function StudentReportCardView({
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                 Matrícula
               </span>
-              <span className="text-xs font-bold text-slate-900 block font-mono truncate">
+              <span className="text-xs font-bold text-slate-900 block font-mono">
                 {data.student.registrationNumber || '—'}
               </span>
             </div>
@@ -238,7 +238,7 @@ export function StudentReportCardView({
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                 Curso
               </span>
-              <span className="text-xs font-semibold text-slate-800 block truncate" title={data.student.courseName || '—'}>
+              <span className="text-xs font-semibold text-slate-800 block break-words" title={data.student.courseName || '—'}>
                 {data.student.courseName || '—'}
               </span>
             </div>
@@ -246,7 +246,7 @@ export function StudentReportCardView({
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                 Turma
               </span>
-              <span className="text-xs font-semibold text-slate-800 block truncate" title={classTitle}>
+              <span className="text-xs font-semibold text-slate-800 block break-words" title={classTitle}>
                 {classTitle}
               </span>
             </div>
@@ -313,7 +313,7 @@ export function StudentReportCardView({
                           key={idx}
                           className="flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-white border border-slate-200/60"
                         >
-                          <span className="font-medium text-slate-700 truncate max-w-[60%]">{grade.name}</span>
+                          <span className="font-medium text-slate-700 flex-1 pr-2">{grade.name}</span>
                           <span className="font-mono font-bold text-slate-900">
                             {typeof grade.score === 'number' && !Number.isNaN(grade.score)
                               ? grade.score.toFixed(1).replace('.', ',')

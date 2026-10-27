@@ -125,10 +125,10 @@ export function AnalyticsChart({ chart }: { chart: BiChart }) {
         <Line type="monotone" dataKey={chart.valueKey} stroke="#2563EB" strokeWidth={2.5} dot={chartData.length < 20} />
       </LineChart>
     ) : (
-      <BarChart data={chartData} layout="vertical" margin={{ top: 8, right: 20, left: 28, bottom: 8 }}>
+      <BarChart data={chartData} layout="vertical" margin={{ top: 8, right: 28, left: 16, bottom: 8 }}>
         <CartesianGrid horizontal={false} strokeDasharray="3 3" stroke="#F1F5F9" />
         <XAxis type="number" unit={chart.valueSuffix} tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
-        <YAxis type="category" dataKey={chart.categoryKey} width={110} tick={{ fontSize: 11, fill: '#0F172A', fontWeight: 600 }} stroke="#E2E8F0" />
+        <YAxis type="category" dataKey={chart.categoryKey} width={150} tick={{ fontSize: 11, fill: '#0F172A', fontWeight: 600 }} stroke="#E2E8F0" />
         <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0', boxShadow: 'none' }} />
         <Bar dataKey={chart.valueKey} fill="#0284C7" radius={[0, 4, 4, 0]} maxBarSize={18} />
       </BarChart>

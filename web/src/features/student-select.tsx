@@ -1,4 +1,5 @@
-import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, Search, User, X } from 'lucide-react';
 import { cleanClassName, extractClassNumber, formatClassDisplayName } from './classes-model';
 
@@ -107,10 +108,44 @@ export function SearchableStudentSelect({
       .slice(0, 50);
   }, [studentOptions, query]);
 
+  const [dropdownPos, setDropdownPos] = useState<{
+    top?: number;
+    bottom?: number;
+    left: number;
+    width: number;
+  }>({ left: 0, width: 0 });
+
+  const updateDropdownPos = useCallback(() => {
+    const el = inputRef.current || containerRef.current;
+    if (!el || typeof window === 'undefined') return;
+    const rect = el.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openUp = spaceBelow < 220 && rect.top > 220;
+    if (openUp) {
+      setDropdownPos({
+        bottom: window.innerHeight - rect.top + 4,
+        left: rect.left,
+        width: Math.max(rect.width, 240),
+      });
+    } else {
+      setDropdownPos({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: Math.max(rect.width, 240),
+      });
+    }
+  }, []);
+
   // Handle outside click to close
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(target) &&
+        listRef.current &&
+        !listRef.current.contains(target)
+      ) {
         setIsOpen(false);
       }
     };
@@ -120,11 +155,26 @@ export function SearchableStudentSelect({
     };
   }, []);
 
+  // Update position when opened or when window/modal scrolls/resizes
+  useEffect(() => {
+    if (isOpen) {
+      updateDropdownPos();
+      const handleReposition = () => updateDropdownPos();
+      window.addEventListener('resize', handleReposition);
+      window.addEventListener('scroll', handleReposition, true);
+      return () => {
+        window.removeEventListener('resize', handleReposition);
+        window.removeEventListener('scroll', handleReposition, true);
+      };
+    }
+  }, [isOpen, updateDropdownPos]);
+
   // Keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!isOpen) {
       if (e.key === 'ArrowDown' || e.key === 'Enter') {
         setIsOpen(true);
+        updateDropdownPos();
         e.preventDefault();
       }
       return;
@@ -168,7 +218,11 @@ export function SearchableStudentSelect({
     onChange('');
     setQuery('');
     setIsOpen(false);
-    setTimeout(() => inputRef.current?.focus(), 50);
+    setTimeout(() => {
+      inputRef.current?.focus();
+      setIsOpen(true);
+      updateDropdownPos();
+    }, 50);
   };
 
   return (
@@ -182,31 +236,31 @@ export function SearchableStudentSelect({
       {selectedStudent ? (
         <div
           data-testid="selected-student-card"
-          className="flex items-center justify-between gap-3 p-2.5 rounded-xl border border-sky-200 bg-sky-50/70 text-xs"
+          className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl border border-sky-300 bg-sky-50/80 text-xs min-h-[38px] transition-all"
         >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-7 h-7 rounded-lg bg-sky-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
-              <User className="w-4 h-4" />
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="w-5 h-5 rounded-md bg-sky-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+              <User className="w-3.5 h-3.5" />
             </div>
-            <div className="min-w-0">
-              <p className="font-semibold text-slate-900 truncate">{selectedStudent.name}</p>
-              <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                {selectedStudent.registrationNumber && (
-                  <span className="font-mono bg-white px-1.5 py-0.5 rounded border border-slate-200">
-                    Matrícula: {selectedStudent.registrationNumber}
-                  </span>
-                )}
-                {selectedStudent.className && (
-                  <span className="truncate">Turma: {selectedStudent.className}</span>
-                )}
-              </div>
+            <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <span className="font-bold text-slate-900 truncate">{selectedStudent.name}</span>
+              {selectedStudent.registrationNumber && (
+                <span className="font-mono bg-white px-1.5 py-0.2 rounded border border-slate-200 text-[10px] text-slate-600 shrink-0">
+                  Matrícula: {selectedStudent.registrationNumber}
+                </span>
+              )}
+              {selectedStudent.className && (
+                <span className="text-[11px] text-slate-500 truncate">
+                  Turma: {selectedStudent.className}
+                </span>
+              )}
             </div>
           </div>
           <button
             type="button"
             disabled={disabled}
             onClick={handleClear}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-white/80 border border-slate-200 bg-white transition-colors cursor-pointer shrink-0"
+            className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-white border border-slate-200 bg-white/90 transition-colors cursor-pointer shrink-0"
             title="Alterar aluno"
           >
             <X className="w-3.5 h-3.5" />
@@ -216,22 +270,24 @@ export function SearchableStudentSelect({
       ) : allowFreeText && value ? (
         <div
           data-testid="selected-custom-card"
-          className="flex items-center justify-between gap-3 p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs"
+          className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs min-h-[38px] transition-all"
         >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-7 h-7 rounded-lg bg-slate-700 text-white flex items-center justify-center font-bold text-xs shrink-0">
-              <User className="w-4 h-4" />
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="w-5 h-5 rounded-md bg-slate-700 text-white flex items-center justify-center font-bold text-xs shrink-0">
+              <User className="w-3.5 h-3.5" />
             </div>
-            <div className="min-w-0">
-              <p className="font-semibold text-slate-900 truncate">{value}</p>
-              <p className="text-[11px] text-slate-400">Favorecido avulso</p>
+            <div className="min-w-0 flex-1 flex items-center gap-2">
+              <span className="font-bold text-slate-900 truncate">{value}</span>
+              <span className="text-[10px] text-slate-500 bg-white px-1.5 py-0.2 rounded border border-slate-200 shrink-0">
+                Favorecido avulso
+              </span>
             </div>
           </div>
           <button
             type="button"
             disabled={disabled}
             onClick={handleClear}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-white border border-slate-200 bg-white transition-colors cursor-pointer shrink-0"
+            className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-white border border-slate-200 bg-white transition-colors cursor-pointer shrink-0"
             title="Alterar favorecido"
           >
             <X className="w-3.5 h-3.5" />
@@ -239,7 +295,7 @@ export function SearchableStudentSelect({
           </button>
         </div>
       ) : (
-        <div className="relative">
+        <div className="relative w-full">
           <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
             <Search className="w-4 h-4" />
           </div>
@@ -256,16 +312,24 @@ export function SearchableStudentSelect({
               setQuery(e.target.value);
               setIsOpen(true);
               setHighlightedIndex(0);
+              updateDropdownPos();
               if (allowFreeText) {
                 onChange(e.target.value);
               }
             }}
-            onFocus={() => setIsOpen(true)}
+            onFocus={() => {
+              setIsOpen(true);
+              updateDropdownPos();
+            }}
+            onClick={() => {
+              setIsOpen(true);
+              updateDropdownPos();
+            }}
             onKeyDown={handleKeyDown}
             role="combobox"
             aria-expanded={isOpen}
             aria-autocomplete="list"
-            className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900"
+            className="w-full pl-9 pr-8 py-2 min-h-[38px] rounded-xl border border-slate-200 bg-white text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all"
           />
           {query && (
             <button
@@ -280,17 +344,26 @@ export function SearchableStudentSelect({
             </button>
           )}
 
-          {isOpen && (
+          {isOpen && typeof document !== 'undefined' && createPortal(
             <ul
               ref={listRef}
               role="listbox"
-              className="absolute left-0 right-0 top-full mt-1.5 max-h-56 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg z-50 divide-y divide-slate-100 text-xs"
+              style={{
+                position: 'fixed',
+                top: dropdownPos.top !== undefined ? `${dropdownPos.top}px` : undefined,
+                bottom: dropdownPos.bottom !== undefined ? `${dropdownPos.bottom}px` : undefined,
+                left: `${dropdownPos.left}px`,
+                width: `${dropdownPos.width}px`,
+                zIndex: 9999,
+              }}
+              className="max-h-56 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-2xl divide-y divide-slate-100 text-xs"
             >
               {allowFreeText && query.trim() && (
                 <li
                   role="option"
                   aria-selected={false}
-                  onMouseDown={() => {
+                  onMouseDown={(e) => {
+                    e.preventDefault();
                     onChange(query.trim());
                     setIsOpen(false);
                   }}
@@ -337,7 +410,8 @@ export function SearchableStudentSelect({
                   );
                 })
               )}
-            </ul>
+            </ul>,
+            document.body,
           )}
         </div>
       )}
