@@ -19,6 +19,7 @@ import { EmptyState, PageDialog, TableSkeleton } from '../../components';
 import { useEntity } from '../../lib/use-entity';
 import type { CashTransaction, CashType, PaymentMethod } from '../../types';
 import { CashPrintDocument } from './finance-print';
+import { formatPrintDocumentTitle, printWithDocumentTitle } from '../../lib/print-helper';
 import { SearchableStudentSelect } from '../student-select';
 
 function formatCents(cents: number): string {
@@ -219,7 +220,18 @@ export function CashView({ mode = 'all' }: { mode?: 'all' | 'entrada' | 'saida' 
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => window.print()}
+            onClick={() =>
+              printWithDocumentTitle(
+                formatPrintDocumentTitle([
+                  mode === 'entrada'
+                    ? 'Relatório de Entradas'
+                    : mode === 'saida'
+                      ? 'Relatório de Saídas'
+                      : 'Livro Caixa',
+                  filterMonth,
+                ]),
+              )
+            }
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
           >
             <Printer className="w-3.5 h-3.5" />

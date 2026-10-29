@@ -62,10 +62,10 @@ describe('StudentBoletimSpreadsheetView Component', () => {
     expect(screen.getByText('8,5')).toBeDefined();
   });
 
-  it('renders the consolidated attendance mirror', () => {
+  it('shows overall attendance in header without the legacy attendance bar', () => {
     render(<StudentBoletimSpreadsheetView data={mockData} />);
 
-    expect(screen.getByText('Espelho de Frequência Consolidado')).toBeDefined();
+    expect(screen.queryByText('Espelho de Frequência Consolidado')).toBeNull();
     expect(screen.getAllByText('95,0%').length).toBeGreaterThanOrEqual(1);
   });
 

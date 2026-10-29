@@ -31,6 +31,7 @@ import {
 } from '../lib/boletim';
 import { exportBoletimPdf } from '../lib/boletim-pdf';
 import { StudentReportCardView } from './reports/student-report-card-view';
+import { formatPrintDocumentTitle, printWithDocumentTitle } from '../lib/print-helper';
 
 export interface PublicReportCardItem {
   id: string;
@@ -387,7 +388,13 @@ export function PublicStudentPortal() {
     setIsPrinting(true);
     setActiveTab('oficial');
     setTimeout(() => {
-      window.print();
+      printWithDocumentTitle(
+        formatPrintDocumentTitle([
+          'Boletim Escolar Individual',
+          data?.student.name,
+          data?.student.registrationNumber,
+        ]),
+      );
     }, 20);
   };
 

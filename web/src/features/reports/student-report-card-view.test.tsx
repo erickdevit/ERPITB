@@ -171,15 +171,24 @@ describe('StudentReportCardView Component', () => {
     expect(screen.getAllByText('Sem Notas').length).toBeGreaterThan(0);
   });
 
-  it('renders summary footer with overall attendance, overall GPA and criteria legend', () => {
+  it('renders overall attendance and GPA without the legacy criteria bar or per-card captions', () => {
     render(<StudentReportCardView data={mockData} />);
 
     expect(screen.getByText('81,3%')).toBeDefined();
     expect(screen.getByText('6,7')).toBeDefined();
 
-    expect(screen.getByText(/Critérios de Avaliação e Legenda/i)).toBeDefined();
-    expect(screen.getByText(/das aulas ministradas/i)).toBeDefined();
-    expect(screen.getByText(/escala de 0,0 a 10,0/i)).toBeDefined();
+    expect(screen.queryByText(/Critérios de Avaliação e Legenda/i)).toBeNull();
+    expect(screen.queryByText(/Total Aulas/i)).toBeNull();
+    expect(screen.queryByText(/média da etapa/i)).toBeNull();
+    expect(screen.queryByText(/Média Simples/i)).toBeNull();
+  });
+
+  it('sets a descriptive document title (used as PDF filename) while mounted', () => {
+    document.title = 'ERPITB';
+    const { unmount } = render(<StudentReportCardView data={mockData} />);
+    expect(document.title).toBe('Boletim Escolar Individual - Mariana Lima Santos - ITB-2026-9081');
+    unmount();
+    expect(document.title).toBe('ERPITB');
   });
 
   it('renders signatures area for ITB coordination and student guardian', () => {

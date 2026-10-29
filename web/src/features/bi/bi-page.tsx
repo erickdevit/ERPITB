@@ -4,6 +4,7 @@ import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Too
 import { Section } from '../../components';
 import { exportBiJson, exportExcelCsv, exportExcelXlsx, exportSimplePdf, type ExportValue } from '../../lib/exports';
 import { formatDate, todayInSaoPaulo } from '../../lib/date';
+import { formatPrintDocumentTitle, printWithDocumentTitle } from '../../lib/print-helper';
 import type { BiFilters } from './model';
 import { useBiData } from './use-bi-data';
 import { BiFilterBar } from './bi-filter-bar';
@@ -55,7 +56,7 @@ export function ExportActions({
         type="button"
         onClick={() => {
           if (onPrint) onPrint();
-          else window.print();
+          else printWithDocumentTitle(formatPrintDocumentTitle([title, ...safeContext]));
         }}
         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
         aria-label="Imprimir"

@@ -9,6 +9,11 @@ import {
 import type { ClassBoletimData } from '../../lib/boletim';
 import { PrintWatermark } from '../../components';
 import { formatGrade, type GradeStatus } from '../../lib/grades';
+import {
+  formatPrintDocumentTitle,
+  printWithDocumentTitle,
+  usePrintDocumentTitle,
+} from '../../lib/print-helper';
 
 export function statusBadgeStyle(status: GradeStatus): string {
   switch (status) {
@@ -57,11 +62,14 @@ export function ClassBoletimView({
   const [search, setSearch] = useState('');
   const [downloading, setDownloading] = useState(false);
 
+  const documentTitle = formatPrintDocumentTitle(['Boletim Consolidado da Turma', data.className]);
+  usePrintDocumentTitle(documentTitle);
+
   const handlePrint = () => {
     if (onPrint) {
       onPrint();
     } else {
-      window.print();
+      printWithDocumentTitle(documentTitle);
     }
   };
 
@@ -296,12 +304,8 @@ export function ClassBoletimView({
           </table>
         </div>
 
-        {/* PRINT-ONLY FOOTER SIGNATURES & CRITERIA */}
-        <div className="hidden print:flex flex-col gap-6 p-6 border-t border-slate-300 mt-4 text-xs">
-          <div className="text-[11px] text-slate-500">
-            <span className="font-bold text-slate-700">Critérios de Aprovação: </span>
-            Frequência mínima de 75,0% e média mínima 6,0. As médias respeitam a metodologia de cálculo de cada etapa (Média Simples, Média Ponderada ou Soma de Pontos) na escala de 0 a 10.
-          </div>
+        {/* PRINT-ONLY FOOTER SIGNATURES */}
+        <div className="hidden print:flex flex-col gap-6 p-6 mt-4 text-xs">
           <div className="grid grid-cols-2 gap-12 pt-6">
             <div className="text-center">
               <div className="border-t border-slate-400 pt-1.5 font-semibold text-slate-800">

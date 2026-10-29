@@ -9,6 +9,11 @@ import type { UnifiedBoletimData, AcademicStatus } from '../../lib/boletim';
 import { PrintWatermark } from '../../components';
 import { formatGrade } from '../../lib/grades';
 import { AcademicStatusBadge } from './student-report-card-view';
+import {
+  formatPrintDocumentTitle,
+  printWithDocumentTitle,
+  usePrintDocumentTitle,
+} from '../../lib/print-helper';
 
 export interface StudentBoletimSpreadsheetViewProps {
   data: UnifiedBoletimData;
@@ -62,9 +67,16 @@ export function StudentBoletimSpreadsheetView({
       ? `${window.location.origin}/aluno/${encodeURIComponent(portalCode)}`
       : `https://erp.itbcursos.com/aluno/${encodeURIComponent(portalCode)}`);
 
+  const documentTitle = formatPrintDocumentTitle([
+    'Boletim Escolar Planilha',
+    student.name,
+    student.registrationNumber,
+  ]);
+  usePrintDocumentTitle(documentTitle);
+
   const handlePrint = () => {
     if (onPrint) onPrint();
-    else window.print();
+    else printWithDocumentTitle(documentTitle);
   };
 
   const handleDownloadPdf = async () => {
@@ -90,7 +102,6 @@ export function StudentBoletimSpreadsheetView({
   const totalClassesHeld = modules.reduce((sum, m) => sum + (Number(m.classesHeld) || 0), 0);
   const totalPresences = modules.reduce((sum, m) => sum + (Number(m.presences) || 0), 0);
   const totalAbsences = modules.reduce((sum, m) => sum + (Number(m.absences) || 0), 0);
-  const totalJustified = modules.reduce((sum, m) => sum + (Number(m.justified) || 0), 0);
 
   const formattedEmissionDate = (() => {
     try {
@@ -342,47 +353,8 @@ export function StudentBoletimSpreadsheetView({
           </table>
         </div>
 
-        {/* 4. SPREADSHEET ATTENDANCE MIRROR (GRADE TABULAR DE FREQUÊNCIA) */}
-        <div className="bg-slate-50/60 border border-slate-200 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs print:bg-white">
-          <div className="space-y-0.5">
-            <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-700">
-              Espelho de Frequência Consolidado
-            </h4>
-            <p className="text-[10px] text-slate-500">
-              Cômputo oficial de presenças e faltas do período letivo
-            </p>
-          </div>
-
-          <div className="flex items-center gap-4 shrink-0 text-center">
-            <div>
-              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Aulas Ministradas</span>
-              <span className="text-xs font-black text-slate-900">{totalClassesHeld}</span>
-            </div>
-            <div>
-              <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider block">Presenças</span>
-              <span className="text-xs font-black text-emerald-700">{totalPresences}</span>
-            </div>
-            <div>
-              <span className="text-[9px] font-bold text-rose-600 uppercase tracking-wider block">Faltas</span>
-              <span className="text-xs font-black text-rose-700">{totalAbsences}</span>
-            </div>
-            {totalJustified > 0 && (
-              <div>
-                <span className="text-[9px] font-bold text-sky-600 uppercase tracking-wider block">Justificadas</span>
-                <span className="text-xs font-black text-sky-700">{totalJustified}</span>
-              </div>
-            )}
-            <div className="border-l border-slate-200 pl-3">
-              <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">Taxa Final</span>
-              <span className={`text-sm font-black ${data.overallAttendanceRate >= 75 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                {totalClassesHeld > 0 ? `${data.overallAttendanceRate.toFixed(1).replace('.', ',')}%` : '—'}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* 5. SIGNATURES AREA FOR PRINT */}
-        <div className="pt-4 border-t border-slate-200 grid grid-cols-2 gap-8 print:pt-6 print:border-slate-300">
+        {/* 4. SIGNATURES AREA FOR PRINT (no horizontal divider above signatures) */}
+        <div className="mt-auto pt-6 grid grid-cols-2 gap-8 print:pt-8">
           <div className="flex flex-col items-center text-center">
             <div className="w-48 sm:w-60 border-b border-slate-400 mb-1" />
             <span className="text-xs font-bold text-slate-800">

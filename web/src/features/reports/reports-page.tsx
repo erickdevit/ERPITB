@@ -5,6 +5,7 @@ import { Section } from '../../components';
 import { exportExcelCsv, exportExcelXlsx, exportSimplePdf } from '../../lib/exports';
 import { exportBoletimPdf, exportClassBoletimPdf } from '../../lib/boletim-pdf';
 import { todayInSaoPaulo } from '../../lib/date';
+import { formatPrintDocumentTitle, printWithDocumentTitle } from '../../lib/print-helper';
 import type { ReportFilters } from './model';
 import { ReportFiltersBar } from './report-filters';
 import { ReportResult } from './report-result';
@@ -73,7 +74,25 @@ export function ReportsCenterPage() {
           <button
             type="button"
             disabled={!view.ready}
-            onClick={() => window.print()}
+            onClick={() => {
+              if (view.type === 'studentBoletim' && view.boletimData) {
+                printWithDocumentTitle(
+                  formatPrintDocumentTitle([
+                    'Boletim Escolar Individual',
+                    view.boletimData.student.name,
+                    view.boletimData.student.registrationNumber,
+                  ]),
+                );
+              } else if (view.type === 'classGrades' && view.classBoletimData) {
+                printWithDocumentTitle(
+                  formatPrintDocumentTitle(['Boletim Consolidado da Turma', view.classBoletimData.className]),
+                );
+              } else {
+                printWithDocumentTitle(
+                  formatPrintDocumentTitle([view.title || 'Relatório', `${filters.from} a ${filters.to}`]),
+                );
+              }
+            }}
             className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
           >
             <Printer className="w-3.5 h-3.5 text-slate-600" />

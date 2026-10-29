@@ -3,6 +3,11 @@ import { Download, FileText, Printer, Users } from 'lucide-react';
 import type { UnifiedBoletimData } from '../../lib/boletim';
 import { EmptyState, PrintWatermark } from '../../components';
 import { StudentReportCardView } from './student-report-card-view';
+import {
+  formatPrintDocumentTitle,
+  printWithDocumentTitle,
+  usePrintDocumentTitle,
+} from '../../lib/print-helper';
 
 export interface ClassBatchBoletimPrintViewProps {
   studentsData: UnifiedBoletimData[];
@@ -28,12 +33,14 @@ export function ClassBatchBoletimPrintView({
   logoUrl,
 }: ClassBatchBoletimPrintViewProps) {
   const [downloading, setDownloading] = useState(false);
+  const documentTitle = formatPrintDocumentTitle(['Boletins Individuais da Turma', className]);
+  usePrintDocumentTitle(documentTitle);
 
   const handlePrint = () => {
     if (onPrint) {
       onPrint();
     } else {
-      window.print();
+      printWithDocumentTitle(documentTitle);
     }
   };
 

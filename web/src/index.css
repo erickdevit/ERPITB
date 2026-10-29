@@ -153,14 +153,17 @@ div.bg-slate-900.animate-pulse {
 @media print {
   @page {
     size: A4 landscape;
-    margin: 8mm 6mm;
+    margin: 6mm;
   }
 
-  /* Reset root & shell containers to allow natural multi-page flow in print */
+  /* Reset root & shell containers to allow natural flow from the top of Page 1 without flex/margin page breaks */
   html,
   body,
   #root,
+  #root > div,
+  #root > div > div,
   main {
+    display: block !important;
     height: auto !important;
     min-height: 0 !important;
     max-height: none !important;
@@ -367,29 +370,33 @@ div.bg-slate-900.animate-pulse {
     break-inside: avoid !important;
   }
 
-  @page portrait-page {
-    size: A4 portrait;
-    margin: 10mm 8mm;
-  }
-
-  @page landscape-page {
-    size: A4 landscape;
-    margin: 8mm 6mm;
-  }
-
-  .print-portrait {
-    page: portrait-page;
-  }
-
+  /* Do NOT assign named `page:` properties to .print-landscape or .print-portrait,
+     because transitioning from the unnamed root @page to a named @page forces Chromium
+     to emit a leading blank/watermark-only Page 1 before the report content! */
+  .print-portrait,
   .print-landscape {
-    page: landscape-page;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
-  /* Strict 1-Page A4 Landscape Rule for Individual Boletim */
+  /* Strict 1-Page A4 Landscape Rule for Individual Boletim:
+     Fills the single A4 landscape sheet (194mm) so cards expand and the footer stays pinned to the bottom */
   div.boletim-single-page,
   .boletim-single-page {
+    width: 100% !important;
+    height: 194mm !important;
+    min-height: 194mm !important;
     max-height: 194mm !important;
     overflow: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    page-break-before: avoid !important;
+    break-before: avoid !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
     page-break-after: avoid !important;
@@ -406,6 +413,8 @@ div.bg-slate-900.animate-pulse {
   div.class-batch-student-page,
   .class-batch-student-page {
     width: 100% !important;
+    height: 194mm !important;
+    min-height: 194mm !important;
     max-height: 194mm !important;
     overflow: hidden !important;
     page-break-inside: avoid !important;
@@ -425,7 +434,7 @@ div.bg-slate-900.animate-pulse {
   .class-batch-last-page,
   div.class-batch-student-page:last-child,
   .class-batch-student-page:last-child {
-    page-break-after: auto !important;
-    break-after: auto !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
   }
 }

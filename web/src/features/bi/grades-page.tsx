@@ -14,6 +14,7 @@ import { formatDate, todayInSaoPaulo } from '../../lib/date';
 import { useEntity } from '../../lib/use-entity';
 import { buildClassBoletimData, buildUnifiedBoletimData, type ClassBoletimData } from '../../lib/boletim';
 import { exportClassBoletimPdf } from '../../lib/boletim-pdf';
+import { formatPrintDocumentTitle, printWithDocumentTitle } from '../../lib/print-helper';
 import { ClassBoletimView } from '../reports/class-boletim-view';
 import { StudentReportCardView } from '../reports/student-report-card-view';
 import { useApp } from '../../app-context';
@@ -135,7 +136,19 @@ export function BiGradesPage() {
   );
 
   const handlePrint = () => {
-    window.print();
+    if (selectedStudentId && studentBoletimData) {
+      printWithDocumentTitle(
+        formatPrintDocumentTitle([
+          'Boletim Escolar Individual',
+          studentBoletimData.student.name,
+          studentBoletimData.student.registrationNumber,
+        ]),
+      );
+    } else if (viewMode === 'boletim' && classBoletimData) {
+      printWithDocumentTitle(formatPrintDocumentTitle(['Boletim Consolidado da Turma', classBoletimData.className]));
+    } else {
+      printWithDocumentTitle(formatPrintDocumentTitle([biView.title || 'Análise de Notas', `${filters.from} a ${filters.to}`]));
+    }
   };
 
   const handleDownloadClassPdf = async () => {

@@ -39,6 +39,7 @@ import { useEntity, clearEntityMemoryCache } from '../lib/use-entity';
 import type { LocalRecord } from '../types';
 import { ClassBoletimView } from './reports/class-boletim-view';
 import { StudentReportCardView } from './reports/student-report-card-view';
+import { formatPrintDocumentTitle, printWithDocumentTitle } from '../lib/print-helper';
 import { ClassFilterFields, filterClassesByAttributes } from './class-filter-controls';
 import {
   cleanClassName,
@@ -804,7 +805,11 @@ export function GradesPage() {
             {viewMode === 'reportCard' && classBoletimData && (
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() =>
+                  printWithDocumentTitle(
+                    formatPrintDocumentTitle(['Boletim Consolidado da Turma', classBoletimData.className]),
+                  )
+                }
                 aria-label="Imprimir Boletim"
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
               >

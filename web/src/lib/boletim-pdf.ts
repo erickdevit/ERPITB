@@ -165,7 +165,7 @@ function renderBoletimPageOnDoc(doc: jsPDF, data: UnifiedBoletimData, options?: 
   currentY += 3.5;
 
   // ==========================================
-  // 2. UNIFIED STUDENT METADATA & ACADEMIC SUMMARY ROW (SINGLE ROW MATCHING MODAL)
+  // 2. UNIFIED STUDENT METADATA & ACADEMIC SUMMARY ROW (SINGLE ROW, FULL NAME SPACE)
   // ==========================================
   const infoBoxHeight = 14.5;
   doc.setFillColor(248, 250, 252); // slate-50
@@ -176,63 +176,67 @@ function renderBoletimPageOnDoc(doc: jsPDF, data: UnifiedBoletimData, options?: 
   const student = data.student ?? { name: 'Aluno', id: '', classNames: [] };
   const classStr = student.classNames?.length ? student.classNames.join(', ') : '—';
 
-  // 1. Aluno
+  // 1. Aluno (Maximized width on left so full student names fit on 1 line without wrapping)
+  const studentDisplayName = (student.name || 'Aluno').toUpperCase();
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6);
   doc.setTextColor(148, 163, 184); // slate-400
   doc.text('ALUNO', marginX + 4, currentY + 4.8);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.setTextColor(15, 23, 42); // slate-900
-  const nameLines = doc.splitTextToSize(student.name || 'Aluno', 78);
-  if (nameLines.length > 1) {
-    doc.text(nameLines[0], marginX + 4, currentY + 9.2);
-    doc.text(nameLines[1], marginX + 4, currentY + 12.6);
-  } else {
-    doc.text(nameLines[0] ?? (student.name || 'Aluno'), marginX + 4, currentY + 10.8);
-  }
 
-  // 2. Matrícula
-  const colMatriculaX = marginX + 84;
+  const maxStudentNameWidth = 112;
+  let studentFontSize = 8.5;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(studentFontSize);
+  while (studentFontSize > 6.2 && doc.getTextWidth(studentDisplayName) > maxStudentNameWidth) {
+    studentFontSize -= 0.4;
+    doc.setFontSize(studentFontSize);
+  }
+  doc.setTextColor(15, 23, 42); // slate-900
+  const singleLineName = doc.splitTextToSize(studentDisplayName, maxStudentNameWidth)[0] ?? studentDisplayName;
+  doc.text(singleLineName, marginX + 4, currentY + 11.0);
+
+  // 2. Matrícula (Compact on right)
+  const colMatriculaX = marginX + 120;
+  doc.setDrawColor(226, 232, 240);
+  doc.line(colMatriculaX - 3, currentY + 2.2, colMatriculaX - 3, currentY + infoBoxHeight - 2.2);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6);
   doc.setTextColor(148, 163, 184);
   doc.text('MATRÍCULA', colMatriculaX, currentY + 4.8);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
+  doc.setFontSize(8);
   doc.setTextColor(15, 23, 42);
-  doc.text(student.registrationNumber || '—', colMatriculaX, currentY + 10.8);
+  doc.text(student.registrationNumber || '—', colMatriculaX, currentY + 11.0);
 
   // 3. Curso
-  const colCursoX = marginX + 114;
+  const colCursoX = marginX + 146;
+  doc.line(colCursoX - 3, currentY + 2.2, colCursoX - 3, currentY + infoBoxHeight - 2.2);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6);
   doc.setTextColor(148, 163, 184);
   doc.text('CURSO', colCursoX, currentY + 4.8);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(30, 41, 59); // slate-800
-  const courseLines = doc.splitTextToSize(student.courseName || '—', 44);
-  doc.text(courseLines[0] ?? (student.courseName || '—'), colCursoX, currentY + 10.8);
+  const courseLines = doc.splitTextToSize(student.courseName || '—', 38);
+  doc.text(courseLines[0] ?? (student.courseName || '—'), colCursoX, currentY + 11.0);
 
   // 4. Turma
-  const colTurmaX = marginX + 162;
+  const colTurmaX = marginX + 188;
+  doc.line(colTurmaX - 3, currentY + 2.2, colTurmaX - 3, currentY + infoBoxHeight - 2.2);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6);
   doc.setTextColor(148, 163, 184);
   doc.text('TURMA', colTurmaX, currentY + 4.8);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(30, 41, 59);
-  const classLines = doc.splitTextToSize(classStr, 48);
-  doc.text(classLines[0] ?? classStr, colTurmaX, currentY + 10.8);
-
-  // Vertical Divider 1
-  doc.setDrawColor(226, 232, 240);
-  doc.line(marginX + 210, currentY + 2, marginX + 210, currentY + infoBoxHeight - 2);
+  const classLines = doc.splitTextToSize(classStr, 44);
+  doc.text(classLines[0] ?? classStr, colTurmaX, currentY + 11.0);
 
   // 5. Média Geral
-  const colGpaX = marginX + 214;
+  const colGpaX = marginX + 236;
+  doc.line(colGpaX - 3, currentY + 2.2, colGpaX - 3, currentY + infoBoxHeight - 2.2);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6);
   doc.setTextColor(148, 163, 184);
@@ -242,11 +246,9 @@ function renderBoletimPageOnDoc(doc: jsPDF, data: UnifiedBoletimData, options?: 
   doc.setTextColor(15, 23, 42);
   doc.text(formatGrade(data.overallGpa), colGpaX, currentY + 11.2);
 
-  // Vertical Divider 2
-  doc.line(marginX + 242, currentY + 2, marginX + 242, currentY + infoBoxHeight - 2);
-
   // 6. Frequência
-  const colFreqX = marginX + 246;
+  const colFreqX = marginX + 258;
+  doc.line(colFreqX - 3, currentY + 2.2, colFreqX - 3, currentY + infoBoxHeight - 2.2);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6);
   doc.setTextColor(148, 163, 184);
@@ -257,147 +259,120 @@ function renderBoletimPageOnDoc(doc: jsPDF, data: UnifiedBoletimData, options?: 
   const freqStr = `${(Number(data.overallAttendanceRate) || 0).toFixed(1).replace('.', ',')}%`;
   doc.text(freqStr, colFreqX, currentY + 11.2);
 
-  currentY += infoBoxHeight + 4;
+  currentY += infoBoxHeight + 4.5;
 
   // ==========================================
-  // 3. DETALHAMENTO DAS AVALIAÇÕES POR ETAPA (ADAPTIVE 2/3/4 COLUNAS TO FIT 1 PAGE)
+  // 3. DETALHAMENTO DAS AVALIAÇÕES POR ETAPA (EXPANDED CARDS FILLING AVAILABLE SHEET HEIGHT)
   // ==========================================
+  const bottomFooterY = pageHeight - 16;
+  const sigY = bottomFooterY - 12;
   const modules = data.modules ?? [];
   if (modules.length > 0) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
     doc.setTextColor(100, 116, 139);
     doc.text('DETALHAMENTO DAS AVALIAÇÕES POR ETAPA', marginX, currentY);
-    currentY += 3;
+    currentY += 3.5;
 
     const colsCount = modules.length > 6 ? 4 : modules.length > 4 ? 3 : 2;
-    const cardGap = colsCount > 2 ? 4 : 6;
-    const cardWidth = (contentWidth - cardGap * (colsCount - 1)) / colsCount;
-    const gradeRowStep = modules.length > 4 ? 4.3 : 5.0;
-    const gradeRowRectH = modules.length > 4 ? 3.8 : 4.4;
-    const colYs = Array.from({ length: colsCount }, () => currentY);
+    const rowsCount = Math.max(1, Math.ceil(modules.length / colsCount));
+    const cardGapX = colsCount > 2 ? 4 : 6;
+    const cardGapY = 4;
+    const cardWidth = (contentWidth - cardGapX * (colsCount - 1)) / colsCount;
+
+    // Expand cards to fill vertical space cleanly down to the signatures area
+    const availableCardsHeight = Math.max(40, sigY - 10 - currentY);
+    const targetRowCardHeight = Math.min(
+      52,
+      Math.max(24, (availableCardsHeight - cardGapY * (rowsCount - 1)) / rowsCount),
+    );
 
     modules.forEach((mod, idx) => {
       const colIdx = idx % colsCount;
-      const cardX = marginX + colIdx * (cardWidth + cardGap);
-      const cardTopY = colYs[colIdx]!;
-
-      const gradesCount = Math.max(1, (mod.grades ?? []).length);
-      const cardHeight = 7.8 + gradesCount * gradeRowStep + 1.5;
+      const rowIdx = Math.floor(idx / colsCount);
+      const cardX = marginX + colIdx * (cardWidth + cardGapX);
+      const cardTopY = currentY + rowIdx * (targetRowCardHeight + cardGapY);
+      const cardHeight = targetRowCardHeight;
 
       // Card Box
       doc.setFillColor(248, 250, 252);
-      doc.setDrawColor(226, 232, 240);
-      doc.setLineWidth(0.25);
-      doc.roundedRect(cardX, cardTopY, cardWidth, cardHeight, 1.5, 1.5, 'FD');
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(cardX, cardTopY, cardWidth, cardHeight, 2, 2, 'FD');
 
-      // Card Header
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(colsCount > 2 ? 6.8 : 7.5);
-      doc.setTextColor(15, 23, 42);
-      const modNameTruncated = doc.splitTextToSize(mod.moduleName || 'Etapa', cardWidth - 36);
-      doc.text(modNameTruncated[0] ?? mod.moduleName, cardX + 2.5, cardTopY + 4.2);
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(5.2);
-      doc.setTextColor(100, 116, 139);
-      doc.text(mod.calculationModeLabel || 'Média Simples', cardX + 2.5, cardTopY + 6.6);
-
-      // Card Final Grade on right
+      // Card Header (Module Name on left, larger Final Grade on right — no "Média Simples" or "média da etapa")
+      const headerHeight = 9.0;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(colsCount > 2 ? 7.8 : 8.5);
       doc.setTextColor(15, 23, 42);
+      const modNameTruncated = doc.splitTextToSize((mod.moduleName || 'Etapa').toUpperCase(), cardWidth - 22);
+      doc.text(modNameTruncated[0] ?? mod.moduleName, cardX + 3, cardTopY + 6.0);
+
+      // Card Final Grade on right (Larger font size)
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(colsCount > 2 ? 11.0 : 12.0);
+      doc.setTextColor(15, 23, 42);
       const finalGradeStr = formatGrade(mod.finalGrade);
-      doc.text(finalGradeStr, cardX + cardWidth - 2.5, cardTopY + 4.6, { align: 'right' });
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(4.8);
-      doc.setTextColor(148, 163, 184);
-      doc.text('média da etapa', cardX + cardWidth - 2.5, cardTopY + 7.0, { align: 'right' });
+      doc.text(finalGradeStr, cardX + cardWidth - 3, cardTopY + 6.3, { align: 'right' });
 
       // Divider inside card
       doc.setDrawColor(226, 232, 240);
-      doc.line(cardX + 2, cardTopY + 8.0, cardX + cardWidth - 2, cardTopY + 8.0);
+      doc.line(cardX + 2.5, cardTopY + headerHeight, cardX + cardWidth - 2.5, cardTopY + headerHeight);
 
-      // Grades rows
-      let gradeRowY = cardTopY + 8.8;
+      // Grades rows distributed evenly across the remaining card body
+      const bodyTopY = cardTopY + headerHeight + 2.0;
+      const bodyAvailableH = Math.max(10, cardHeight - headerHeight - 4.0);
+
       if (mod.grades && mod.grades.length > 0) {
+        const gradesCount = mod.grades.length;
+        const rowGap = 1.8;
+        const gradeRowRectH = Math.min(
+          8.5,
+          Math.max(4.5, (bodyAvailableH - rowGap * (gradesCount - 1)) / gradesCount),
+        );
+        const totalRowsH = gradesCount * gradeRowRectH + (gradesCount - 1) * rowGap;
+        let gradeRowY = bodyTopY + Math.max(0, (bodyAvailableH - totalRowsH) / 2);
+
         mod.grades.forEach((g) => {
           doc.setFillColor(255, 255, 255);
-          doc.rect(cardX + 2, gradeRowY, cardWidth - 4, gradeRowRectH, 'F');
-          doc.setDrawColor(241, 245, 249);
-          doc.rect(cardX + 2, gradeRowY, cardWidth - 4, gradeRowRectH, 'S');
+          doc.setDrawColor(226, 232, 240);
+          doc.roundedRect(cardX + 2.5, gradeRowY, cardWidth - 5, gradeRowRectH, 1, 1, 'FD');
 
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(colsCount > 2 ? 6.0 : 6.5);
-          doc.setTextColor(51, 65, 85);
-          const gName = doc.splitTextToSize(g.name || 'Avaliação', cardWidth - 28);
-          doc.text(gName[0] ?? g.name, cardX + 3.5, gradeRowY + 2.8);
+          const textBaselineY = gradeRowY + gradeRowRectH / 2 + 1.1;
 
           doc.setFont('helvetica', 'bold');
-          doc.setFontSize(colsCount > 2 ? 6.4 : 7.0);
+          doc.setFontSize(colsCount > 2 ? 6.8 : 7.5);
+          doc.setTextColor(51, 65, 85);
+          const gName = doc.splitTextToSize((g.name || 'Avaliação').toUpperCase(), cardWidth - 28);
+          doc.text(gName[0] ?? g.name, cardX + 4.5, textBaselineY);
+
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(colsCount > 2 ? 7.5 : 8.2);
           doc.setTextColor(15, 23, 42);
           const scoreText = typeof g.score === 'number' && !Number.isNaN(g.score)
             ? `${g.score.toFixed(1).replace('.', ',')} / ${g.maxScore ?? 10}`
             : `— / ${g.maxScore ?? 10}`;
-          doc.text(scoreText, cardX + cardWidth - 3.5, gradeRowY + 2.8, { align: 'right' });
+          doc.text(scoreText, cardX + cardWidth - 4.5, textBaselineY, { align: 'right' });
 
-          gradeRowY += gradeRowStep;
+          gradeRowY += gradeRowRectH + rowGap;
         });
       } else {
         doc.setFont('helvetica', 'italic');
-        doc.setFontSize(5.8);
+        doc.setFontSize(6.5);
         doc.setTextColor(148, 163, 184);
-        doc.text('Nenhuma avaliação lançada nesta etapa.', cardX + cardWidth / 2, gradeRowY + 3.0, { align: 'center' });
-        gradeRowY += gradeRowStep;
+        doc.text(
+          'Nenhuma avaliação lançada nesta etapa.',
+          cardX + cardWidth / 2,
+          bodyTopY + bodyAvailableH / 2 + 1,
+          { align: 'center' },
+        );
       }
-
-      colYs[colIdx] = cardTopY + cardHeight + 2.2;
     });
-
-    currentY = Math.max(...colYs) + 1.5;
   }
 
   // ==========================================
-  // 4. SUMMARY FOOTER & CRITERIA (CLAMPED TO FIT SINGLE PAGE)
+  // 4. FORMAL SIGNATURES AREA (No horizontal divider line above signatures)
   // ==========================================
-  const footerBoxHeight = 13.5;
-  const footerY = Math.min(Math.max(currentY, pageHeight - 54), pageHeight - 44);
-
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(226, 232, 240);
-  doc.setLineWidth(0.3);
-  doc.roundedRect(marginX, footerY, contentWidth, footerBoxHeight, 2, 2, 'FD');
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.5);
-  doc.setTextColor(51, 65, 85); // slate-700
-  doc.text('CRITÉRIOS DE AVALIAÇÃO E LEGENDA:', marginX + 4, footerY + 4.3);
-
-  const minAtt = (data.criteria?.minAttendanceRate != null ? data.criteria.minAttendanceRate : 75).toFixed(1).replace('.', ',');
-  const minPass = (data.criteria?.minPassingGrade != null ? data.criteria.minPassingGrade : 6).toFixed(1).replace('.', ',');
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6);
-  doc.setTextColor(100, 116, 139);
-  doc.text(`• Frequência Mínima: ${minAtt}% das aulas ministradas para aprovação.`, marginX + 4, footerY + 8.2);
-  doc.text(`• Média de Aprovação: Nota igual ou superior a ${minPass} na escala de 0,0 a 10,0.`, marginX + 4, footerY + 11.6);
-
-  // Totals on right
-  const totalClasses = modules.reduce((s, m) => s + (Number(m.classesHeld) || 0), 0);
-  const totalPres = modules.reduce((s, m) => s + (Number(m.presences) || 0), 0);
-  const totalAbs = modules.reduce((s, m) => s + (Number(m.absences) || 0), 0);
-  const totalJust = modules.reduce((s, m) => s + (Number(m.justified) || 0), 0);
-
-  const totalsStr = `Aulas: ${totalClasses}   |   Presenças: ${totalPres}   |   Faltas: ${totalAbs}${totalJust > 0 ? `   |   Justificadas: ${totalJust}` : ''}`;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.5);
-  doc.setTextColor(15, 23, 42);
-  doc.text(totalsStr, marginX + contentWidth - 4, footerY + 8.2, { align: 'right' });
-
-  // ==========================================
-  // 5. FORMAL SIGNATURES AREA
-  // ==========================================
-  const sigY = Math.min(footerY + footerBoxHeight + 8, pageHeight - 23);
   const sigLineWidth = 65;
   const sig1X = marginX + 24;
   const sig2X = marginX + contentWidth - sigLineWidth - 24;
@@ -426,9 +401,8 @@ function renderBoletimPageOnDoc(doc: jsPDF, data: UnifiedBoletimData, options?: 
   doc.text('Assinatura do Aluno / Responsável', sig2X + sigLineWidth / 2, sigY + 6.5, { align: 'center' });
 
   // ==========================================
-  // 6. INSTITUTIONAL FOOTER WITH QR CODE (BOTTOM-RIGHT)
+  // 5. INSTITUTIONAL FOOTER WITH QR CODE (PINNED TO BOTTOM OF SHEET)
   // ==========================================
-  const bottomFooterY = pageHeight - 16;
   doc.setDrawColor(226, 232, 240);
   doc.setLineWidth(0.3);
   doc.line(marginX, bottomFooterY, marginX + contentWidth, bottomFooterY);
@@ -693,17 +667,6 @@ export function buildClassBoletimPdf(data: ClassBoletimData, options?: BoletimPd
 
     currentY += rowHeight;
   }
-
-  // Footer notes & signatures
-  const sigY = Math.min(currentY + 12, pageHeight - 16);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6);
-  doc.setTextColor(148, 163, 184);
-  doc.text(
-    'Critérios: Frequência mínima de 75,0% e média mínima 6,0. Documento gerado eletronicamente pelo Sistema ERPITB.',
-    marginX,
-    sigY
-  );
 
   drawWatermarkOnEveryPage(doc, options?.watermarkLogoDataUrl, options?.watermarkText);
   return doc;
