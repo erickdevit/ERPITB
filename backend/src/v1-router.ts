@@ -269,6 +269,11 @@ export async function handleV1Route(request: Request, env: Env, user: AuthUser, 
     }
 
     invalidateWorkerCache(['students', 'enrollments']);
+    broadcastEvent(
+      'entity_changed',
+      { entity: 'enrollments', entities: ['enrollments', 'students'], classId, userId: user.id, timestamp },
+      { env, actorUserId: user.id, targetClassId: classId ?? undefined },
+    );
 
     return json({ ok: true, message: 'Matrícula trancada com sucesso. O aluno não aparecerá nas próximas chamadas.' }, 200);
   }
@@ -305,6 +310,11 @@ export async function handleV1Route(request: Request, env: Env, user: AuthUser, 
     }
 
     invalidateWorkerCache(['students', 'enrollments']);
+    broadcastEvent(
+      'entity_changed',
+      { entity: 'enrollments', entities: ['enrollments', 'students'], classId, userId: user.id, timestamp },
+      { env, actorUserId: user.id, targetClassId: classId ?? undefined },
+    );
 
     return json({ ok: true, message: 'Matrícula reativada com sucesso. O aluno voltará a constar como ativo nas chamadas.' }, 200);
   }
@@ -378,6 +388,11 @@ export async function handleV1Route(request: Request, env: Env, user: AuthUser, 
     `).bind(targetEnrollmentId, toClassId, studentId, timestamp, timestamp).run();
 
     invalidateWorkerCache(['students', 'enrollments']);
+    broadcastEvent(
+      'entity_changed',
+      { entity: 'enrollments', entities: ['enrollments', 'students'], userId: user.id, timestamp },
+      { env, actorUserId: user.id },
+    );
 
     return json({
       ok: true,
@@ -470,8 +485,42 @@ export async function handleV1Route(request: Request, env: Env, user: AuthUser, 
 
   // 15c. Canonical REST Batch Entity Mutation Endpoint
   if (path === '/v1/entities/batch' && method === 'POST') {
+    const clonedBody = await readJson<{ operations?: Array<{ entity?: string; id?: string; data?: Record<string, unknown> }> }>(
+      request.clone() as unknown as Request,
+    ).catch(() => ({ operations: [] }));
+    const ops = Array.isArray(clonedBody.operations) ? clonedBody.operations : [];
+    const affectedEntities = Array.from(new Set(ops.map((op) => String(op?.entity ?? '')).filter(Boolean)));
+    const affectedClassIds = Array.from(
+      new Set(
+        ops
+          .map((op) =>
+            typeof op?.data?.class_id === 'string'
+              ? op.data.class_id
+              : op?.entity === 'classes' && typeof op?.id === 'string'
+              ? op.id
+              : '',
+          )
+          .filter(Boolean),
+      ),
+    );
     const result = await withIdempotency(request, env, user, path, () => push(request, env, user));
-    broadcastEvent('entity_changed', { source: 'batch', userId: user.id, timestamp: nowIso() }, { env });
+    invalidateWorkerCache();
+    broadcastEvent(
+      'entity_changed',
+      {
+        entity: affectedEntities[0],
+        entities: affectedEntities.length > 0 ? affectedEntities : undefined,
+        classId: affectedClassIds.length === 1 ? affectedClassIds[0] : undefined,
+        source: 'batch',
+        userId: user.id,
+        timestamp: nowIso(),
+      },
+      {
+        env,
+        actorUserId: user.id,
+        targetClassId: affectedClassIds.length === 1 ? affectedClassIds[0] : undefined,
+      },
+    );
     return result;
   }
 

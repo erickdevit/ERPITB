@@ -77,6 +77,7 @@ export function ClassBoletimView({
         watermarkText,
         watermarkLogoUrl,
         watermarkGrayscale,
+        logoUrl,
       });
     } finally {
       setDownloading(false);
@@ -251,9 +252,10 @@ export function ClassBoletimView({
                     className="hover:bg-slate-50/70 transition-colors print:break-inside-avoid"
                   >
                     <td
-                      className={`py-2.5 px-4 font-semibold text-slate-900 whitespace-nowrap ${
+                      className={`py-2.5 px-4 font-semibold text-slate-900 max-w-[240px] sm:max-w-[300px] truncate print:whitespace-normal print:max-w-[180px] break-words ${
                         onSelectStudent ? 'cursor-pointer hover:text-sky-700 hover:underline' : ''
                       }`}
+                      title={student.studentName}
                       onClick={() => onSelectStudent?.(student.studentId)}
                     >
                       {student.studentName}

@@ -384,4 +384,48 @@ div.bg-slate-900.animate-pulse {
   .print-landscape {
     page: landscape-page;
   }
+
+  /* Strict 1-Page A4 Landscape Rule for Individual Boletim */
+  div.boletim-single-page,
+  .boletim-single-page {
+    max-height: 194mm !important;
+    overflow: hidden !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  /* Class Batch Boletim Compilation (Strictly 1 Page per Student, Zero Blank Pages) */
+  .class-batch-boletim-document {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  div.class-batch-student-page,
+  .class-batch-student-page {
+    width: 100% !important;
+    max-height: 194mm !important;
+    overflow: hidden !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  div.class-batch-page-break,
+  .class-batch-page-break {
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+
+  div.class-batch-last-page,
+  .class-batch-last-page,
+  div.class-batch-student-page:last-child,
+  .class-batch-student-page:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
 }

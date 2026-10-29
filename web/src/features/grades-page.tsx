@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { useApp } from '../app-context';
-import { PageDialog, SelectField, ErrorBoundary } from '../components';
+import { PageDialog, SelectField, ErrorBoundary, TableSkeleton } from '../components';
 import { latestAttendance } from '../lib/attendance';
 import { buildUnifiedBoletimData, type ClassBoletimData } from '../lib/boletim';
 import {
@@ -311,22 +311,34 @@ export function GradesPage() {
   }, [studentGrades.items, selectedTableId]);
 
   // Synchronize draftCells whenever selectedTableId, tableItems, enrolledStudents, or existingGradesMap changes
+  const lastSyncedTableIdRef = useRef('');
   useEffect(() => {
-    const next: Record<string, { scoreText: string; remarks: string }> = {};
-    for (const student of enrolledStudents) {
-      for (const item of tableItems) {
-        const key = `${student.id}:${item.id}`;
-        const existing = existingGradesMap.get(key);
-        const hasScore = existing?.score !== null && existing?.score !== undefined && existing?.score !== '';
-        next[key] = {
-          scoreText: hasScore ? String(existing!.score).replace('.', ',') : '',
-          remarks: existing?.remarks ? String(existing.remarks) : '',
-        };
+    const isSameTable = lastSyncedTableIdRef.current === selectedTableId;
+    lastSyncedTableIdRef.current = selectedTableId;
+
+    setDraftCells((prev) => {
+      const next: Record<string, { scoreText: string; remarks: string }> = {};
+      for (const student of enrolledStudents) {
+        for (const item of tableItems) {
+          const key = `${student.id}:${item.id}`;
+          if (dirty && isSameTable && prev[key]) {
+            next[key] = prev[key]!;
+            continue;
+          }
+          const existing = existingGradesMap.get(key);
+          const hasScore = existing?.score !== null && existing?.score !== undefined && existing?.score !== '';
+          next[key] = {
+            scoreText: hasScore ? String(existing!.score).replace('.', ',') : '',
+            remarks: existing?.remarks ? String(existing.remarks) : '',
+          };
+        }
       }
+      return next;
+    });
+    if (!dirty || !isSameTable) {
+      setDirty(false);
     }
-    setDraftCells(next);
-    setDirty(false);
-  }, [selectedTableId, tableItems, enrolledStudents, existingGradesMap]);
+  }, [selectedTableId, tableItems, enrolledStudents, existingGradesMap, dirty]);
 
   const classSummary = useMemo(
     () =>
@@ -835,8 +847,15 @@ export function GradesPage() {
         </div>
       )}
 
+      {/* Loading Skeleton while tables are loading */}
+      {classId && gradeTables.loading && classTables.length === 0 && (
+        <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xs overflow-hidden">
+          <TableSkeleton rows={5} cols={6} />
+        </div>
+      )}
+
       {/* Empty State if no tables exist yet */}
-      {classId && classTables.length === 0 && (
+      {classId && !gradeTables.loading && classTables.length === 0 && (
         <div className="bg-white border border-slate-200/90 rounded-2xl p-8 text-center shadow-2xs max-w-xl mx-auto my-6">
           <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-700 flex items-center justify-center mx-auto mb-3">
             <BookOpen className="w-6 h-6" />

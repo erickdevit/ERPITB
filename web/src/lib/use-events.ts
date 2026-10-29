@@ -44,7 +44,8 @@ export function parseSseChunk(raw: string): SseEventMessage[] {
 export interface UseServerEventsOptions {
   enabled?: boolean;
   token?: string;
-  onEntityChanged?: (entity?: string) => void;
+  currentUserId?: string;
+  onEntityChanged?: (entity?: string, entities?: string[]) => void;
   onBrandingUpdated?: (branding: Partial<BrandingSettings>) => void;
   onSessionRevoked?: (reason?: string) => void;
 }
@@ -56,6 +57,7 @@ export interface UseServerEventsOptions {
 export function useServerEvents({
   enabled = true,
   token,
+  currentUserId,
   onEntityChanged,
   onBrandingUpdated,
   onSessionRevoked,
@@ -94,11 +96,21 @@ export function useServerEvents({
 
         source.addEventListener('entity_changed', (evt: MessageEvent) => {
           if (evt.lastEventId) lastEventIdRef.current = evt.lastEventId;
-          clearEntityMemoryCache();
           try {
             const payload = JSON.parse(evt.data);
-            onEntityChanged?.(payload?.entity);
+            // Ignore self-echoed events from the same user session
+            if (payload?.userId && currentUserId && payload.userId === currentUserId) {
+              return;
+            }
+            const entities = Array.isArray(payload?.entities)
+              ? payload.entities.map(String)
+              : typeof payload?.entity === 'string' && payload.entity
+              ? [payload.entity]
+              : undefined;
+            clearEntityMemoryCache(entities);
+            onEntityChanged?.(typeof payload?.entity === 'string' ? payload.entity : undefined, entities);
           } catch {
+            clearEntityMemoryCache();
             onEntityChanged?.();
           }
         });
@@ -138,5 +150,5 @@ export function useServerEvents({
         source = null;
       }
     };
-  }, [enabled, token, onBrandingUpdated, onEntityChanged, onSessionRevoked]);
+  }, [enabled, token, currentUserId, onBrandingUpdated, onEntityChanged, onSessionRevoked]);
 }

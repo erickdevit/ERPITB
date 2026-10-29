@@ -1,4 +1,4 @@
-import { hashPassword } from './auth';
+import { hashPassword, invalidateUserCache } from './auth';
 import { decryptText, encryptText } from './crypto';
 import { AppError, normalizeEmail, nowIso, readJson, requireString, uuid } from './http';
 import { canAccessStudentPii, dateInTimeZone, requirePermission, requireScope, teacherCanEditDate } from './rbac';
@@ -514,8 +514,9 @@ export async function createClass(request: Request, env: Env, user: AuthUser): P
     entity: 'classes',
     operation: 'upsert',
     id: row.id,
+    userId: user.id,
     timestamp,
-  }, { env });
+  }, { env, actorUserId: user.id, targetClassId: row.id });
 
   return { ...row, teacher_id: teacherId };
 }
@@ -605,8 +606,9 @@ export async function updateClass(request: Request, env: Env, user: AuthUser, id
     entity: 'classes',
     operation: 'upsert',
     id,
+    userId: user.id,
     timestamp,
-  }, { env });
+  }, { env, actorUserId: user.id, targetClassId: id });
 
   return new Response(JSON.stringify(row), {
     status: 200,
@@ -696,6 +698,14 @@ export async function updateUser(request: Request, env: Env, user: AuthUser, id:
   } else {
     await env.DB.prepare(`UPDATE users SET name = ?, email = ?, role = ?, active = ?, updated_at = ? WHERE id = ?`).bind(name, email, role, active, timestamp, id).run();
   }
+  invalidateUserCache(id);
+  if (!active || role !== current.role) {
+    broadcastEvent('session_revoked', {
+      userId: id,
+      reason: !active ? 'USER_DISABLED' : 'ROLE_CHANGED',
+      timestamp,
+    }, { targetUserId: id, env });
+  }
   return { id, name, email, role, active, updated_at: timestamp };
 }
 
@@ -747,6 +757,7 @@ export async function deleteUser(env: Env, user: AuthUser, id: string): Promise<
   await env.DB.prepare(`DELETE FROM sync_operations WHERE user_id = ?`).bind(id).run();
   await env.DB.prepare(`DELETE FROM sync_changes WHERE changed_by_user_id = ?`).bind(id).run();
   await env.DB.prepare(`DELETE FROM users WHERE id = ?`).bind(id).run();
+  invalidateUserCache(id);
 
   broadcastEvent('session_revoked', {
     userId: id,
@@ -914,7 +925,7 @@ export async function createStudent(request: Request, env: Env, user: AuthUser):
   invalidateWorkerCache('enrollments');
   invalidateWorkerCache('analytics');
   invalidateWorkerCache('reports');
-  broadcastEvent('entity_changed', { entity: 'students', operation: 'upsert', id: clear.id, timestamp }, { env });
+  broadcastEvent('entity_changed', { entity: 'students', entities: ['students', 'enrollments'], operation: 'upsert', id: clear.id, classId, userId: user.id, timestamp }, { env, actorUserId: user.id, targetClassId: classId });
   const hasPii = canAccessStudentPii(user);
   if (!hasPii) {
     clear.cpf = null;
@@ -954,7 +965,7 @@ export async function updateStudent(request: Request, env: Env, user: AuthUser, 
   invalidateWorkerCache('students');
   invalidateWorkerCache('analytics');
   invalidateWorkerCache('reports');
-  broadcastEvent('entity_changed', { entity: 'students', operation: 'upsert', id, timestamp }, { env });
+  broadcastEvent('entity_changed', { entity: 'students', operation: 'upsert', id, userId: user.id, timestamp }, { env, actorUserId: user.id });
   const cleared = await clearStudent(env, row, user);
 
   return new Response(JSON.stringify(cleared), {
@@ -988,7 +999,7 @@ export async function inactivateStudent(env: Env, user: AuthUser, id: string, re
   invalidateWorkerCache('students');
   invalidateWorkerCache('analytics');
   invalidateWorkerCache('reports');
-  broadcastEvent('entity_changed', { entity: 'students', operation: 'upsert', id, timestamp }, { env });
+  broadcastEvent('entity_changed', { entity: 'students', operation: 'upsert', id, userId: user.id, timestamp }, { env, actorUserId: user.id });
   return { ok: true };
 }
 
@@ -1083,7 +1094,7 @@ export async function updateEnrollment(request: Request, env: Env, user: AuthUse
   invalidateWorkerCache('reports');
 
   const updated = await env.DB.prepare(`SELECT * FROM enrollments WHERE id = ?`).bind(id).first();
-  broadcastEvent('entity_changed', { entity: 'enrollments', operation: 'upsert', id, timestamp }, { env });
+  broadcastEvent('entity_changed', { entity: 'enrollments', operation: 'upsert', id, classId: String(current.class_id), userId: user.id, timestamp }, { env, actorUserId: user.id, targetClassId: String(current.class_id) });
   return new Response(JSON.stringify(updated), {
     status: 200,
     headers: { 'content-type': 'application/json', 'etag': formatETag(nextVersion) },
@@ -1114,7 +1125,7 @@ export async function deleteEnrollment(request: Request, env: Env, user: AuthUse
   invalidateWorkerCache('analytics');
   invalidateWorkerCache('reports');
 
-  broadcastEvent('entity_changed', { entity: 'enrollments', operation: 'delete', id, timestamp }, { env });
+  broadcastEvent('entity_changed', { entity: 'enrollments', operation: 'delete', id, classId: String(current.class_id), userId: user.id, timestamp }, { env, actorUserId: user.id, targetClassId: String(current.class_id) });
   return new Response(JSON.stringify({ ok: true }), {
     status: 200,
     headers: { 'content-type': 'application/json' },
@@ -1269,7 +1280,7 @@ export async function saveAttendance(request: Request, env: Env, user: AuthUser)
   invalidateWorkerCache('reports');
   invalidateWorkerCache('dashboard');
 
-  broadcastEvent('entity_changed', { entity: 'attendance_records', operation: 'upsert', classId, date, timestamp }, { env });
+  broadcastEvent('entity_changed', { entity: 'attendance_records', entities: ['attendance_records', 'class_notes'], operation: 'upsert', classId, date, userId: user.id, timestamp }, { env, actorUserId: user.id, targetClassId: classId });
   return { items: saved };
 }
 

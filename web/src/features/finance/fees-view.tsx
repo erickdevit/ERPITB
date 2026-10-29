@@ -15,7 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import { useApp } from '../../app-context';
-import { PageDialog, SelectField } from '../../components';
+import { EmptyState, PageDialog, SelectField, TableSkeleton } from '../../components';
 import { useEntity } from '../../lib/use-entity';
 import type { FinancialFee, LocalRecord, PaymentMethod } from '../../types';
 import { FeesPrintDocument } from './finance-print';
@@ -316,14 +316,19 @@ export function FeesView() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-400">
-                    Carregando mensalidades...
+                  <td colSpan={8} className="p-0">
+                    <span className="sr-only">Carregando mensalidades...</span>
+                    <TableSkeleton rows={5} cols={8} />
                   </td>
                 </tr>
               ) : filteredFees.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-400">
-                    Nenhuma mensalidade encontrada para os filtros selecionados.
+                  <td colSpan={8} className="p-0">
+                    <EmptyState
+                      icon={DollarSign}
+                      title="Nenhuma mensalidade encontrada para os filtros selecionados."
+                      description="Ajuste a competência ou os filtros acima, ou gere novas mensalidades."
+                    />
                   </td>
                 </tr>
               ) : (

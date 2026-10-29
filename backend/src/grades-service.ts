@@ -1,6 +1,8 @@
 import { AppError, nowIso, readJson, requireString, uuid } from './http';
 import { requirePermission, requireScope } from './rbac';
 import { assertConcurrencyVersion, formatETag, parseIfMatchHeader } from './concurrency';
+import { invalidateWorkerCache } from './data';
+import { broadcastEvent } from './events-bus';
 import type { AuthUser, Env } from './types';
 
 async function requireClassAccess(env: Env, user: AuthUser, classId: string): Promise<void> {
@@ -91,6 +93,8 @@ export async function createGradeTable(request: Request, env: Env, user: AuthUse
     ).run();
 
   const created = await env.DB.prepare(`SELECT * FROM grade_tables WHERE id = ?`).bind(id).first<Record<string, unknown>>();
+  invalidateWorkerCache(['grade_tables', 'reports', 'analytics']);
+  broadcastEvent('entity_changed', { entity: 'grade_tables', operation: 'upsert', id, classId, userId: user.id, timestamp }, { env, actorUserId: user.id, targetClassId: classId });
   return new Response(JSON.stringify(created), {
     status: 201,
     headers: {
@@ -145,6 +149,9 @@ export async function updateGradeTable(request: Request, env: Env, user: AuthUse
   }
 
   const updated = await env.DB.prepare(`SELECT * FROM grade_tables WHERE id = ?`).bind(id).first<Record<string, unknown>>();
+  const classId = String(current.class_id);
+  invalidateWorkerCache(['grade_tables', 'reports', 'analytics']);
+  broadcastEvent('entity_changed', { entity: 'grade_tables', operation: 'upsert', id, classId, userId: user.id, timestamp }, { env, actorUserId: user.id, targetClassId: classId });
   return new Response(JSON.stringify(updated), {
     status: 200,
     headers: {
@@ -186,6 +193,14 @@ export async function deleteGradeTable(request: Request, env: Env, user: AuthUse
   await env.DB.prepare(
     `UPDATE student_grades SET deleted_at = ?, sync_version = sync_version + 1, updated_at = ? WHERE grade_table_id = ? AND deleted_at IS NULL`
   ).bind(timestamp, timestamp, id).run();
+
+  const classId = String(current.class_id);
+  invalidateWorkerCache(['grade_tables', 'grade_items', 'student_grades', 'reports', 'analytics']);
+  broadcastEvent(
+    'entity_changed',
+    { entity: 'grade_tables', entities: ['grade_tables', 'grade_items', 'student_grades'], operation: 'delete', id, classId, userId: user.id, timestamp },
+    { env, actorUserId: user.id, targetClassId: classId },
+  );
 
   return new Response(JSON.stringify({ ok: true }), {
     status: 200,
@@ -270,6 +285,8 @@ export async function createGradeItem(request: Request, env: Env, user: AuthUser
     ).run();
 
   const created = await env.DB.prepare(`SELECT * FROM grade_items WHERE id = ?`).bind(id).first<Record<string, unknown>>();
+  invalidateWorkerCache(['grade_items', 'reports', 'analytics']);
+  broadcastEvent('entity_changed', { entity: 'grade_items', operation: 'upsert', id, classId, userId: user.id, timestamp }, { env, actorUserId: user.id, targetClassId: classId });
   return new Response(JSON.stringify(created), {
     status: 201,
     headers: {
@@ -320,6 +337,9 @@ export async function updateGradeItem(request: Request, env: Env, user: AuthUser
   }
 
   const updated = await env.DB.prepare(`SELECT * FROM grade_items WHERE id = ?`).bind(id).first<Record<string, unknown>>();
+  const classId = String(current.class_id);
+  invalidateWorkerCache(['grade_items', 'reports', 'analytics']);
+  broadcastEvent('entity_changed', { entity: 'grade_items', operation: 'upsert', id, classId, userId: user.id, timestamp }, { env, actorUserId: user.id, targetClassId: classId });
   return new Response(JSON.stringify(updated), {
     status: 200,
     headers: {
@@ -357,6 +377,14 @@ export async function deleteGradeItem(request: Request, env: Env, user: AuthUser
   await env.DB.prepare(
     `UPDATE student_grades SET deleted_at = ?, sync_version = sync_version + 1, updated_at = ? WHERE grade_item_id = ? AND deleted_at IS NULL`
   ).bind(timestamp, timestamp, id).run();
+
+  const classId = String(current.class_id);
+  invalidateWorkerCache(['grade_items', 'student_grades', 'reports', 'analytics']);
+  broadcastEvent(
+    'entity_changed',
+    { entity: 'grade_items', entities: ['grade_items', 'student_grades'], operation: 'delete', id, classId, userId: user.id, timestamp },
+    { env, actorUserId: user.id, targetClassId: classId },
+  );
 
   return new Response(JSON.stringify({ ok: true }), {
     status: 200,
@@ -468,6 +496,24 @@ export async function saveStudentGrades(request: Request, env: Env, user: AuthUs
 
   if (statements.length > 0) {
     await env.DB.batch(statements);
+    const affectedClassIds = Array.from(new Set(savedRecords.map((r: any) => String(r?.classId || '')).filter(Boolean)));
+    invalidateWorkerCache(['student_grades', 'reports', 'analytics']);
+    broadcastEvent(
+      'entity_changed',
+      {
+        entity: 'student_grades',
+        entities: ['student_grades'],
+        classId: affectedClassIds.length === 1 ? affectedClassIds[0] : undefined,
+        operation: 'upsert',
+        userId: user.id,
+        timestamp,
+      },
+      {
+        env,
+        actorUserId: user.id,
+        targetClassId: affectedClassIds.length === 1 ? affectedClassIds[0] : undefined,
+      },
+    );
   }
 
   const responseBody = Array.isArray(body.grades) ? { items: savedRecords } : savedRecords[0];

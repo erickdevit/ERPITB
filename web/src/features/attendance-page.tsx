@@ -140,6 +140,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   const [filterWeekDay, setFilterWeekDay] = useState('');
   const [filterShift, setFilterShift] = useState('');
   const [filterLabId, setFilterLabId] = useState('');
+  const [dirtyContextKey, setDirtyContextKey] = useState<string | null>(null);
 
   const loading =
     classes.loading ||
@@ -246,6 +247,11 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
       setGeneralNotes('');
       return;
     }
+    const currentKey = `${classId}:${canonicalDate}`;
+    if (dirtyContextKey === currentKey) {
+      // Preserve unsaved draft state when background entity refreshes arrive from other clients
+      return;
+    }
     setRows(
       buildAttendanceDraftRows({
         classId,
@@ -260,7 +266,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
     setGeneralNotes(existingText);
     if (existingText.trim()) setShowGeneralNotes(true);
     setExpandedNotes(new Set());
-  }, [attendance.items, canonicalDate, classId, enrollments.items, existingClassNote, loading, replacements.items, students.items]);
+  }, [attendance.items, canonicalDate, classId, dirtyContextKey, enrollments.items, existingClassNote, loading, replacements.items, students.items]);
 
   const visibleRows = useMemo(() => {
     const term = search.trim().toLocaleLowerCase('pt-BR');
@@ -274,6 +280,9 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
 
 
   const updateRow = (index: number, update: (row: AttendanceDraftRow) => AttendanceDraftRow) => {
+    if (classId && canonicalDate) {
+      setDirtyContextKey(`${classId}:${canonicalDate}`);
+    }
     setRows((current) => current.map((row, currentIndex) => (currentIndex === index ? update(row) : row)));
   };
 
@@ -337,6 +346,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
         existingClassNote,
         classRecord: selectedClass,
       });
+      setDirtyContextKey(null);
       await Promise.all([attendance.reload(), classNotes.reload(), replacements.reload()]);
       setTaughtSessionsCount((prev) => Math.max(prev, 1));
       setNotice({
@@ -778,7 +788,12 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
             maxLength={2000}
             disabled={!access.editable}
             value={generalNotes}
-            onChange={(e) => setGeneralNotes(e.target.value)}
+            onChange={(e) => {
+              if (classId && canonicalDate) {
+                setDirtyContextKey(`${classId}:${canonicalDate}`);
+              }
+              setGeneralNotes(e.target.value);
+            }}
             placeholder="Anotações sobre a aula ou ocorrências gerais da turma..."
             className="w-full p-2.5 text-xs sm:text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all disabled:bg-slate-50 disabled:text-slate-400 placeholder:text-slate-400"
           />

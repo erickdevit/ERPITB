@@ -96,7 +96,16 @@ async function createServer() {
     const parsedUrl = new URL(reqUrl, `http://${req.headers.host || '127.0.0.1'}`);
     const pathname = parsedUrl.pathname;
 
-    // Check if this is an API route
+    // Check if this is an API route (respecting HTML content negotiation for public SPA routes)
+    const acceptsHtml = String(req.headers.accept || '').includes('text/html');
+    const isPublicSpaRoute =
+      pathname.startsWith('/matricula') ||
+      pathname.startsWith('/portal') ||
+      pathname.startsWith('/aluno') ||
+      pathname.startsWith('/boletim') ||
+      pathname.startsWith('/public/student') ||
+      pathname.startsWith('/public/matricula');
+
     const isApiRoute =
       pathname === '/api' ||
       pathname.startsWith('/api/') ||
@@ -104,10 +113,8 @@ async function createServer() {
       pathname.startsWith('/v1/') ||
       pathname.startsWith('/auth/') ||
       pathname.startsWith('/sync/') ||
-      pathname.startsWith('/public/') ||
-      pathname.startsWith('/portal/') ||
-      pathname.startsWith('/matricula/') ||
-      pathname.startsWith('/aluno/');
+      pathname.startsWith('/public/students/') ||
+      (!acceptsHtml && isPublicSpaRoute);
 
     if (isApiRoute) {
       try {

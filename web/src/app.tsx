@@ -35,7 +35,8 @@ import {
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { getMigratedLocalStorageItem } from './lib/storage';
 import { ApplicationProvider, useApp, useBoot } from './app-context';
-import { ErrorBoundary } from './components';
+import { ErrorBoundary, NotFoundPage } from './components';
+import { clearEntityMemoryCache } from './lib/use-entity';
 import { Login } from './login';
 import { canManage, canManageFinance, roleLabel, type Role } from './types';
 
@@ -68,15 +69,16 @@ const allDestinations: Destination[] = [
   { path: '/reposicoes/historico', label: 'Histórico', icon: RotateCcw, parent: 'replacements' },
   { path: '/cursos', label: 'Cursos', section: 'CADASTROS', icon: BookOpen, manager: true },
   { path: '/laboratorios', label: 'Laboratórios', section: 'CADASTROS', icon: FlaskConical, manager: true },
-  { path: '/bi/institucional', label: 'Institucional', icon: Building2, parent: 'bi' },
+  { path: '/bi/institucional', label: 'Institucional', icon: Building2, parent: 'bi', manager: true },
   { path: '/bi/frequencia', label: 'Frequência', icon: TrendingUp, parent: 'bi' },
   { path: '/bi/notas', label: 'Notas e desempenho', icon: Award, parent: 'bi' },
-  { path: '/bi/risco', label: 'Risco', icon: AlertTriangle, parent: 'bi' },
+  { path: '/bi/risco', label: 'Risco', icon: AlertTriangle, parent: 'bi', manager: true },
   { path: '/bi/reposicoes', label: 'Reposições', icon: CalendarCheck, parent: 'bi' },
   { path: '/bi/cursos-turmas', label: 'Cursos e turmas', icon: Layers, parent: 'bi' },
-  { path: '/bi/professores', label: 'Professores', icon: UserCheck, parent: 'bi' },
+  { path: '/bi/professores', label: 'Professores', icon: UserCheck, parent: 'bi', manager: true },
   { path: '/bi/laboratorios', label: 'Laboratórios', icon: FlaskConical, parent: 'bi' },
   { path: '/bi/qualidade', label: 'Qualidade dos dados', icon: Database, parent: 'bi', manager: true },
+  { path: '/conflitos', label: 'Conflitos', section: 'SISTEMA', icon: AlertTriangle, manager: true },
   { path: '/usuarios', label: 'Usuários', section: 'SISTEMA', icon: UserCog, admin: true },
   { path: '/admin/branding', label: 'Identidade Visual', section: 'SISTEMA', icon: Palette, admin: true },
   { path: '/admin/api-keys', label: 'Chaves de API', section: 'SISTEMA', icon: KeyRound, admin: true },
@@ -141,6 +143,7 @@ function AppRoutes() {
   const manager = canManage(session.role);
   const financeAllowed = canManageFinance(session.role);
   const isFinanceOnly = session.role === 'financeiro';
+  const unauthorizedRedirect = isFinanceOnly ? '/financeiro/dashboard' : '/';
   return (
     <Routes>
       <Route path="/" element={isFinanceOnly ? <Navigate to="/financeiro/dashboard" replace /> : deferred(<DashboardPage />)} />
@@ -160,27 +163,35 @@ function AppRoutes() {
       <Route path="/reposicoes" element={!isFinanceOnly ? <Navigate to="/reposicoes/abertas" replace /> : <Navigate to="/financeiro/dashboard" replace />} />
       <Route path="/reposicoes/abertas" element={!isFinanceOnly ? deferred(<ReplacementsPage />) : <Navigate to="/financeiro/dashboard" replace />} />
       <Route path="/reposicoes/historico" element={!isFinanceOnly ? deferred(<ReplacementsPage history />) : <Navigate to="/financeiro/dashboard" replace />} />
-      <Route path="/cursos" element={manager ? deferred(<CoursesPage />) : <Navigate to="/" replace />} />
-      <Route path="/cursos/:courseId" element={manager ? deferred(<CourseDetailPage />) : <Navigate to="/" replace />} />
-      <Route path="/laboratorios" element={manager ? deferred(<LaboratoriesPage />) : <Navigate to="/" replace />} />
-      <Route path="/bi" element={!isFinanceOnly ? <Navigate to="/bi/institucional" replace /> : <Navigate to="/financeiro/dashboard" replace />} />
-      <Route path="/bi/institucional" element={!isFinanceOnly ? deferred(<BiInstitutionalPage />) : <Navigate to="/financeiro/dashboard" replace />} />
+      <Route path="/cursos" element={manager ? deferred(<CoursesPage />) : <Navigate to={unauthorizedRedirect} replace />} />
+      <Route path="/cursos/:courseId" element={manager ? deferred(<CourseDetailPage />) : <Navigate to={unauthorizedRedirect} replace />} />
+      <Route path="/laboratorios" element={manager ? deferred(<LaboratoriesPage />) : <Navigate to={unauthorizedRedirect} replace />} />
+      <Route path="/bi" element={manager ? <Navigate to="/bi/institucional" replace /> : !isFinanceOnly ? <Navigate to="/bi/frequencia" replace /> : <Navigate to="/financeiro/dashboard" replace />} />
+      <Route path="/bi/institucional" element={manager ? deferred(<BiInstitutionalPage />) : <Navigate to={unauthorizedRedirect} replace />} />
       <Route path="/bi/frequencia" element={!isFinanceOnly ? deferred(<BiAttendancePage />) : <Navigate to="/financeiro/dashboard" replace />} />
       <Route path="/bi/notas" element={!isFinanceOnly ? deferred(<BiGradesPage />) : <Navigate to="/financeiro/dashboard" replace />} />
-      <Route path="/bi/risco" element={!isFinanceOnly ? deferred(<BiRiskPage />) : <Navigate to="/financeiro/dashboard" replace />} />
+      <Route path="/bi/risco" element={manager ? deferred(<BiRiskPage />) : <Navigate to={unauthorizedRedirect} replace />} />
       <Route path="/bi/reposicoes" element={!isFinanceOnly ? deferred(<BiReplacementsPage />) : <Navigate to="/financeiro/dashboard" replace />} />
       <Route path="/bi/cursos-turmas" element={!isFinanceOnly ? deferred(<BiCoursesClassesPage />) : <Navigate to="/financeiro/dashboard" replace />} />
-      <Route path="/bi/professores" element={!isFinanceOnly ? deferred(<BiTeachersPage />) : <Navigate to="/financeiro/dashboard" replace />} />
+      <Route path="/bi/professores" element={manager ? deferred(<BiTeachersPage />) : <Navigate to={unauthorizedRedirect} replace />} />
       <Route path="/bi/laboratorios" element={!isFinanceOnly ? deferred(<BiLaboratoriesPage />) : <Navigate to="/financeiro/dashboard" replace />} />
-      <Route path="/bi/qualidade" element={manager ? deferred(<BiDataQualityPage />) : <Navigate to="/" replace />} />
-      <Route path="/usuarios" element={session.role === 'admin' ? deferred(<UsersPage />) : <Navigate to="/" replace />} />
-      <Route path="/admin/branding" element={session.role === 'admin' ? deferred(<BrandingPage />) : <Navigate to="/" replace />} />
-      <Route path="/admin/api-keys" element={session.role === 'admin' ? deferred(<ApiKeysPage />) : <Navigate to="/" replace />} />
-      <Route path="/conflitos" element={manager ? deferred(<ConflictsPage />) : <Navigate to="/" replace />} />
+      <Route path="/bi/qualidade" element={manager ? deferred(<BiDataQualityPage />) : <Navigate to={unauthorizedRedirect} replace />} />
+      <Route path="/usuarios" element={session.role === 'admin' ? deferred(<UsersPage />) : <Navigate to={unauthorizedRedirect} replace />} />
+      <Route path="/admin/branding" element={session.role === 'admin' ? deferred(<BrandingPage />) : <Navigate to={unauthorizedRedirect} replace />} />
+      <Route path="/admin/api-keys" element={session.role === 'admin' ? deferred(<ApiKeysPage />) : <Navigate to={unauthorizedRedirect} replace />} />
+      <Route path="/conflitos" element={manager ? deferred(<ConflictsPage />) : <Navigate to={unauthorizedRedirect} replace />} />
+      <Route path="/matricula" element={deferred(<PublicStudentPortal />)} />
       <Route path="/matricula/:code" element={deferred(<PublicStudentPortal />)} />
+      <Route path="/portal" element={deferred(<PublicStudentPortal />)} />
       <Route path="/portal/:code" element={deferred(<PublicStudentPortal />)} />
+      <Route path="/aluno" element={deferred(<PublicStudentPortal />)} />
       <Route path="/aluno/:code" element={deferred(<PublicStudentPortal />)} />
-      <Route path="*" element={<Navigate to={isFinanceOnly ? '/financeiro/dashboard' : '/'} replace />} />
+      <Route path="/boletim" element={deferred(<PublicStudentPortal />)} />
+      <Route path="/boletim/:code" element={deferred(<PublicStudentPortal />)} />
+      <Route path="/public/student/:code" element={deferred(<PublicStudentPortal />)} />
+      <Route path="/public/students/:code" element={deferred(<PublicStudentPortal />)} />
+      <Route path="/public/matricula/:code" element={deferred(<PublicStudentPortal />)} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 }
@@ -408,16 +419,22 @@ function Shell() {
             {renderNavItem(item)}
             {renderTree('replacements', 'Reposições', Clock, replacementsOpen, setReplacementsOpen)}
           </React.Fragment>
+        ) : item.path === '/conflitos' ? (
+          <React.Fragment key="bi-and-conflicts">
+            {renderTree('bi', 'Analytics B.I', TrendingUp, biOpen, setBiOpen)}
+            {renderNavItem(item)}
+          </React.Fragment>
         ) : item.path === '/usuarios' ? (
           <React.Fragment key="bi-and-users">
-            {renderTree('bi', 'Analytics B.I', TrendingUp, biOpen, setBiOpen)}
+            {!topLevel.some((x) => x.path === '/conflitos') &&
+              renderTree('bi', 'Analytics B.I', TrendingUp, biOpen, setBiOpen)}
             {renderNavItem(item)}
           </React.Fragment>
         ) : (
           renderNavItem(item)
         ),
       )}
-      {!topLevel.some((item) => item.path === '/usuarios') &&
+      {!topLevel.some((item) => item.path === '/conflitos' || item.path === '/usuarios') &&
         renderTree('bi', 'Analytics B.I', TrendingUp, biOpen, setBiOpen)}
     </nav>
   );
@@ -559,17 +576,23 @@ function Shell() {
 
 export function App() {
   const location = useLocation();
-  const isPublicPortalRoute = /^\/(?:matricula|portal|aluno|public\/student|public\/matricula)\/([^/]+)/i.test(location.pathname);
+  const isPublicPortalRoute = /^\/(?:matricula|portal|aluno|boletim|public\/student|public\/students|public\/matricula)(?:\/.*)?$/i.test(location.pathname);
 
   if (isPublicPortalRoute) {
     return (
       <ErrorBoundary>
         <Suspense fallback={<LoadingSpinner />}>
           <Routes>
+            <Route path="/matricula" element={<PublicStudentPortal />} />
             <Route path="/matricula/:code" element={<PublicStudentPortal />} />
+            <Route path="/portal" element={<PublicStudentPortal />} />
             <Route path="/portal/:code" element={<PublicStudentPortal />} />
+            <Route path="/aluno" element={<PublicStudentPortal />} />
             <Route path="/aluno/:code" element={<PublicStudentPortal />} />
+            <Route path="/boletim" element={<PublicStudentPortal />} />
+            <Route path="/boletim/:code" element={<PublicStudentPortal />} />
             <Route path="/public/student/:code" element={<PublicStudentPortal />} />
+            <Route path="/public/students/:code" element={<PublicStudentPortal />} />
             <Route path="/public/matricula/:code" element={<PublicStudentPortal />} />
             <Route path="*" element={<PublicStudentPortal />} />
           </Routes>
@@ -594,7 +617,10 @@ export function App() {
     return (
       <Login
         notice={state.error}
-        onLogin={(session, store) => setOverride({ loading: false, session, store })}
+        onLogin={(session, store) => {
+          clearEntityMemoryCache();
+          setOverride({ loading: false, session, store });
+        }}
       />
     );
   }
@@ -603,7 +629,10 @@ export function App() {
     <ApplicationProvider
       initialSession={state.session}
       initialStore={state.store}
-      onSignedOut={(notice) => setOverride({ loading: false, error: notice })}
+      onSignedOut={(notice) => {
+        clearEntityMemoryCache();
+        setOverride({ loading: false, error: notice });
+      }}
     >
       <Shell />
     </ApplicationProvider>

@@ -413,7 +413,7 @@ export function buildClassBoletimData(params: {
   const courseName = course ? String(course.name ?? '') : 'Curso não informado';
 
   const enrollments = (params.enrollments ?? []).filter(
-    (e) => !e.deleted_at && e.status === 'ativa' && e.class_id === classRecord.id
+    (e) => !e.deleted_at && (e.status === 'ativa' || e.status === 'active') && e.class_id === classRecord.id
   );
   const studentIds = new Set(enrollments.map((e) => String(e.student_id)));
 

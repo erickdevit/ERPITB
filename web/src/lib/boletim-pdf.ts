@@ -5,11 +5,14 @@ import { formatGrade } from './grades';
 
 export interface BoletimPdfOptions {
   qrDataUrl?: string;
+  qrDataUrlsByStudentId?: Record<string, string>;
   portalUrl?: string;
   watermarkText?: string;
   watermarkLogoUrl?: string;
   watermarkLogoDataUrl?: string;
   watermarkGrayscale?: boolean;
+  logoUrl?: string;
+  logoDataUrl?: string;
   customFilename?: string;
 }
 
@@ -115,16 +118,10 @@ function safeFilename(value: string): string {
 }
 
 /**
- * Builds a vector-based jsPDF A4 landscape document representing the student's unified individual report card
- * matching the exact structure and visual hierarchy of the on-screen student modal.
+ * Renders a single student's unified individual report card onto the current page of `doc`,
+ * strictly fitting within 1 A4 landscape page even when there are up to 10 modules or 60+ char names.
  */
-export function buildBoletimPdf(data: UnifiedBoletimData, options?: BoletimPdfOptions): jsPDF {
-  const doc = new jsPDF({
-    orientation: 'landscape',
-    unit: 'mm',
-    format: 'a4',
-  });
-
+function renderBoletimPageOnDoc(doc: jsPDF, data: UnifiedBoletimData, options?: BoletimPdfOptions): void {
   const pageWidth = 297;
   const pageHeight = 210;
   const marginX = 10;
@@ -135,14 +132,24 @@ export function buildBoletimPdf(data: UnifiedBoletimData, options?: BoletimPdfOp
   // ==========================================
   // 1. INSTITUTIONAL HEADER (Clean White, No Dark Block)
   // ==========================================
+  let headerTextX = marginX;
+  if (options?.logoDataUrl) {
+    try {
+      doc.addImage(options.logoDataUrl, 'PNG', marginX, currentY + 0.5, 9, 9);
+      headerTextX = marginX + 11.5;
+    } catch {
+      headerTextX = marginX;
+    }
+  }
+
   doc.setTextColor(15, 23, 42); // slate-900
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
-  doc.text('INSTITUTO TRANSFORMA BRASIL', marginX, currentY + 4);
+  doc.text('INSTITUTO TRANSFORMA BRASIL', headerTextX, currentY + 4);
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12.5);
-  doc.text('BOLETIM ESCOLAR INDIVIDUAL', marginX, currentY + 9.5);
+  doc.text('BOLETIM ESCOLAR INDIVIDUAL', headerTextX, currentY + 9.5);
 
   const emissionStr = `Data e Hora de Emissão: ${formatEmissionDate(data.issueDate)}`;
   doc.setFont('helvetica', 'normal');
@@ -155,12 +162,12 @@ export function buildBoletimPdf(data: UnifiedBoletimData, options?: BoletimPdfOp
   doc.setLineWidth(0.3);
   doc.line(marginX, currentY, marginX + contentWidth, currentY);
 
-  currentY += 4;
+  currentY += 3.5;
 
   // ==========================================
   // 2. UNIFIED STUDENT METADATA & ACADEMIC SUMMARY ROW (SINGLE ROW MATCHING MODAL)
   // ==========================================
-  const infoBoxHeight = 15;
+  const infoBoxHeight = 14.5;
   doc.setFillColor(248, 250, 252); // slate-50
   doc.setDrawColor(226, 232, 240); // slate-200
   doc.setLineWidth(0.3);
@@ -173,16 +180,16 @@ export function buildBoletimPdf(data: UnifiedBoletimData, options?: BoletimPdfOp
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6);
   doc.setTextColor(148, 163, 184); // slate-400
-  doc.text('ALUNO', marginX + 4, currentY + 5);
+  doc.text('ALUNO', marginX + 4, currentY + 4.8);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(15, 23, 42); // slate-900
   const nameLines = doc.splitTextToSize(student.name || 'Aluno', 78);
   if (nameLines.length > 1) {
-    doc.text(nameLines[0], marginX + 4, currentY + 9.5);
-    doc.text(nameLines[1], marginX + 4, currentY + 13);
+    doc.text(nameLines[0], marginX + 4, currentY + 9.2);
+    doc.text(nameLines[1], marginX + 4, currentY + 12.6);
   } else {
-    doc.text(nameLines[0] ?? (student.name || 'Aluno'), marginX + 4, currentY + 11);
+    doc.text(nameLines[0] ?? (student.name || 'Aluno'), marginX + 4, currentY + 10.8);
   }
 
   // 2. Matrícula
@@ -190,35 +197,35 @@ export function buildBoletimPdf(data: UnifiedBoletimData, options?: BoletimPdfOp
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6);
   doc.setTextColor(148, 163, 184);
-  doc.text('MATRÍCULA', colMatriculaX, currentY + 5);
+  doc.text('MATRÍCULA', colMatriculaX, currentY + 4.8);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(15, 23, 42);
-  doc.text(student.registrationNumber || '—', colMatriculaX, currentY + 11);
+  doc.text(student.registrationNumber || '—', colMatriculaX, currentY + 10.8);
 
   // 3. Curso
   const colCursoX = marginX + 114;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6);
   doc.setTextColor(148, 163, 184);
-  doc.text('CURSO', colCursoX, currentY + 5);
+  doc.text('CURSO', colCursoX, currentY + 4.8);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(30, 41, 59); // slate-800
   const courseLines = doc.splitTextToSize(student.courseName || '—', 44);
-  doc.text(courseLines[0] ?? (student.courseName || '—'), colCursoX, currentY + 11);
+  doc.text(courseLines[0] ?? (student.courseName || '—'), colCursoX, currentY + 10.8);
 
   // 4. Turma
   const colTurmaX = marginX + 162;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6);
   doc.setTextColor(148, 163, 184);
-  doc.text('TURMA', colTurmaX, currentY + 5);
+  doc.text('TURMA', colTurmaX, currentY + 4.8);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(30, 41, 59);
   const classLines = doc.splitTextToSize(classStr, 48);
-  doc.text(classLines[0] ?? classStr, colTurmaX, currentY + 11);
+  doc.text(classLines[0] ?? classStr, colTurmaX, currentY + 10.8);
 
   // Vertical Divider 1
   doc.setDrawColor(226, 232, 240);
@@ -229,11 +236,11 @@ export function buildBoletimPdf(data: UnifiedBoletimData, options?: BoletimPdfOp
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6);
   doc.setTextColor(148, 163, 184);
-  doc.text('MÉDIA GERAL', colGpaX, currentY + 5);
+  doc.text('MÉDIA GERAL', colGpaX, currentY + 4.8);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(15, 23, 42);
-  doc.text(formatGrade(data.overallGpa), colGpaX, currentY + 11.5);
+  doc.text(formatGrade(data.overallGpa), colGpaX, currentY + 11.2);
 
   // Vertical Divider 2
   doc.line(marginX + 242, currentY + 2, marginX + 242, currentY + infoBoxHeight - 2);
@@ -243,17 +250,17 @@ export function buildBoletimPdf(data: UnifiedBoletimData, options?: BoletimPdfOp
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6);
   doc.setTextColor(148, 163, 184);
-  doc.text('FREQUÊNCIA', colFreqX, currentY + 5);
+  doc.text('FREQUÊNCIA', colFreqX, currentY + 4.8);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
   doc.setTextColor(30, 41, 59);
   const freqStr = `${(Number(data.overallAttendanceRate) || 0).toFixed(1).replace('.', ',')}%`;
-  doc.text(freqStr, colFreqX, currentY + 11.5);
+  doc.text(freqStr, colFreqX, currentY + 11.2);
 
-  currentY += infoBoxHeight + 5;
+  currentY += infoBoxHeight + 4;
 
   // ==========================================
-  // 3. DETALHAMENTO DAS AVALIAÇÕES POR ETAPA (2 COLUNAS DE CARDS MATCHING MODAL)
+  // 3. DETALHAMENTO DAS AVALIAÇÕES POR ETAPA (ADAPTIVE 2/3/4 COLUNAS TO FIT 1 PAGE)
   // ==========================================
   const modules = data.modules ?? [];
   if (modules.length > 0) {
@@ -261,20 +268,22 @@ export function buildBoletimPdf(data: UnifiedBoletimData, options?: BoletimPdfOp
     doc.setFontSize(7.5);
     doc.setTextColor(100, 116, 139);
     doc.text('DETALHAMENTO DAS AVALIAÇÕES POR ETAPA', marginX, currentY);
-    currentY += 3.5;
+    currentY += 3;
 
-    const cardWidth = (contentWidth - 6) / 2; // 135.5mm
-    const cardGap = 6;
-    let leftY = currentY;
-    let rightY = currentY;
+    const colsCount = modules.length > 6 ? 4 : modules.length > 4 ? 3 : 2;
+    const cardGap = colsCount > 2 ? 4 : 6;
+    const cardWidth = (contentWidth - cardGap * (colsCount - 1)) / colsCount;
+    const gradeRowStep = modules.length > 4 ? 4.3 : 5.0;
+    const gradeRowRectH = modules.length > 4 ? 3.8 : 4.4;
+    const colYs = Array.from({ length: colsCount }, () => currentY);
 
     modules.forEach((mod, idx) => {
-      const isLeft = idx % 2 === 0;
-      const cardX = isLeft ? marginX : marginX + cardWidth + cardGap;
-      const cardTopY = isLeft ? leftY : rightY;
+      const colIdx = idx % colsCount;
+      const cardX = marginX + colIdx * (cardWidth + cardGap);
+      const cardTopY = colYs[colIdx]!;
 
       const gradesCount = Math.max(1, (mod.grades ?? []).length);
-      const cardHeight = 8 + gradesCount * 5.2 + 2;
+      const cardHeight = 7.8 + gradesCount * gradeRowStep + 1.5;
 
       // Card Box
       doc.setFillColor(248, 250, 252);
@@ -284,79 +293,75 @@ export function buildBoletimPdf(data: UnifiedBoletimData, options?: BoletimPdfOp
 
       // Card Header
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7.5);
+      doc.setFontSize(colsCount > 2 ? 6.8 : 7.5);
       doc.setTextColor(15, 23, 42);
-      const modNameTruncated = doc.splitTextToSize(mod.moduleName || 'Etapa', cardWidth - 45);
-      doc.text(modNameTruncated[0] ?? mod.moduleName, cardX + 3, cardTopY + 4.5);
+      const modNameTruncated = doc.splitTextToSize(mod.moduleName || 'Etapa', cardWidth - 36);
+      doc.text(modNameTruncated[0] ?? mod.moduleName, cardX + 2.5, cardTopY + 4.2);
 
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(5.5);
+      doc.setFontSize(5.2);
       doc.setTextColor(100, 116, 139);
-      doc.text(mod.calculationModeLabel || 'Média Simples', cardX + 3, cardTopY + 7);
+      doc.text(mod.calculationModeLabel || 'Média Simples', cardX + 2.5, cardTopY + 6.6);
 
       // Card Final Grade on right
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
+      doc.setFontSize(colsCount > 2 ? 7.8 : 8.5);
       doc.setTextColor(15, 23, 42);
       const finalGradeStr = formatGrade(mod.finalGrade);
-      doc.text(finalGradeStr, cardX + cardWidth - 3, cardTopY + 5, { align: 'right' });
+      doc.text(finalGradeStr, cardX + cardWidth - 2.5, cardTopY + 4.6, { align: 'right' });
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(5);
+      doc.setFontSize(4.8);
       doc.setTextColor(148, 163, 184);
-      doc.text('média da etapa', cardX + cardWidth - 3, cardTopY + 7.5, { align: 'right' });
+      doc.text('média da etapa', cardX + cardWidth - 2.5, cardTopY + 7.0, { align: 'right' });
 
       // Divider inside card
       doc.setDrawColor(226, 232, 240);
-      doc.line(cardX + 2, cardTopY + 8.5, cardX + cardWidth - 2, cardTopY + 8.5);
+      doc.line(cardX + 2, cardTopY + 8.0, cardX + cardWidth - 2, cardTopY + 8.0);
 
       // Grades rows
-      let gradeRowY = cardTopY + 9.5;
+      let gradeRowY = cardTopY + 8.8;
       if (mod.grades && mod.grades.length > 0) {
         mod.grades.forEach((g) => {
           doc.setFillColor(255, 255, 255);
-          doc.rect(cardX + 2, gradeRowY, cardWidth - 4, 4.5, 'F');
+          doc.rect(cardX + 2, gradeRowY, cardWidth - 4, gradeRowRectH, 'F');
           doc.setDrawColor(241, 245, 249);
-          doc.rect(cardX + 2, gradeRowY, cardWidth - 4, 4.5, 'S');
+          doc.rect(cardX + 2, gradeRowY, cardWidth - 4, gradeRowRectH, 'S');
 
           doc.setFont('helvetica', 'normal');
-          doc.setFontSize(6.5);
+          doc.setFontSize(colsCount > 2 ? 6.0 : 6.5);
           doc.setTextColor(51, 65, 85);
-          const gName = doc.splitTextToSize(g.name || 'Avaliação', cardWidth - 32);
-          doc.text(gName[0] ?? g.name, cardX + 4, gradeRowY + 3.2);
+          const gName = doc.splitTextToSize(g.name || 'Avaliação', cardWidth - 28);
+          doc.text(gName[0] ?? g.name, cardX + 3.5, gradeRowY + 2.8);
 
           doc.setFont('helvetica', 'bold');
-          doc.setFontSize(7);
+          doc.setFontSize(colsCount > 2 ? 6.4 : 7.0);
           doc.setTextColor(15, 23, 42);
           const scoreText = typeof g.score === 'number' && !Number.isNaN(g.score)
             ? `${g.score.toFixed(1).replace('.', ',')} / ${g.maxScore ?? 10}`
             : `— / ${g.maxScore ?? 10}`;
-          doc.text(scoreText, cardX + cardWidth - 4, gradeRowY + 3.2, { align: 'right' });
+          doc.text(scoreText, cardX + cardWidth - 3.5, gradeRowY + 2.8, { align: 'right' });
 
-          gradeRowY += 5.2;
+          gradeRowY += gradeRowStep;
         });
       } else {
         doc.setFont('helvetica', 'italic');
-        doc.setFontSize(6);
+        doc.setFontSize(5.8);
         doc.setTextColor(148, 163, 184);
-        doc.text('Nenhuma avaliação lançada nesta etapa.', cardX + cardWidth / 2, gradeRowY + 3.5, { align: 'center' });
-        gradeRowY += 5.2;
+        doc.text('Nenhuma avaliação lançada nesta etapa.', cardX + cardWidth / 2, gradeRowY + 3.0, { align: 'center' });
+        gradeRowY += gradeRowStep;
       }
 
-      if (isLeft) {
-        leftY = cardTopY + cardHeight + 3;
-      } else {
-        rightY = cardTopY + cardHeight + 3;
-      }
+      colYs[colIdx] = cardTopY + cardHeight + 2.2;
     });
 
-    currentY = Math.max(leftY, rightY) + 2;
+    currentY = Math.max(...colYs) + 1.5;
   }
 
   // ==========================================
-  // 4. SUMMARY FOOTER & CRITERIA
+  // 4. SUMMARY FOOTER & CRITERIA (CLAMPED TO FIT SINGLE PAGE)
   // ==========================================
-  const footerBoxHeight = 14;
-  const footerY = Math.max(currentY, pageHeight - 56);
+  const footerBoxHeight = 13.5;
+  const footerY = Math.min(Math.max(currentY, pageHeight - 54), pageHeight - 44);
 
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(226, 232, 240);
@@ -366,7 +371,7 @@ export function buildBoletimPdf(data: UnifiedBoletimData, options?: BoletimPdfOp
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6.5);
   doc.setTextColor(51, 65, 85); // slate-700
-  doc.text('CRITÉRIOS DE AVALIAÇÃO E LEGENDA:', marginX + 4, footerY + 4.5);
+  doc.text('CRITÉRIOS DE AVALIAÇÃO E LEGENDA:', marginX + 4, footerY + 4.3);
 
   const minAtt = (data.criteria?.minAttendanceRate != null ? data.criteria.minAttendanceRate : 75).toFixed(1).replace('.', ',');
   const minPass = (data.criteria?.minPassingGrade != null ? data.criteria.minPassingGrade : 6).toFixed(1).replace('.', ',');
@@ -374,8 +379,8 @@ export function buildBoletimPdf(data: UnifiedBoletimData, options?: BoletimPdfOp
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6);
   doc.setTextColor(100, 116, 139);
-  doc.text(`• Frequência Mínima: ${minAtt}% das aulas ministradas para aprovação.`, marginX + 4, footerY + 8.5);
-  doc.text(`• Média de Aprovação: Nota igual ou superior a ${minPass} na escala de 0,0 a 10,0.`, marginX + 4, footerY + 12);
+  doc.text(`• Frequência Mínima: ${minAtt}% das aulas ministradas para aprovação.`, marginX + 4, footerY + 8.2);
+  doc.text(`• Média de Aprovação: Nota igual ou superior a ${minPass} na escala de 0,0 a 10,0.`, marginX + 4, footerY + 11.6);
 
   // Totals on right
   const totalClasses = modules.reduce((s, m) => s + (Number(m.classesHeld) || 0), 0);
@@ -387,12 +392,12 @@ export function buildBoletimPdf(data: UnifiedBoletimData, options?: BoletimPdfOp
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6.5);
   doc.setTextColor(15, 23, 42);
-  doc.text(totalsStr, marginX + contentWidth - 4, footerY + 8.5, { align: 'right' });
+  doc.text(totalsStr, marginX + contentWidth - 4, footerY + 8.2, { align: 'right' });
 
   // ==========================================
   // 5. FORMAL SIGNATURES AREA
   // ==========================================
-  const sigY = footerY + footerBoxHeight + 9;
+  const sigY = Math.min(footerY + footerBoxHeight + 8, pageHeight - 23);
   const sigLineWidth = 65;
   const sig1X = marginX + 24;
   const sig2X = marginX + contentWidth - sigLineWidth - 24;
@@ -467,6 +472,46 @@ export function buildBoletimPdf(data: UnifiedBoletimData, options?: BoletimPdfOp
     doc.setTextColor(148, 163, 184);
     doc.text('QR', qrX + qrSize / 2, qrY + qrSize / 2 + 1.5, { align: 'center' });
   }
+}
+
+/**
+ * Builds a vector-based jsPDF A4 landscape document representing the student's unified individual report card
+ * matching the exact structure and visual hierarchy of the on-screen student modal.
+ */
+export function buildBoletimPdf(data: UnifiedBoletimData, options?: BoletimPdfOptions): jsPDF {
+  const doc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  renderBoletimPageOnDoc(doc, data, options);
+  drawWatermarkOnEveryPage(doc, options?.watermarkLogoDataUrl, options?.watermarkText);
+  return doc;
+}
+
+/**
+ * Builds a concatenated multi-page vector jsPDF A4 landscape document for an entire class,
+ * where each student strictly occupies 1 page (`studentsData.length` pages total, zero blank pages).
+ */
+export function buildClassBatchBoletimPdf(
+  studentsData: UnifiedBoletimData[],
+  options?: BoletimPdfOptions
+): jsPDF {
+  const doc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  studentsData.forEach((studentData, idx) => {
+    if (idx > 0) {
+      doc.addPage('a4', 'landscape');
+    }
+    const studentId = studentData.student?.id || '';
+    const studentQr = options?.qrDataUrlsByStudentId?.[studentId] ?? options?.qrDataUrl;
+    renderBoletimPageOnDoc(doc, studentData, { ...options, qrDataUrl: studentQr });
+  });
 
   drawWatermarkOnEveryPage(doc, options?.watermarkLogoDataUrl, options?.watermarkText);
   return doc;
@@ -707,7 +752,12 @@ export async function exportBoletimPdf(
       watermarkLogoDataUrl = (await urlToDataUrl(options.watermarkLogoUrl, options.watermarkGrayscale ?? true)) ?? undefined;
     }
 
-    doc = buildBoletimPdf(data, { ...options, qrDataUrl, watermarkLogoDataUrl });
+    let logoDataUrl = options?.logoDataUrl;
+    if (!logoDataUrl && options?.logoUrl) {
+      logoDataUrl = (await urlToDataUrl(options.logoUrl, false)) ?? undefined;
+    }
+
+    doc = buildBoletimPdf(data, { ...options, qrDataUrl, watermarkLogoDataUrl, logoDataUrl });
   }
 
   const filename = getBoletimPdfFilename(data, customFilename);
@@ -732,5 +782,58 @@ export async function exportClassBoletimPdf(
     doc = buildClassBoletimPdf(data, { ...options, watermarkLogoDataUrl });
   }
   const filename = customFilename || `Boletim_Consolidado_${safeFilename(data.className)}.pdf`;
+  doc.save(filename);
+}
+
+/**
+ * Generates and downloads a single concatenated PDF containing individual 1-page report cards
+ * for all students in a class.
+ */
+export async function exportClassBatchBoletimPdf(
+  studentsData: UnifiedBoletimData[],
+  className?: string,
+  customFilename?: string,
+  docInstance?: jsPDF,
+  options?: BoletimPdfOptions
+): Promise<void> {
+  let doc = docInstance;
+  if (!doc) {
+    const qrDataUrlsByStudentId: Record<string, string> = { ...(options?.qrDataUrlsByStudentId ?? {}) };
+    for (const studentData of studentsData) {
+      const studentId = studentData.student?.id || '';
+      if (studentId && !qrDataUrlsByStudentId[studentId]) {
+        try {
+          const portalCode = studentData.student?.registrationNumber || studentId;
+          const publicPortalUrl =
+            typeof window !== 'undefined' && window.location?.origin
+              ? `${window.location.origin}/aluno/${encodeURIComponent(portalCode)}`
+              : `https://erp.itbcursos.com/aluno/${encodeURIComponent(portalCode)}`;
+          qrDataUrlsByStudentId[studentId] = await QRCode.toDataURL(publicPortalUrl, { margin: 0, width: 120 });
+        } catch {
+          // Ignore QR generation error for individual student
+        }
+      }
+    }
+
+    let watermarkLogoDataUrl = options?.watermarkLogoDataUrl;
+    if (!watermarkLogoDataUrl && options?.watermarkLogoUrl) {
+      watermarkLogoDataUrl = (await urlToDataUrl(options.watermarkLogoUrl, options.watermarkGrayscale ?? true)) ?? undefined;
+    }
+
+    let logoDataUrl = options?.logoDataUrl;
+    if (!logoDataUrl && options?.logoUrl) {
+      logoDataUrl = (await urlToDataUrl(options.logoUrl, false)) ?? undefined;
+    }
+
+    doc = buildClassBatchBoletimPdf(studentsData, {
+      ...options,
+      qrDataUrlsByStudentId,
+      watermarkLogoDataUrl,
+      logoDataUrl,
+    });
+  }
+
+  const resolvedClassName = className || studentsData[0]?.student?.classNames?.[0] || 'Turma';
+  const filename = customFilename || `Boletins_Turma_${safeFilename(resolvedClassName)}.pdf`;
   doc.save(filename);
 }

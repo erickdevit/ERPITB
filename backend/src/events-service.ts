@@ -1,8 +1,24 @@
 import { eventBus, type SseEventType, type SystemEvent, broadcastEvent } from './events-bus';
+import { teacherOwnsClass } from './sync';
 import type { AuthUser, Env } from './types';
 
 export { eventBus, broadcastEvent };
 export type { SseEventType, SystemEvent };
+
+const PEDAGOGICAL_ONLY_ENTITIES = new Set([
+  'attendance_records',
+  'class_notes',
+  'replacements',
+  'grade_tables',
+  'grade_items',
+  'student_grades',
+]);
+
+const FINANCE_ONLY_ENTITIES = new Set([
+  'financial_fees',
+  'cash_transactions',
+  'financial_contacts',
+]);
 
 export function formatSseEvent(event: SseEventType, data: unknown, id?: string): string {
   let message = '';
@@ -72,10 +88,47 @@ export async function handleEventsStream(request: Request, env: Env, user: AuthU
       controller.enqueue(encoder.encode(initialPayload));
 
       // 3. Subscribe to real-time events on the authentic in-memory bus
-      unsubscribe = eventBus.subscribe((event: SystemEvent) => {
+      unsubscribe = eventBus.subscribe(async (event: SystemEvent) => {
         // Enforce user targeting: if event has targetUserId, verify user match
         if (event.targetUserId && event.targetUserId !== user.id) {
           return;
+        }
+
+        if (event.type === 'entity_changed') {
+          const dataRecord =
+            event.data && typeof event.data === 'object' ? (event.data as Record<string, unknown>) : undefined;
+          const entityName = typeof dataRecord?.entity === 'string' ? dataRecord.entity : undefined;
+          const entitiesList = Array.isArray(dataRecord?.entities)
+            ? dataRecord.entities.map(String)
+            : entityName
+            ? [entityName]
+            : [];
+
+          // Financeiro role has no access to pedagogical-only entities
+          if (
+            user.role === 'financeiro' &&
+            entitiesList.length > 0 &&
+            entitiesList.every((ent) => PEDAGOGICAL_ONLY_ENTITIES.has(ent))
+          ) {
+            return;
+          }
+
+          // Professor & Pedagogico roles have no access to finance-only entities
+          if (
+            (user.role === 'professor' || user.role === 'pedagogico') &&
+            entitiesList.length > 0 &&
+            entitiesList.every((ent) => FINANCE_ONLY_ENTITIES.has(ent))
+          ) {
+            return;
+          }
+
+          // Professor isolation: if mutation targets a specific class, only notify professors assigned to that class
+          if (user.role === 'professor' && event.targetClassId && env.DB) {
+            const owns = await teacherOwnsClass(env, user.id, event.targetClassId).catch(() => false);
+            if (!owns) {
+              return;
+            }
+          }
         }
 
         try {

@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../app-context';
-import { DateField, PageDialog, Section, SelectField } from '../components';
+import { DateField, EmptyState, PageDialog, Section, SelectField, TableSkeleton } from '../components';
 import { formatDate, parseBrazilDate } from '../lib/date';
 import type { LocalRecord } from '../types';
 import {
@@ -454,10 +454,21 @@ export function ClassesPage() {
                   </td>
                 </tr>
               ))}
-              {!rows.length && (
+              {classes.loading && !rows.length && (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-400 font-medium">
-                    Nenhuma turma encontrada.
+                  <td colSpan={6} className="p-0">
+                    <TableSkeleton rows={5} cols={6} />
+                  </td>
+                </tr>
+              )}
+              {!classes.loading && !rows.length && (
+                <tr>
+                  <td colSpan={6} className="p-0">
+                    <EmptyState
+                      icon={Users}
+                      title="Nenhuma turma encontrada."
+                      description="Não há turmas cadastradas ou correspondentes aos filtros aplicados."
+                    />
                   </td>
                 </tr>
               )}

@@ -1,4 +1,5 @@
 import { decryptText, encryptText } from './crypto';
+import { invalidateWorkerCache } from './data';
 import { AppError, nowIso, readJson, requireString, uuid } from './http';
 import { canAccessStudentPii, dateInTimeZone, hasPermission, teacherCanEditDate } from './rbac';
 import type { AuthUser, Env, SyncEntity, SyncOperation, SyncPushBody } from './types';
@@ -558,6 +559,8 @@ export async function push(request: Request, env: Env, user: AuthUser): Promise<
       });
     }
   }
+  const affectedEntities = Array.from(new Set(operations.map((op) => op.entity)));
+  invalidateWorkerCache([...affectedEntities, 'attendance', 'analytics', 'reports', 'dashboard']);
   return { results };
 }
 

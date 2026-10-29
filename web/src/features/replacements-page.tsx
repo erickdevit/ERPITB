@@ -9,7 +9,7 @@ import {
   Check,
 } from 'lucide-react';
 import { useApp } from '../app-context';
-import { DateField, PageDialog, Section, SelectField } from '../components';
+import { DateField, EmptyState, PageDialog, Section, SelectField, TableSkeleton } from '../components';
 import { formatDate, parseBrazilDate, todayInSaoPaulo } from '../lib/date';
 import { useEntity } from '../lib/use-entity';
 import type { LocalRecord } from '../types';
@@ -278,10 +278,21 @@ export function ReplacementsPage({
                   </td>
                 </tr>
               ))}
-              {!rows.length && (
+              {replacements.loading && !rows.length && (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-slate-400 font-medium">
-                    Nenhuma reposição {history ? 'no histórico' : 'em aberto'}.
+                  <td colSpan={5} className="p-0">
+                    <TableSkeleton rows={4} cols={5} />
+                  </td>
+                </tr>
+              )}
+              {!replacements.loading && !rows.length && (
+                <tr>
+                  <td colSpan={5} className="p-0">
+                    <EmptyState
+                      icon={Clock}
+                      title={`Nenhuma reposição ${history ? 'no histórico' : 'em aberto'}.`}
+                      description="Não há registros de reposição para os filtros selecionados."
+                    />
                   </td>
                 </tr>
               )}

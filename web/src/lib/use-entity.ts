@@ -18,15 +18,23 @@ const entityEndpointMap: Record<Entity, string> = {
   student_grades: '/v1/student-grades',
 };
 
-// In-memory transient cache to prevent redundant HTTP roundtrips across components
+// In-memory transient cache partitioned by user/account session to prevent cross-client or cross-session bleed
 const inMemoryCache = new Map<string, { items: LocalRecord[]; timestamp: number }>();
 const inFlightRequests = new Map<string, Promise<LocalRecord[]>>();
+const entityListeners = new Map<string, Set<() => void>>();
 const CACHE_TTL_MS = 60_000; // 60 seconds TTL
 
-export function clearEntityMemoryCache(entity?: Entity | string) {
-  if (entity) {
+export function clearEntityMemoryCache(entity?: Entity | string | string[]) {
+  const targets = Array.isArray(entity)
+    ? entity.filter(Boolean)
+    : typeof entity === 'string' && entity.trim()
+    ? [entity.trim()]
+    : [];
+
+  if (targets.length > 0) {
     for (const key of inMemoryCache.keys()) {
-      if (key.startsWith(`${entity}_`)) {
+      const suffix = key.includes('::') ? key.split('::')[1]! : key;
+      if (targets.some((ent) => suffix.startsWith(`${ent}_`))) {
         inMemoryCache.delete(key);
       }
     }
@@ -35,9 +43,36 @@ export function clearEntityMemoryCache(entity?: Entity | string) {
   }
 }
 
+export function notifyEntityChanged(entity?: Entity | string | string[]) {
+  clearEntityMemoryCache(entity);
+  const targets = Array.isArray(entity)
+    ? entity.filter(Boolean)
+    : typeof entity === 'string' && entity.trim()
+    ? [entity.trim()]
+    : [];
+
+  if (targets.length > 0) {
+    for (const ent of targets) {
+      const listeners = entityListeners.get(ent);
+      if (listeners) {
+        for (const listener of listeners) {
+          listener();
+        }
+      }
+    }
+  } else {
+    for (const listeners of entityListeners.values()) {
+      for (const listener of listeners) {
+        listener();
+      }
+    }
+  }
+}
+
 export function useEntity(entity: Entity, includeDeleted = false) {
-  const { store, api, refresh } = useApp();
-  const cacheKey = `${entity}_${includeDeleted}`;
+  const { session, store, api, refresh } = useApp();
+  const accountScope = session?.id || (store as any)?.accountId || 'anon';
+  const cacheKey = `${accountScope}::${entity}_${includeDeleted}`;
   const [items, setItems] = useState<LocalRecord[]>(() => {
     const cached = inMemoryCache.get(cacheKey);
     return cached?.items ?? [];
@@ -105,6 +140,21 @@ export function useEntity(entity: Entity, includeDeleted = false) {
   useEffect(() => {
     void reload(false);
   }, [refresh, reload]);
+
+  useEffect(() => {
+    let set = entityListeners.get(entity);
+    if (!set) {
+      set = new Set();
+      entityListeners.set(entity, set);
+    }
+    const handleTargetedReload = () => {
+      void reload(true);
+    };
+    set.add(handleTargetedReload);
+    return () => {
+      set?.delete(handleTargetedReload);
+    };
+  }, [entity, reload]);
 
   return { items, loading, reload };
 }

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useParams, useLocation, Link } from 'react-router-dom';
+import { useParams, useLocation, useNavigate, Link } from 'react-router-dom';
 import {
   GraduationCap,
   CheckCircle2,
@@ -17,9 +17,20 @@ import {
   Award,
   Printer,
   FileSpreadsheet,
+  FileText,
+  Download,
   MessageSquare,
 } from 'lucide-react';
 import { calculationModeLabel, formatGrade, type GradeStatus } from '../lib/grades';
+import {
+  MIN_ATTENDANCE_RATE,
+  MIN_PASSING_GRADE,
+  type AcademicStatus,
+  type BoletimModuleRow,
+  type UnifiedBoletimData,
+} from '../lib/boletim';
+import { exportBoletimPdf } from '../lib/boletim-pdf';
+import { StudentReportCardView } from './reports/student-report-card-view';
 
 export interface PublicReportCardItem {
   id: string;
@@ -114,6 +125,104 @@ export interface PublicStudentPayload {
   };
 }
 
+function resolveAcademicStatus(
+  grade: number | null,
+  attendanceRate: number,
+  hasClasses: boolean,
+  allEvaluated = true,
+): AcademicStatus {
+  if (grade === null) return 'Sem Notas';
+  if (!allEvaluated) return 'Em Andamento';
+  const gradeOk = grade >= MIN_PASSING_GRADE;
+  const attOk = !hasClasses || attendanceRate >= MIN_ATTENDANCE_RATE;
+  if (gradeOk && attOk) return 'Aprovado';
+  if (!gradeOk && !attOk) return 'Reprovado por Nota e Frequência';
+  if (!gradeOk) return 'Reprovado por Nota';
+  return 'Reprovado por Frequência';
+}
+
+export function buildUnifiedBoletimFromPublicPayload(data: PublicStudentPayload): UnifiedBoletimData {
+  const primaryClass = data.classes[0];
+  const primaryTable = data.reportCard?.tables?.[0];
+  const courseName = primaryClass?.courseName || primaryTable?.courseName || 'Curso Regular';
+  const classNames =
+    data.classes.length > 0
+      ? data.classes.map((c) => c.className)
+      : primaryTable?.className
+      ? [primaryTable.className]
+      : ['Turma Regular'];
+
+  const hasLessons = data.metrics.totalLessons > 0;
+  const attendanceRate = hasLessons ? data.metrics.attendanceRate : 100.0;
+
+  const tables = data.reportCard?.tables ?? [];
+  const modules: BoletimModuleRow[] =
+    tables.length > 0
+      ? tables.map((t) => {
+          const allEvaluated = t.totalItems > 0 && t.evaluatedItems >= t.totalItems;
+          return {
+            moduleId: t.id,
+            moduleName: t.name,
+            className: t.className || classNames[0] || '',
+            classesHeld: data.metrics.totalLessons,
+            presences: data.metrics.present,
+            absences: data.metrics.absent,
+            justified: data.metrics.justified,
+            attendanceRate,
+            calculationMode: t.calculationMode,
+            calculationModeLabel: calculationModeLabel(t.calculationMode),
+            grades: t.items.map((item) => ({
+              name: item.name,
+              score: item.score,
+              maxScore: item.maxScore,
+              weight: item.weight,
+              category: item.category,
+            })),
+            finalGrade: t.average,
+            academicStatus: resolveAcademicStatus(t.average, attendanceRate, hasLessons, allEvaluated),
+          };
+        })
+      : [
+          {
+            moduleId: 'mod-default',
+            moduleName: classNames[0] || 'Módulo Geral',
+            className: classNames[0] || 'Turma Regular',
+            classesHeld: data.metrics.totalLessons,
+            presences: data.metrics.present,
+            absences: data.metrics.absent,
+            justified: data.metrics.justified,
+            attendanceRate,
+            grades: [],
+            finalGrade: null,
+            academicStatus: 'Sem Notas',
+          },
+        ];
+
+  const overallGpa = data.reportCard?.overallAverage ?? null;
+  const allTablesComplete =
+    tables.length > 0 && tables.every((t) => t.totalItems > 0 && t.evaluatedItems >= t.totalItems);
+
+  return {
+    student: {
+      id: data.student.registrationNumber || 'public-student',
+      name: data.student.name,
+      registrationNumber: data.student.registrationNumber,
+      courseName,
+      courseId: primaryClass?.courseCode || 'CURSO-ITB',
+      classNames,
+    },
+    issueDate: new Date().toISOString(),
+    modules,
+    overallAttendanceRate: attendanceRate,
+    overallGpa,
+    overallAcademicStatus: resolveAcademicStatus(overallGpa, attendanceRate, hasLessons, allTablesComplete),
+    criteria: {
+      minAttendanceRate: MIN_ATTENDANCE_RATE,
+      minPassingGrade: data.reportCard?.passingGrade ?? MIN_PASSING_GRADE,
+    },
+  };
+}
+
 function gradeBadgeClasses(status: GradeStatus): string {
   switch (status) {
     case 'aprovado':
@@ -129,29 +238,96 @@ function gradeBadgeClasses(status: GradeStatus): string {
   }
 }
 
+function PublicInstitutionalHeader({
+  lookupInput,
+  setLookupInput,
+  onLookupSubmit,
+}: {
+  lookupInput: string;
+  setLookupInput: (val: string) => void;
+  onLookupSubmit: (e: React.FormEvent) => void;
+}) {
+  return (
+    <header className="bg-[#090D16] text-white border-b border-white/10 print:hidden">
+      <div className="max-w-5xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-sky-500/15 text-sky-400 border border-sky-500/30 flex items-center justify-center font-black text-xs tracking-tight shrink-0">
+            ITB
+          </div>
+          <div>
+            <div className="text-xs sm:text-sm font-extrabold tracking-tight text-white uppercase">
+              INSTITUTO TRANSFORMA BRASIL
+            </div>
+            <div className="text-[11px] text-slate-400 font-medium">
+              Portal Público do Aluno • Consulta de Boletim e Frequência
+            </div>
+          </div>
+        </div>
+
+        <form onSubmit={onLookupSubmit} className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="relative flex-1 sm:w-56">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={lookupInput}
+              onChange={(e) => setLookupInput(e.target.value)}
+              placeholder="Outra matrícula (ex: MAT-2026)..."
+              aria-label="Consultar outra matrícula"
+              className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-white/10 border border-white/15 text-xs text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-400"
+            />
+          </div>
+          <button
+            type="submit"
+            className="px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs transition-colors cursor-pointer shrink-0"
+          >
+            Consultar
+          </button>
+        </form>
+      </div>
+    </header>
+  );
+}
+
 export function PublicStudentPortal() {
   const { code: paramCode } = useParams<{ code: string }>();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const code = useMemo(() => {
     if (paramCode) return paramCode.trim();
-    const match = location.pathname.match(/^\/(?:matricula|portal|aluno|public\/student|public\/matricula)\/([^/]+)/i);
+    const match = location.pathname.match(
+      /^\/(?:matricula|portal|aluno|boletim|public\/student|public\/students|public\/matricula)\/([^/]+)/i,
+    );
     if (match && match[1]) return decodeURIComponent(match[1]).trim();
-    const segments = location.pathname.split('/').filter(Boolean);
-    return segments[segments.length - 1] ? decodeURIComponent(segments[segments.length - 1]).trim() : '';
+    return '';
   }, [paramCode, location.pathname]);
 
   const [data, setData] = useState<PublicStudentPayload | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(code));
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState<'all' | 'boletim' | 'frequencia'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'oficial' | 'boletim' | 'frequencia'>('all');
+  const [isPrinting, setIsPrinting] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchHistory, setSearchHistory] = useState<string>('');
+  const [lookupInput, setLookupInput] = useState<string>(code);
 
   useEffect(() => {
+    const onBeforePrint = () => setIsPrinting(true);
+    const onAfterPrint = () => setIsPrinting(false);
+    window.addEventListener('beforeprint', onBeforePrint);
+    window.addEventListener('afterprint', onAfterPrint);
+    return () => {
+      window.removeEventListener('beforeprint', onBeforePrint);
+      window.removeEventListener('afterprint', onAfterPrint);
+    };
+  }, []);
+
+  useEffect(() => {
+    setLookupInput(code);
     if (!code) {
-      setError('Código de matrícula não informado.');
+      setData(null);
+      setError(null);
       setLoading(false);
       return;
     }
@@ -194,6 +370,13 @@ export function PublicStudentPortal() {
     };
   }, [code]);
 
+  const handleLookupSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = lookupInput.trim();
+    if (!trimmed) return;
+    navigate(`/boletim/${encodeURIComponent(trimmed)}`);
+  };
+
   const handleCopyLink = () => {
     navigator.clipboard.writeText(window.location.href);
     setCopied(true);
@@ -201,7 +384,21 @@ export function PublicStudentPortal() {
   };
 
   const handlePrintReportCard = () => {
-    window.print();
+    setIsPrinting(true);
+    setActiveTab('oficial');
+    setTimeout(() => {
+      window.print();
+    }, 20);
+  };
+
+  const unifiedBoletimData = useMemo(() => {
+    if (!data) return null;
+    return buildUnifiedBoletimFromPublicPayload(data);
+  }, [data]);
+
+  const handleDownloadPdf = async () => {
+    if (!unifiedBoletimData) return;
+    await exportBoletimPdf(unifiedBoletimData);
   };
 
   const filteredHistory = useMemo(() => {
@@ -227,33 +424,79 @@ export function PublicStudentPortal() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-4">
-        <div className="w-10 h-10 border-3 border-slate-900 border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="text-sm font-semibold text-slate-600 animate-pulse">
-          Consultando dados de frequência do aluno...
-        </p>
+      <div className="min-h-screen bg-slate-50 flex flex-col">
+        <PublicInstitutionalHeader
+          lookupInput={lookupInput}
+          setLookupInput={setLookupInput}
+          onLookupSubmit={handleLookupSubmit}
+        />
+        <div className="flex-1 flex flex-col justify-center items-center p-4">
+          <div className="w-10 h-10 border-3 border-slate-900 border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-sm font-semibold text-slate-600 animate-pulse">
+            Consultando dados de frequência do aluno...
+          </p>
+        </div>
       </div>
     );
   }
 
-  if (error || !data) {
+  if (!code || error || !data) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-4">
-        <div className="max-w-md w-full bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-8 text-center shadow-sm">
-          <div className="w-12 h-12 rounded-full bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto mb-4">
-            <AlertCircle className="w-6 h-6" />
+      <div className="min-h-screen bg-slate-50 flex flex-col">
+        <PublicInstitutionalHeader
+          lookupInput={lookupInput}
+          setLookupInput={setLookupInput}
+          onLookupSubmit={handleLookupSubmit}
+        />
+        <div className="flex-1 flex flex-col justify-center items-center p-4">
+          <div className="max-w-md w-full bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-8 text-center shadow-2xs">
+            <div
+              className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4 border ${
+                error
+                  ? 'bg-rose-50 border-rose-200 text-rose-600'
+                  : 'bg-sky-50 border-sky-200 text-sky-600'
+              }`}
+            >
+              {error ? <AlertCircle className="w-6 h-6" /> : <GraduationCap className="w-6 h-6" />}
+            </div>
+            <h2 className="text-lg font-extrabold text-slate-900 mb-2">
+              Consulta Pública de Frequência e Boletim
+            </h2>
+            <p className="text-xs text-slate-600 mb-5 leading-relaxed">
+              {error ||
+                'Informe o número de matrícula do aluno abaixo para visualizar o boletim acadêmico, notas por etapa e frequência detalhada.'}
+            </p>
+
+            <form onSubmit={handleLookupSubmit} className="flex flex-col gap-2.5 mb-5 text-left">
+              <label htmlFor="public-matricula-input" className="text-xs font-bold text-slate-700">
+                Número de Matrícula
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  id="public-matricula-input"
+                  type="text"
+                  value={lookupInput}
+                  onChange={(e) => setLookupInput(e.target.value)}
+                  placeholder="Ex: MAT-2026-001"
+                  className="flex-1 px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-950"
+                />
+                <button
+                  type="submit"
+                  className="px-4 py-2.5 bg-slate-950 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shrink-0"
+                >
+                  Consultar Boletim
+                </button>
+              </div>
+            </form>
+
+            <Link
+              to="/login"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors w-full cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Acessar portal administrativo</span>
+            </Link>
           </div>
-          <h2 className="text-lg font-bold text-slate-900 mb-2">Consulta Pública de Frequência e Boletim</h2>
-          <p className="text-xs text-slate-600 mb-6 leading-relaxed">
-            {error || 'Não foi possível localizar o histórico do aluno com a matrícula informada.'}
-          </p>
-          <Link
-            to="/login"
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg transition-colors w-full cursor-pointer"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Acessar portal administrativo</span>
-          </Link>
         </div>
       </div>
     );
@@ -265,11 +508,17 @@ export function PublicStudentPortal() {
   const showFrequencia = activeTab === 'all' || activeTab === 'frequencia';
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 antialiased flex flex-col">
+    <div className="min-h-screen bg-slate-50 text-slate-900 antialiased flex flex-col print:bg-white print:min-h-0">
+      <PublicInstitutionalHeader
+        lookupInput={lookupInput}
+        setLookupInput={setLookupInput}
+        onLookupSubmit={handleLookupSubmit}
+      />
+
       {/* Main Container */}
-      <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
-        {/* Student Profile Card */}
-        <section className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-2xs">
+      <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6 print:p-0 print:m-0 print:max-w-none print:space-y-0">
+        {/* Student Profile Card (Hidden when printing so only the 1-page A4 official report card prints) */}
+        <section className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-2xs print:hidden">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 text-white flex items-center justify-center font-bold text-xl shadow-xs shrink-0">
@@ -301,11 +550,20 @@ export function PublicStudentPortal() {
                   <button
                     type="button"
                     onClick={handlePrintReportCard}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold text-slate-700 hover:text-slate-950 bg-slate-100 hover:bg-slate-200/80 transition-colors border border-slate-200 cursor-pointer print:hidden"
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-semibold text-slate-700 hover:text-slate-950 bg-slate-100 hover:bg-slate-200/80 transition-colors border border-slate-200 cursor-pointer print:hidden"
                     title="Imprimir ou salvar boletim em PDF"
                   >
                     <Printer className="w-3 h-3 text-slate-600" />
                     <span>Imprimir Boletim</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDownloadPdf()}
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-semibold text-white bg-slate-900 hover:bg-slate-800 transition-colors cursor-pointer print:hidden"
+                    title="Baixar Boletim Oficial em PDF A4"
+                  >
+                    <Download className="w-3 h-3 text-sky-400" />
+                    <span>Baixar PDF Oficial</span>
                   </button>
                 </div>
                 <div className="flex flex-wrap items-center gap-y-1 gap-x-3 text-xs text-slate-500 font-medium">
@@ -404,7 +662,7 @@ export function PublicStudentPortal() {
 
           {/* Portal Navigation Tabs */}
           <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 print:hidden">
-            <div className="inline-flex p-1 rounded-xl bg-slate-100 border border-slate-200/80">
+            <div className="inline-flex flex-wrap p-1 rounded-xl bg-slate-100 border border-slate-200/80 gap-1">
               <button
                 type="button"
                 onClick={() => setActiveTab('all')}
@@ -436,15 +694,43 @@ export function PublicStudentPortal() {
                 <CalendarDays className="w-3.5 h-3.5" />
                 <span>Frequência</span>
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('oficial')}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  activeTab === 'oficial'
+                    ? 'bg-white text-slate-900 shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Folha Oficial (A4)</span>
+              </button>
             </div>
           </div>
         </section>
 
         {/* ========================================================= */}
+        {/* OFFICIAL PRINTABLE REPORT CARD (Rendered on sheet/print)  */}
+        {/* ========================================================= */}
+        {unifiedBoletimData && (activeTab === 'oficial' || isPrinting) && (
+          <section
+            aria-label="Folha Oficial do Boletim A4"
+            className={
+              activeTab === 'oficial'
+                ? 'bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 shadow-2xs print:border-0 print:p-0 print:shadow-none'
+                : 'hidden print:block print:w-full'
+            }
+          >
+            <StudentReportCardView data={unifiedBoletimData} />
+          </section>
+        )}
+
+        {/* ========================================================= */}
         {/* BOLETIM DE NOTAS SECTION                                  */}
         {/* ========================================================= */}
         {showBoletim && reportCard && (
-          <section className="space-y-4" aria-label="Boletim de Notas do Aluno">
+          <section className="space-y-4 print:hidden" aria-label="Boletim de Notas do Aluno">
             <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-2xs space-y-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
                 <div>
@@ -628,7 +914,7 @@ export function PublicStudentPortal() {
         {/* FREQUÊNCIA SECTION                                        */}
         {/* ========================================================= */}
         {showFrequencia && (
-          <>
+          <div className="space-y-6 print:hidden">
             {/* Metrics Grid */}
             <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
               <div className="bg-white border border-slate-200/90 rounded-xl p-3.5 sm:p-4 shadow-2xs">
@@ -806,11 +1092,11 @@ export function PublicStudentPortal() {
                 </div>
               )}
             </section>
-          </>
+          </div>
         )}
 
         {/* LGPD and Privacy Notice Banner */}
-        <footer className="py-6 text-center text-xs font-semibold text-slate-500 flex items-center justify-center gap-1.5">
+        <footer className="py-6 text-center text-xs font-semibold text-slate-500 flex items-center justify-center gap-1.5 print:hidden">
           <ShieldCheck className="w-4 h-4 text-emerald-600" />
           <span>Transparência Acadêmica & Proteção de Dados (LGPD)</span>
         </footer>

@@ -60,8 +60,13 @@ function checkRateLimit(clientIp: string, path: string, limit: number, windowMs:
   if (clientIp === 'global' && typeof process !== 'undefined' && process.env.VITEST) {
     return;
   }
-  const key = `${clientIp}:${path}`;
   const now = Date.now();
+  if (rateLimits.size > 500) {
+    for (const [k, v] of rateLimits.entries()) {
+      if (v.resetAt < now) rateLimits.delete(k);
+    }
+  }
+  const key = `${clientIp}:${path}`;
   const bucket = rateLimits.get(key);
   if (!bucket || bucket.resetAt < now) {
     rateLimits.set(key, { count: 1, resetAt: now + windowMs });
@@ -254,7 +259,7 @@ export default {
         const headers = { ...commonHeaders, 'set-cookie': clearRefreshCookieHeader() };
         return withHeaders(json(resData), headers, requestId);
       }
-      const publicStudent = url.pathname.match(/^\/(?:public\/students|portal|matricula|aluno)\/([^/]+)$/);
+      const publicStudent = url.pathname.match(/^\/(?:public\/students|public\/student|public\/matricula|portal|matricula|aluno|boletim)\/([^/]+)$/);
       if (publicStudent && request.method === 'GET') {
         return withHeaders(json(await getPublicStudentData(env, decodeURIComponent(publicStudent[1]!))), commonHeaders, requestId);
       }

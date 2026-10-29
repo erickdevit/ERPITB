@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../app-context';
-import { PageDialog, Section, SelectField } from '../components';
+import { EmptyState, PageDialog, Section, SelectField, TableSkeleton } from '../components';
 import { useEntity } from '../lib/use-entity';
 import type { LocalRecord } from '../types';
 
@@ -241,10 +241,21 @@ function CatalogPage({ type }: CatalogProps) {
                   </td>
                 </tr>
               ))}
-              {!items.length && (
+              {entity.loading && !items.length && (
                 <tr>
-                  <td colSpan={isCourse ? 4 : 3} className="py-8 text-center text-slate-400 font-medium">
-                    Nenhum {singular} encontrado.
+                  <td colSpan={isCourse ? 4 : 3} className="p-0">
+                    <TableSkeleton rows={5} cols={isCourse ? 4 : 3} />
+                  </td>
+                </tr>
+              )}
+              {!entity.loading && !items.length && (
+                <tr>
+                  <td colSpan={isCourse ? 4 : 3} className="p-0">
+                    <EmptyState
+                      icon={isCourse ? BookOpen : FlaskConical}
+                      title={`Nenhum ${singular} encontrado.`}
+                      description={`Não há ${title.toLowerCase()} cadastrados ou correspondentes aos filtros.`}
+                    />
                   </td>
                 </tr>
               )}

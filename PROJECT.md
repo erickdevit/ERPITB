@@ -1,118 +1,100 @@
-# Project: ERPITB — ERP institucional integrado
+# Project: ERPITB — Auditoria Técnica, Visual e de Concorrência para Produção
 
 ## Architecture
-ERP institucional em evolução, com módulos acadêmicos e administrativos; frequência, boletim e BI são capacidades atuais dentro de uma plataforma mais ampla.
-- **Client**: React 19 + TypeScript PWA (`web/`) with Dexie.js (AES-256 encrypted IndexedDB) and Lucide React + Tailwind CSS.
-- **Backend**: Cloudflare Workers + D1 Serverless SQLite (`backend/`) with REST APIs and sync engine.
-- **Data Flow**: Offline-first Dexie caching + 100% online direct sync. Analytics and Boletim calculations run client-side on decrypted Dexie records (`classes`, `courses`, `students`, `enrollments`, `attendance_records`, `grade_tables`, `grade_items`, `student_grades`).
-- **Export Flow**: Native `@media print` A4 stylesheet in `index.css` and vector PDF generator in `lib/boletim-pdf.ts` via `jspdf`.
+ERP institucional integrado para produção.
+- **Client**: React 19 + TypeScript SPA/PWA (`web/`) com Dexie.js (AES-256 encrypted IndexedDB), Tailwind CSS, Lucide React e jsPDF.
+- **Backend**: Cloudflare Workers / Node.js Serverless runtime + D1 Serverless SQLite (`backend/`) com REST APIs, sync engine e SSE event bus.
+- **Data Flow**: Offline-first Dexie caching + sincronização direta online. Eventos em tempo real via SSE (`/v1/events`).
+- **Export & Print Flow**: `@media print` A4 stylesheet em `web/src/index.css` e gerador vetorial de PDFs em `web/src/lib/boletim-pdf.ts` via `jspdf`.
+- **Public Flow**: Portal público do aluno com consulta de matrícula, visualização interativa e boletim oficial para impressão/PDF.
 
 ## Feature Inventory
 | # | Feature | Description | Milestone | Source |
 |---|---------|-------------|-----------|--------|
-| F1 | BI Attendance Deduplication Fix | Replace local `latestAttendance` in `bi/model.ts` with canonical version from `lib/attendance.ts` | M1 | Survey 1 |
-| F2 | Risk Calculation Alignment | Align dropout risk calculation in `lib/analytics.ts` by class (`student_id|class_id`) and include class name in top absentees | M1 | Survey 1 |
-| F3 | Empty & Loading States UX | Add skeleton loaders and contextual empty states with icons in `dashboard-page.tsx` | M1 | Survey 1, ORIGINAL_REQUEST R1 |
-| F4 | Dashboard KPI & Chart Completeness | Add Justificativas/Reposições metrics and "Sem chamadas" label for 0-record classes in comparative chart | M1 | Survey 1, ORIGINAL_REQUEST R1 |
-| F5 | Dashboard Component Tests | Implement comprehensive component tests in `dashboard-page.test.tsx` | M1 | Survey 1, ORIGINAL_REQUEST R4 |
-| F6 | Unified Boletim Calculation Engine | Build `lib/boletim.ts` calculating attendance, grades (simple/weighted/sum), GPA, and academic status | M2 | Survey 2, ORIGINAL_REQUEST R2 |
-| F7 | Unified Boletim Report Card UI | Build `features/reports/student-report-card-view.tsx` with ITB header, student info, consolidated matrix, legend, and signature | M3 | Survey 3, ORIGINAL_REQUEST R2 |
-| F8 | Access Point: Reports Center | Add `studentBoletim` report type in `features/reports/` with class & student filters | M3 | Survey 3, ORIGINAL_REQUEST R3.1 |
-| F9 | Access Point: Student Details & List | Add "Emitir Boletim" quick action in `StudentDetailPage` and `students-page.tsx` opening modal preview | M3 | Survey 3, ORIGINAL_REQUEST R3.2 |
-| F10 | A4 Print Stylesheet (@media print) | Inject `@media print` rules in `index.css` for clean A4 printing, hiding navbar/sidebar/buttons | M3 | Survey 3, ORIGINAL_REQUEST R3 |
-| F11 | Direct Browser Print & PDF Export | Connect `window.print()` and native `jsPDF` vector generator in `lib/boletim-pdf.ts` | M3 | Survey 3, ORIGINAL_REQUEST R3 |
-| F12 | Comprehensive E2E & Automated Tests | 4-Tier test suite covering analytics, calculations, UI components, print/export, and passing 100% | M4 / Test Track | Survey 1,2,3, ORIGINAL_REQUEST R4 |
+| F1 | Frontend Routes & RBAC Harmonization | Revisão e proteção de rotas (`/bi/professores`, `/bi/institucional`, `/bi/risco`), verificação de acesso a dados de alunos em `StudentDetailPage`, inclusão de `/conflitos` na navegação e tela 404 semântica | M1 | ORIGINAL_REQUEST R1 |
+| F2 | Global UI/UX Skeletons & Empty States | Criação de componentes `TableSkeleton`, `CardSkeleton`, `EmptyState` e padronização em `classes-page`, `catalog-page`, `replacements-page`, `grades-page`, `entity-detail-pages` e finanças | M1 | ORIGINAL_REQUEST R1 |
+| F3 | Public Portal Content Negotiation & Routing | Correção em `backend/src/server.ts` para servir `index.html` em requisições de navegador com `Accept: text/html` para `/aluno/`, `/boletim/`, `/portal/`; suporte a rotas `/boletim/:code` e `/boletim` sem código no frontend | M2 | ORIGINAL_REQUEST R2 |
+| F4 | Public Student Portal UI Redesign | Redesenho completo de `PublicStudentPortal` com identidade visual ERPITB, busca de matrícula, modo interativo, embutimento do boletim oficial (`StudentReportCardView`) e exportação PDF/impressão | M2 | ORIGINAL_REQUEST R2 |
+| F5 | 1-Page A4 Print Rule & Parity Standardization | Ajuste de `@page` e CSS `@media print` em `index.css` e `StudentReportCardView` para caber em exatamente 1 página A4 landscape sem páginas em branco; adição de logo e badges no PDF (`boletim-pdf.ts`) | M3 | ORIGINAL_REQUEST R3 |
+| F6 | Class Batch Report Card Print & PDF | Implementação de `ClassBatchBoletimPrintView` concatenando boletins individuais da turma com `break-after: page` e neutralização na última página (`break-after: auto`); função `exportClassBatchBoletimPdf` | M3 | ORIGINAL_REQUEST R4 |
+| F7 | Class Detail Spreadsheet Mode | Integração de `ClassBoletimView` ("Modo Planilha / Boletim Consolidado") na tela de turma (`ClassDetailPage`), exibindo matriz de alunos, módulos, média final e taxa de frequência, com botões de emissão em lote | M3 | ORIGINAL_REQUEST R4 |
+| F8 | Scoped SSE Event Bus & Event Streaming | Escopo granular nos eventos `entity_changed` no backend (`targetUserId`, `classId`, `entity`) para evitar broadcast indiscriminado entre clientes | M4 | ORIGINAL_REQUEST R5 |
+| F9 | Draft Protection in Attendance & Grades | Proteção no frontend para que eventos de background e recarregamentos não sobrescrevam rascunhos ativos e não salvos em `AttendancePage` e `GradesPage` | M4 | ORIGINAL_REQUEST R5 |
+| F10 | Session & Cache Partitioning | Particionamento do `inMemoryCache` por `accountId` no frontend; limpeza de cache no login; invalidação do `workerQueryCache` em operações batch e invalidação do cache de usuário em demissões/alterações de role | M4 | ORIGINAL_REQUEST R5 |
+| F11 | Concurrency Isolation Test Suite | Desenvolvimento de suíte de testes de concorrência validando isolamento de sessões, mutações paralelas de chamada, tratamento de conflito 409 e preservação de rascunhos | M5 | ORIGINAL_REQUEST R5, R6 |
+| F12 | Multi-Browser & Edge Case Layout Tests | Desenvolvimento e execução de testes automatizados para Chromium e Firefox validando regra de 1 página A4, nomes longos (60+ caracteres) e turmas com número variável de módulos (1 a 10) | M5 | ORIGINAL_REQUEST R6 |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | Analytics & Dashboards Review & Refinement | F1, F2, F3, F4, F5 in `web/src/lib/analytics.ts`, `bi/model.ts`, `dashboard-page.tsx`, `dashboard-page.test.tsx` | none | DONE |
-| M2 | Boletim Escolar Data Model & Calculation Engine | F6 in `web/src/lib/boletim.ts`, `boletim.test.ts` | none | DONE |
-| M3 | Unified Boletim UI, Access Points, Print & PDF Export | F7, F8, F9, F10, F11 in `reports/`, `entity-detail-pages.tsx`, `students-page.tsx`, `index.css`, `boletim-pdf.ts` | M2 | DONE |
-| M4 | Final Milestone: 100% E2E Pass & Adversarial Hardening | F12: Run full E2E test suite (Tiers 1-4) and adversarial hardening (Tier 5) | M1, M2, M3, TEST_READY | DONE |
+| M1 | Auditoria de Rotas, Permissões e UI/UX Global | F1, F2 em `web/src/app.tsx`, `components.tsx`, `classes-page.tsx`, `catalog-page.tsx`, `replacements-page.tsx`, `grades-page.tsx`, `entity-detail-pages.tsx` | none | PLANNED |
+| M2 | Reformulação do Boletim Público e Negociação de Rotas | F3, F4 em `backend/src/server.ts`, `backend/src/index.ts`, `web/src/app.tsx`, `web/src/features/public-student-portal.tsx` | none | PLANNED |
+| M3 | Padronização de Relatórios, Página Única A4 e Lote Turma / Planilha | F5, F6, F7 em `web/src/index.css`, `web/src/features/reports/student-report-card-view.tsx`, `web/src/lib/boletim-pdf.ts`, `web/src/features/reports/class-batch-boletim-view.tsx`, `web/src/features/entity-detail-pages.tsx` | none | PLANNED |
+| M4 | Isolamento Estrito de Sessão e Estado de Cliente em Concorrência | F8, F9, F10 em `backend/src/events-bus.ts`, `backend/src/events-service.ts`, `backend/src/v1-router.ts`, `backend/src/finance.ts`, `backend/src/auth.ts`, `web/src/lib/use-events.ts`, `web/src/lib/use-entity.ts`, `web/src/features/attendance-page.tsx`, `web/src/features/grades-page.tsx` | none | PLANNED |
+| M5 | Testes Automatizados, Validação Multi-Navegador e Concorrência | F11, F12 em `web/test/`, `backend/test/` e execução de testes 100% | M1, M2, M3, M4 | PLANNED |
 
 ## Interface Contracts
 
-### M2: `web/src/lib/boletim.ts`
+### M1: Componentes de UI/UX em `web/src/components.tsx`
 ```typescript
-export interface BoletimStudentInfo {
-  id: string;
-  name: string;
-  registrationNumber: string;
-  courseName: string;
-  courseId: string;
-  classNames: string[];
-}
-
-export type AcademicStatus =
-  | 'Aprovado'
-  | 'Reprovado por Nota'
-  | 'Reprovado por Frequência'
-  | 'Reprovado por Nota e Frequência'
-  | 'Em Andamento'
-  | 'Sem Notas';
-
-export interface BoletimModuleRow {
-  moduleId: string;
-  moduleName: string;
-  className: string;
-  classesHeld: number;
-  presences: number;
-  absences: number;
-  justified: number;
-  attendanceRate: number; // 0 to 100
-  grades: { name: string; score: number | null; maxScore: number; weight?: number }[];
-  finalGrade: number | null; // 0 to 10 scale
-  academicStatus: AcademicStatus;
-}
-
-export interface UnifiedBoletimData {
-  student: BoletimStudentInfo;
-  issueDate: string; // ISO date string or formatted date
-  modules: BoletimModuleRow[];
-  overallAttendanceRate: number; // 0 to 100
-  overallGpa: number | null; // 0 to 10 scale
-  overallAcademicStatus: AcademicStatus;
-  criteria: {
-    minAttendanceRate: number; // 75%
-    minPassingGrade: number; // 6.0
-  };
-}
-
-export function buildUnifiedBoletimData(params: {
-  studentId: string;
-  classId?: string;
-  students: LocalRecord[];
-  enrollments: LocalRecord[];
-  classes: LocalRecord[];
-  courses: LocalRecord[];
-  attendanceRecords: LocalRecord[];
-  gradeTables: LocalRecord[];
-  gradeItems: LocalRecord[];
-  studentGrades: LocalRecord[];
-}): UnifiedBoletimData | null;
+export function TableSkeleton({ rows = 5, cols = 4 }: { rows?: number; cols?: number }): React.ReactElement;
+export function CardSkeleton({ count = 3 }: { count?: number }): React.ReactElement;
+export function EmptyState({ icon: Icon, title, description, action }: { icon: LucideIcon; title: string; description: string; action?: React.ReactNode }): React.ReactElement;
+export function NotFoundPage(): React.ReactElement;
 ```
 
-### M3: `web/src/lib/boletim-pdf.ts`
+### M3: Impressão em Lote e PDF em `web/src/lib/boletim-pdf.ts` e `web/src/features/reports/`
 ```typescript
-export async function exportBoletimPdf(data: UnifiedBoletimData): Promise<void>;
+export async function exportClassBatchBoletimPdf(
+  studentsData: UnifiedBoletimData[],
+  options?: BoletimPdfOptions
+): Promise<jsPDF>;
+
+export interface ClassBatchBoletimProps {
+  studentsBoletimData: UnifiedBoletimData[];
+  logoUrl?: string;
+  watermarkText?: string;
+  watermarkLogoUrl?: string;
+  watermarkGrayscale?: boolean;
+}
+export function ClassBatchBoletimPrintView(props: ClassBatchBoletimProps): React.ReactElement;
+```
+
+### M4: Escopo de Eventos SSE e Proteção de Rascunhos
+```typescript
+// backend/src/events-bus.ts
+export interface SystemEvent {
+  type: string;
+  payload: Record<string, unknown>;
+  targetUserId?: string | null;
+  targetClassId?: string | null;
+  entity?: string;
+  timestamp: string;
+}
+
+// web/src/lib/use-events.ts
+export function useEvents(options: {
+  onEntityChanged?: (entity?: string, payload?: unknown) => void;
+  classId?: string;
+}): void;
 ```
 
 ## Code Layout
-- `web/src/lib/analytics.ts` — Home dashboard analytics engine (M1)
-- `web/src/lib/analytics.test.ts` — Analytics tests (M1)
-- `web/src/features/bi/model.ts` — B.I. dataset engine & canonical attendance deduplication (M1)
-- `web/src/features/dashboard-page.tsx` — Home dashboard component & visual refinement (M1)
-- `web/src/features/dashboard-page.test.tsx` — Home dashboard unit and component tests (M1)
-- `web/src/lib/boletim.ts` — Unified Boletim Escolar data calculation engine (M2)
-- `web/src/lib/boletim.test.ts` — Boletim calculations unit tests (M2)
-- `web/src/features/reports/student-report-card-view.tsx` — Unified report card printable component (M3)
-- `web/src/features/reports/model.ts` — Reports center model with `studentBoletim` (M3)
-- `web/src/features/reports/report-filters.tsx` — Report filters with Turma/Aluno selectors (M3)
-- `web/src/features/reports/report-result.tsx` — Report renderer integration (M3)
-- `web/src/features/entity-detail-pages.tsx` — StudentDetailPage with "Emitir Boletim" action (M3)
-- `web/src/features/students-page.tsx` — StudentsPage with "Emitir Boletim" row action (M3)
-- `web/src/index.css` — Global CSS with `@media print` A4 stylesheet (M3)
+- `backend/src/server.ts` — Server entry point & HTTP content negotiation (M2)
+- `backend/src/events-bus.ts` — EventBus singleton & broadcast engine (M4)
+- `backend/src/events-service.ts` — SSE client streaming & subscription filters (M4)
+- `backend/src/v1-router.ts` — REST batch mutations & cache invalidations (M4)
+- `backend/src/auth.ts` — User auth cache & permissions (M4)
+- `web/src/app.tsx` — Router, route guards, public portal matchers, navigation (M1, M2)
+- `web/src/components.tsx` — Reusable UI skeletons, empty states, 404 page (M1)
+- `web/src/features/public-student-portal.tsx` — Redesigned public student portal (M2)
+- `web/src/index.css` — Global CSS with `@media print` A4 stylesheet, batch print rules (M3)
+- `web/src/features/reports/student-report-card-view.tsx` — Report card component with compact A4 layout (M3)
 - `web/src/lib/boletim-pdf.ts` — Vector PDF generator via `jspdf` (M3)
-- `web/src/lib/boletim-pdf.test.ts` — PDF generator tests (M3)
-- `web/test/e2e/` — Opaque-box E2E test suite (Test Track)
+- `web/src/features/reports/class-batch-boletim-view.tsx` — Batch student report card printable component (M3)
+- `web/src/features/entity-detail-pages.tsx` — ClassDetailPage with spreadsheet mode & batch print (M3)
+- `web/src/lib/use-events.ts` — Frontend SSE hook with entity-specific invalidation (M4)
+- `web/src/lib/use-entity.ts` — Entity cache with account-level isolation (M4)
+- `web/src/features/attendance-page.tsx` — Attendance page with draft edit protection (M4)
+- `web/src/features/grades-page.tsx` — Grades page with draft edit protection (M4)
+- `web/test/` & `backend/test/` — Concurrency and multi-browser automated tests (M5)

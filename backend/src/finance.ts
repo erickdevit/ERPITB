@@ -234,8 +234,9 @@ export async function createFee(request: Request, env: Env, user: AuthUser): Pro
     entity: 'financial_fees',
     operation: 'upsert',
     id,
+    userId: user.id,
     timestamp,
-  }, { env });
+  }, { env, actorUserId: user.id });
 
   return {
     id,
@@ -317,8 +318,9 @@ export async function updateFee(request: Request, env: Env, user: AuthUser, id: 
     entity: 'financial_fees',
     operation: 'upsert',
     id,
+    userId: user.id,
     timestamp,
-  }, { env });
+  }, { env, actorUserId: user.id });
 
   let studentName = `Aluno ${existing.registration_number || ''}`;
   try {
@@ -458,8 +460,9 @@ export async function recordPayment(request: Request, env: Env, user: AuthUser, 
     entity: 'financial_fees',
     operation: 'upsert',
     id: feeId,
+    userId: user.id,
     timestamp,
-  }, { env });
+  }, { env, actorUserId: user.id });
 
   return {
     ok: true,
@@ -662,8 +665,9 @@ export async function createCashEntry(request: Request, env: Env, user: AuthUser
     entity: 'cash_transactions',
     operation: 'upsert',
     id,
+    userId: user.id,
     timestamp,
-  }, { env });
+  }, { env, actorUserId: user.id });
 
   return {
     id,
@@ -738,8 +742,9 @@ export async function reverseCashEntry(request: Request, env: Env, user: AuthUse
     entity: 'cash_transactions',
     operation: 'upsert',
     id: reversalId,
+    userId: user.id,
     timestamp,
-  }, { env });
+  }, { env, actorUserId: user.id });
 
   return {
     ok: true,

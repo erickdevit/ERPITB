@@ -15,7 +15,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { useApp } from '../../app-context';
-import { PageDialog } from '../../components';
+import { EmptyState, PageDialog, TableSkeleton } from '../../components';
 import { useEntity } from '../../lib/use-entity';
 import type { CashTransaction, CashType, PaymentMethod } from '../../types';
 import { CashPrintDocument } from './finance-print';
@@ -272,14 +272,19 @@ export function CashView({ mode = 'all' }: { mode?: 'all' | 'entrada' | 'saida' 
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-400">
-                    Carregando livro caixa...
+                  <td colSpan={8} className="p-0">
+                    <span className="sr-only">Carregando livro caixa...</span>
+                    <TableSkeleton rows={5} cols={8} />
                   </td>
                 </tr>
               ) : filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-400">
-                    Nenhuma movimentação de caixa encontrada para este período.
+                  <td colSpan={8} className="p-0">
+                    <EmptyState
+                      icon={Wallet}
+                      title="Nenhuma movimentação de caixa encontrada para este período."
+                      description="Ajuste o período ou registre uma nova movimentação de caixa."
+                    />
                   </td>
                 </tr>
               ) : (

@@ -3,7 +3,7 @@ import { ApiClient, ApiError, OfflineError } from './lib/api';
 import { LocalStore } from './lib/db';
 import { applyBrandDesignTokens } from './lib/design-tokens';
 import { drainLegacyClientStorage } from './lib/migration-drain';
-import { clearEntityMemoryCache } from './lib/use-entity';
+import { clearEntityMemoryCache, notifyEntityChanged } from './lib/use-entity';
 import { useServerEvents } from './lib/use-events';
 import type { BrandingSettings, UserSession } from './types';
 
@@ -82,9 +82,15 @@ export function ApplicationProvider({
   useServerEvents({
     enabled: Boolean(session?.accessToken) && typeof EventSource !== 'undefined' && !(import.meta as any).env?.VITEST,
     token: session?.accessToken,
-    onEntityChanged: (entityName) => {
-      clearEntityMemoryCache(entityName as any);
-      setRefresh((value) => value + 1);
+    currentUserId: session?.id,
+    onEntityChanged: (entityName, entities) => {
+      const targets = entities && entities.length > 0 ? entities : entityName ? [entityName] : undefined;
+      if (targets && targets.length > 0) {
+        notifyEntityChanged(targets);
+      } else {
+        clearEntityMemoryCache();
+        setRefresh((value) => value + 1);
+      }
     },
     onBrandingUpdated: (next) => {
       setBranding((prev) => {

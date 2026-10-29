@@ -22,9 +22,11 @@ import {
   FileSpreadsheet,
 } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { buildUnifiedBoletimData } from '../lib/boletim';
+import { buildClassBoletimData, buildUnifiedBoletimData, type UnifiedBoletimData } from '../lib/boletim';
 import { StudentReportCardView } from './reports/student-report-card-view';
 import { StudentBoletimSpreadsheetView } from './reports/student-boletim-spreadsheet-view';
+import { ClassBoletimView } from './reports/class-boletim-view';
+import { ClassBatchBoletimPrintView } from './reports/class-batch-boletim-view';
 import {
   CartesianGrid,
   Cell,
@@ -38,7 +40,7 @@ import {
   YAxis,
 } from 'recharts';
 import { useApp } from '../app-context';
-import { Section } from '../components';
+import { CardSkeleton, EmptyState, Section, TableSkeleton } from '../components';
 import { buildAnalytics } from '../lib/analytics';
 import { formatDate } from '../lib/date';
 import { useEntity } from '../lib/use-entity';
@@ -496,6 +498,15 @@ export function CourseDetailPage() {
   const course = (courses.items ?? []).find((c) => c.id === courseId);
   const ownClasses = useMemo(() => (classes.items ?? []).filter((c) => !c.deleted_at && c.course_id === courseId), [classes.items, courseId]);
 
+  if (!course && courses.loading) {
+    return (
+      <div className="flex flex-col gap-5 text-left">
+        <CardSkeleton count={3} />
+        <TableSkeleton rows={4} cols={3} />
+      </div>
+    );
+  }
+
   if (!course && !courses.loading) {
     return (
       <div className="p-8 text-center text-slate-500 bg-white border border-slate-200 rounded-2xl">
@@ -557,6 +568,7 @@ export function CourseDetailPage() {
 export function ClassDetailPage() {
   const { classId } = useParams<{ classId: string }>();
   const navigate = useNavigate();
+  const { branding } = useApp();
   const classes = useEntity('classes');
   const courses = useEntity('courses');
   const laboratories = useEntity('laboratories');
@@ -565,6 +577,10 @@ export function ClassDetailPage() {
   const attendance = useEntity('attendance_records');
   const classTeachers = useEntity('class_teachers');
   const gradeTables = useEntity('grade_tables');
+  const gradeItems = useEntity('grade_items');
+  const studentGrades = useEntity('student_grades');
+
+  const [activeTab, setActiveTab] = useState<'overview' | 'spreadsheet' | 'batch_boletim'>('overview');
 
   const classRecord = (classes.items ?? []).find((c) => c.id === classId);
   const course = (courses.items ?? []).find((c) => c.id === classRecord?.course_id);
@@ -579,16 +595,85 @@ export function ClassDetailPage() {
   );
 
   const enrolledStudents = useMemo(() => {
-    return (ownEnrollments ?? []).map((enr) => {
-      const student = (students.items ?? []).find((s) => s.id === enr.student_id);
-      return { ...student, enrollmentId: enr.id };
-    });
+    return (ownEnrollments ?? [])
+      .map((enr) => {
+        const student = (students.items ?? []).find((s) => s.id === enr.student_id);
+        return { ...student, enrollmentId: enr.id };
+      })
+      .sort((a, b) => text(a, 'name').localeCompare(text(b, 'name'), 'pt-BR'));
   }, [ownEnrollments, students.items]);
 
   const classGradeTables = useMemo(
     () => (gradeTables.items ?? []).filter((t) => !t.deleted_at && t.class_id === classId),
     [gradeTables.items, classId],
   );
+
+  const classBoletimData = useMemo(() => {
+    if (!classId) return null;
+    return buildClassBoletimData({
+      classId,
+      classes: classes.items ?? [],
+      courses: courses.items ?? [],
+      gradeTables: gradeTables.items ?? [],
+      gradeItems: gradeItems.items ?? [],
+      studentGrades: studentGrades.items ?? [],
+      students: students.items ?? [],
+      enrollments: enrollments.items ?? [],
+      attendanceRecords: attendance.items ?? [],
+    });
+  }, [
+    classId,
+    classes.items,
+    courses.items,
+    gradeTables.items,
+    gradeItems.items,
+    studentGrades.items,
+    students.items,
+    enrollments.items,
+    attendance.items,
+  ]);
+
+  const batchStudentsBoletimData = useMemo(() => {
+    if (!classId) return [];
+    const list: UnifiedBoletimData[] = [];
+    for (const st of enrolledStudents) {
+      if (!st.id) continue;
+      const b = buildUnifiedBoletimData({
+        studentId: String(st.id),
+        classId,
+        students: students.items ?? [],
+        enrollments: enrollments.items ?? [],
+        classes: classes.items ?? [],
+        courses: courses.items ?? [],
+        attendanceRecords: attendance.items ?? [],
+        gradeTables: gradeTables.items ?? [],
+        gradeItems: gradeItems.items ?? [],
+        studentGrades: studentGrades.items ?? [],
+      });
+      if (b) list.push(b);
+    }
+    return list;
+  }, [
+    classId,
+    enrolledStudents,
+    students.items,
+    enrollments.items,
+    classes.items,
+    courses.items,
+    attendance.items,
+    gradeTables.items,
+    gradeItems.items,
+    studentGrades.items,
+  ]);
+
+  if (!classRecord && classes.loading) {
+    return (
+      <div className="flex flex-col gap-5 text-left">
+        <CardSkeleton count={3} />
+        <TableSkeleton rows={5} cols={4} />
+      </div>
+    );
+  }
 
   if (!classRecord && !classes.loading) {
     return (
@@ -600,7 +685,7 @@ export function ClassDetailPage() {
 
   return (
     <div className="flex flex-col gap-5 text-left">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -629,7 +714,27 @@ export function ClassDetailPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('batch_boletim');
+            }}
+            aria-label="Imprimir Boletim de Turma"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 text-xs sm:text-sm font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer"
+          >
+            <Printer className="w-4 h-4 text-sky-600" />
+            <span>Imprimir Boletim da Turma</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('spreadsheet')}
+            aria-label="Modo Planilha"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 text-xs sm:text-sm font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+            <span>Modo Planilha</span>
+          </button>
           <Link
             to={`/notas?classId=${classId}`}
             className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-900 border border-slate-200 text-xs sm:text-sm font-semibold rounded-lg shadow-2xs transition-colors"
@@ -645,30 +750,109 @@ export function ClassDetailPage() {
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs">
-        <h2 className="text-sm font-bold text-slate-900 mb-3">Alunos Matriculados ({enrolledStudents.length})</h2>
-        <div className="divide-y divide-slate-100">
-          {enrolledStudents.map((st) => (
-            <div key={st.id} className="py-2.5 flex items-center justify-between">
-              <Link to={`/alunos/${st.id}`} className="font-bold text-xs sm:text-sm text-slate-900 hover:text-blue-600 hover:underline">
-                {text(st, 'name')}
-              </Link>
-            </div>
-          ))}
-          {!enrolledStudents.length && (
-            <p className="text-xs text-slate-400 py-3">Nenhum aluno ativo matriculado nesta turma.</p>
-          )}
-        </div>
+      {/* VIEW MODE SELECTOR TABS */}
+      <div className="flex flex-wrap items-center gap-1.5 bg-white border border-slate-200/90 rounded-xl p-1.5 shadow-2xs w-fit print:hidden">
+        <button
+          type="button"
+          onClick={() => setActiveTab('overview')}
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+            activeTab === 'overview'
+              ? 'bg-slate-900 text-white shadow-2xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+          }`}
+        >
+          Visão Geral ({enrolledStudents.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('spreadsheet')}
+          className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+            activeTab === 'spreadsheet'
+              ? 'bg-slate-900 text-white shadow-2xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+          }`}
+        >
+          <FileSpreadsheet className="w-3.5 h-3.5" />
+          <span>Modo Planilha (Consolidado)</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('batch_boletim')}
+          className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+            activeTab === 'batch_boletim'
+              ? 'bg-slate-900 text-white shadow-2xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+          }`}
+        >
+          <Printer className="w-3.5 h-3.5" />
+          <span>Boletim de Turma (1 pág/aluno)</span>
+        </button>
       </div>
 
-      <AnalyticsCard
-        attendance={attendance.items}
-        classes={classes.items}
-        students={students.items}
-        enrollments={enrollments.items}
-        classTeachers={classTeachers.items}
-        filter={{ classId }}
-      />
+      {activeTab === 'overview' && (
+        <>
+          <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs print:hidden">
+            <h2 className="text-sm font-bold text-slate-900 mb-3">Alunos Matriculados ({enrolledStudents.length})</h2>
+            <div className="divide-y divide-slate-100">
+              {enrolledStudents.map((st) => (
+                <div key={st.id} className="py-2.5 flex items-center justify-between">
+                  <Link to={`/alunos/${st.id}`} className="font-bold text-xs sm:text-sm text-slate-900 hover:text-blue-600 hover:underline">
+                    {text(st, 'name')}
+                  </Link>
+                </div>
+              ))}
+              {!enrolledStudents.length && (
+                <p className="text-xs text-slate-400 py-3">Nenhum aluno ativo matriculado nesta turma.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="print:hidden">
+            <AnalyticsCard
+              attendance={attendance.items}
+              classes={classes.items}
+              students={students.items}
+              enrollments={enrollments.items}
+              classTeachers={classTeachers.items}
+              filter={{ classId }}
+            />
+          </div>
+
+          {batchStudentsBoletimData.length > 0 && (
+            <div className="hidden print:block print:w-full">
+              <ClassBatchBoletimPrintView
+                studentsData={batchStudentsBoletimData}
+                className={text(classRecord, 'name')}
+                courseName={text(course, 'name')}
+                logoUrl={branding?.loginLogoUrl}
+                watermarkLogoUrl={branding?.printWatermarkLogoUrl}
+                watermarkGrayscale={branding?.printWatermarkGrayscale ?? true}
+              />
+            </div>
+          )}
+        </>
+      )}
+
+      {activeTab === 'spreadsheet' && classBoletimData && (
+        <ClassBoletimView
+          data={classBoletimData}
+          onSelectStudent={(id) => navigate(`/alunos/${id}`)}
+          logoUrl={branding?.loginLogoUrl}
+          watermarkLogoUrl={branding?.printWatermarkLogoUrl}
+          watermarkGrayscale={branding?.printWatermarkGrayscale ?? true}
+        />
+      )}
+
+      {activeTab === 'batch_boletim' && (
+        <ClassBatchBoletimPrintView
+          studentsData={batchStudentsBoletimData}
+          className={text(classRecord, 'name')}
+          courseName={text(course, 'name')}
+          logoUrl={branding?.loginLogoUrl}
+          watermarkLogoUrl={branding?.printWatermarkLogoUrl}
+          watermarkGrayscale={branding?.printWatermarkGrayscale ?? true}
+        />
+      )}
     </div>
   );
 }
@@ -676,7 +860,7 @@ export function ClassDetailPage() {
 export function StudentDetailPage() {
   const { studentId } = useParams<{ studentId: string }>();
   const navigate = useNavigate();
-  const { branding, api } = useApp();
+  const { branding, api, session } = useApp();
   const students = useEntity('students');
   const enrollments = useEntity('enrollments');
   const classes = useEntity('classes');
@@ -770,12 +954,45 @@ export function StudentDetailPage() {
       .filter((r): r is NonNullable<typeof r> => Boolean(r));
   }, [studentGrades.items, gradeItems.items, gradeTables.items, studentId]);
 
+  if (!student && students.loading) {
+    return (
+      <div className="flex flex-col gap-5 text-left">
+        <CardSkeleton count={3} />
+        <TableSkeleton rows={5} cols={4} />
+      </div>
+    );
+  }
+
   if (!student && !students.loading) {
     return (
       <div className="p-8 text-center text-slate-500 bg-white border border-slate-200 rounded-2xl">
         Aluno não encontrado.
       </div>
     );
+  }
+
+  // Enforce teacher scope when class_teachers assignments exist
+  if (session?.role === 'professor') {
+    const activeTeacherLinks = (classTeachers.items ?? []).filter((ct) => !ct.deleted_at);
+    if (activeTeacherLinks.length > 0 && ownEnrollments.length > 0) {
+      const allowedClassIds = new Set(
+        activeTeacherLinks
+          .filter((ct) => String(ct.user_id ?? ct.teacher_id) === String(session.id))
+          .map((ct) => String(ct.class_id))
+      );
+      const isStudentInTeacherClass = ownEnrollments.some((e) => allowedClassIds.has(String(e.class_id)));
+      if (!isStudentInTeacherClass) {
+        return (
+          <div className="p-8 text-center text-slate-600 bg-white border border-slate-200 rounded-2xl space-y-2">
+            <AlertCircle className="w-6 h-6 text-amber-500 mx-auto" />
+            <div className="text-sm font-bold text-slate-900">Acesso Restrito</div>
+            <p className="text-xs text-slate-500">
+              Este aluno não está matriculado em nenhuma turma atribuída ao seu perfil de professor.
+            </p>
+          </div>
+        );
+      }
+    }
   }
 
   const regNumber = text(student, 'registration_number');

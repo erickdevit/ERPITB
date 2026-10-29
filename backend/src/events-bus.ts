@@ -8,6 +8,8 @@ export interface SystemEvent<T = unknown> {
   type: SseEventType;
   data: T;
   targetUserId?: string;
+  actorUserId?: string;
+  targetClassId?: string;
   timestamp: string;
 }
 
@@ -54,15 +56,28 @@ export function broadcastEvent<T = unknown>(
   options?: {
     id?: string;
     targetUserId?: string;
+    actorUserId?: string;
+    targetClassId?: string;
     env?: Env;
   }
 ): SystemEvent<T> {
   const timestamp = nowIso();
+  const payloadObj = data && typeof data === 'object' ? (data as Record<string, unknown>) : undefined;
+  const resolvedActorUserId =
+    options?.actorUserId ??
+    (typeof payloadObj?.userId === 'string' ? payloadObj.userId : undefined) ??
+    (typeof payloadObj?.actorUserId === 'string' ? payloadObj.actorUserId : undefined);
+  const resolvedTargetClassId =
+    options?.targetClassId ??
+    (typeof payloadObj?.classId === 'string' ? payloadObj.classId : undefined);
+
   const event: SystemEvent<T> = {
     id: options?.id || uuid(),
     type,
     data,
     targetUserId: options?.targetUserId,
+    actorUserId: resolvedActorUserId,
+    targetClassId: resolvedTargetClassId,
     timestamp,
   };
 
