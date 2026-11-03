@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Archive,
   ArrowRightLeft,
-  BookOpen,
   Calendar,
   Edit3,
   Lock,
@@ -17,7 +16,11 @@ import {
 import { useApp } from '../app-context';
 import { DateField, PageDialog, SelectField } from '../components';
 import { SearchableStudentSelect } from './student-select';
-import { ClassFilterFields, filterClassesByAttributes } from './class-filter-controls';
+import {
+  filterClassesByAttributes,
+  shiftFilterOptions,
+  weekDayFilterOptions,
+} from './class-filter-controls';
 import { formatDate, parseBrazilDate, todayInSaoPaulo } from '../lib/date';
 import { useEntity } from '../lib/use-entity';
 import { cleanClassName, extractClassNumber, formatClassDisplayName } from './classes-model';
@@ -116,10 +119,12 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   const attendance = useEntity('attendance_records', true);
   const classNotes = useEntity('class_notes', true);
   const replacements = useEntity('replacements', true);
+  const laboratories = useEntity('laboratories');
 
   const [classId, setClassId] = useState('');
   const [date, setDate] = useState(formatDate(today));
   const [search, setSearch] = useState('');
+  const [studentStatusFilter, setStudentStatusFilter] = useState<'ativos' | 'trancados' | 'todos'>('ativos');
   const [rows, setRows] = useState<AttendanceDraftRow[]>([]);
   const [generalNotes, setGeneralNotes] = useState('');
   const [showGeneralNotes, setShowGeneralNotes] = useState(false);
@@ -191,6 +196,17 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
         return a.label.localeCompare(b.label, 'pt-BR');
       });
   }, [filteredClasses, courses.items, classId]);
+
+  const labOptions = useMemo(
+    () => [
+      { value: '', label: 'Todos os labs' },
+      ...(laboratories.items ?? [])
+        .filter((l) => !l.deleted_at && l.active !== 0 && l.active !== false)
+        .map((l) => ({ value: String(l.id), label: String(l.name || 'Lab') }))
+        .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')),
+    ],
+    [laboratories.items],
+  );
 
   useEffect(() => {
     if (classOptions.length > 0 && !classOptions.some((opt) => opt.value === classId)) {
@@ -269,14 +285,21 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   }, [attendance.items, canonicalDate, classId, dirtyContextKey, enrollments.items, existingClassNote, loading, replacements.items, students.items]);
 
   const visibleRows = useMemo(() => {
+    let list = rows;
+    if (studentStatusFilter === 'ativos') {
+      list = list.filter((row) => row.enrollmentStatus !== 'trancada');
+    } else if (studentStatusFilter === 'trancados') {
+      list = list.filter((row) => row.enrollmentStatus === 'trancada');
+    }
+
     const term = search.trim().toLocaleLowerCase('pt-BR');
-    if (!term) return rows;
-    return rows.filter((row) =>
+    if (!term) return list;
+    return list.filter((row) =>
       `${text(row.student, 'name')} ${text(row.student, 'registration_number')}`
         .toLocaleLowerCase('pt-BR')
         .includes(term),
     );
-  }, [rows, search]);
+  }, [rows, search, studentStatusFilter]);
 
 
   const updateRow = (index: number, update: (row: AttendanceDraftRow) => AttendanceDraftRow) => {
@@ -433,6 +456,13 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
             ]);
           }
         }
+        setRows((prev) =>
+          prev.map((r) =>
+            r.student.id === studentId
+              ? { ...r, enrollmentStatus: 'trancada', status: undefined, statusChanged: true }
+              : r,
+          ),
+        );
         await Promise.all([enrollments.reload(), students.reload()]);
         setNotice({ severity: 'success', message: `Matrícula de ${studentName} trancada com sucesso.` });
         void sync();
@@ -463,6 +493,13 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
             ]);
           }
         }
+        setRows((prev) =>
+          prev.map((r) =>
+            r.student.id === studentId
+              ? { ...r, enrollmentStatus: 'ativa', status: r.status || 'P', statusChanged: true }
+              : r,
+          ),
+        );
         await Promise.all([enrollments.reload(), students.reload()]);
         setNotice({ severity: 'success', message: `Matrícula de ${studentName} reativada com sucesso.` });
         void sync();
@@ -499,6 +536,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
           });
         }
       }
+      setRows((prev) => prev.filter((r) => r.student.id !== studentId));
       await store.mutateBatch(batch as any);
       await Promise.all([students.reload(), enrollments.reload()]);
       setNotice({
@@ -682,28 +720,16 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Unified Single-Row Toolbar */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs space-y-2.5">
-        {/* Class Filters: Dia da semana, Turno, Lab */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pb-2.5 border-b border-slate-100">
-          <ClassFilterFields
-            weekDay={filterWeekDay}
-            onWeekDayChange={setFilterWeekDay}
-            shift={filterShift}
-            onShiftChange={setFilterShift}
-            laboratoryId={filterLabId}
-            onLaboratoryIdChange={setFilterLabId}
-          />
-        </div>
-
-        <div className="flex flex-col md:flex-row md:items-end gap-2.5">
+      {/* Unified Single-Line Toolbar */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs">
+        <div className="flex flex-wrap xl:flex-nowrap items-end gap-2.5">
           {/* Turma */}
-          <div className="flex-1 min-w-[180px]">
+          <div className="flex-1 min-w-[200px]">
             <SelectField label="Turma" value={classId} onChange={setClassId} options={classOptions} />
           </div>
 
           {/* Data */}
-          <div className="w-full md:w-40">
+          <div className="w-full sm:w-36 shrink-0">
             <DateField
               label="Data da chamada"
               value={date}
@@ -714,10 +740,54 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
             />
           </div>
 
+          {/* Dia da semana */}
+          <div className="w-full sm:w-32 shrink-0">
+            <SelectField
+              label="Dia"
+              value={filterWeekDay}
+              onChange={setFilterWeekDay}
+              options={weekDayFilterOptions}
+            />
+          </div>
+
+          {/* Turno */}
+          <div className="w-full sm:w-32 shrink-0">
+            <SelectField
+              label="Turno"
+              value={filterShift}
+              onChange={setFilterShift}
+              options={shiftFilterOptions}
+            />
+          </div>
+
+          {/* Lab */}
+          <div className="w-full sm:w-32 shrink-0">
+            <SelectField
+              label="Lab"
+              value={filterLabId}
+              onChange={setFilterLabId}
+              options={labOptions}
+            />
+          </div>
+
+          {/* Status do aluno */}
+          <div className="w-full sm:w-32 shrink-0">
+            <SelectField
+              label="Status"
+              value={studentStatusFilter}
+              onChange={(val) => setStudentStatusFilter(val as 'ativos' | 'trancados' | 'todos')}
+              options={[
+                { value: 'ativos', label: 'Ativos' },
+                { value: 'trancados', label: 'Trancados' },
+                { value: 'todos', label: 'Todos' },
+              ]}
+            />
+          </div>
+
           {/* Busca aluno */}
           <div className="flex-1 min-w-[180px] flex flex-col gap-1.5 text-left">
             <label htmlFor="search-student" className="text-xs font-semibold text-slate-700">
-              Buscar aluno na chamada
+              Buscar aluno
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -725,6 +795,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
               </div>
               <input
                 id="search-student"
+                aria-label="Buscar aluno na chamada"
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -733,70 +804,6 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
               />
             </div>
           </div>
-
-          {/* Action buttons (Aulas ministradas badge + Obs. da turma toggle + Salvar chamada) */}
-          <div className="flex items-center gap-2 pt-1 md:pt-0 self-stretch md:self-auto justify-end flex-wrap">
-            {classId && (
-              <span
-                title="Total de aulas ministradas (sessões registradas) nesta turma"
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200 h-[38px]"
-              >
-                <BookOpen className="w-3.5 h-3.5 text-slate-500" />
-                <span>{taughtSessionsCount} aula(s)</span>
-              </span>
-            )}
-            <button
-              type="button"
-              aria-label="Observação da turma"
-              aria-expanded={showGeneralNotes}
-              onClick={() => setShowGeneralNotes((prev) => !prev)}
-              title="Anotação geral da turma nesta chamada"
-              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all cursor-pointer h-[38px] ${
-                generalNotes.trim() || showGeneralNotes
-                  ? 'bg-sky-50 border-sky-200 text-sky-700'
-                  : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
-              }`}
-            >
-              <MessageSquare className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Obs. da turma</span>
-              {generalNotes.trim() && <span className="w-1.5 h-1.5 rounded-full bg-sky-600" />}
-            </button>
-
-            <button
-              type="button"
-              disabled={!access.editable || !rows.length || saving}
-              onClick={() => void save()}
-              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-slate-950 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer shrink-0 h-[38px]"
-            >
-              <Save className="w-3.5 h-3.5" />
-              <span>{saving ? 'Salvando…' : 'Salvar chamada'}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Expandable General Class Notes Drawer */}
-        <div className={`mt-3 pt-3 border-t border-slate-100 flex flex-col gap-1.5 text-left ${showGeneralNotes ? 'block' : 'hidden'}`}>
-          <div className="flex items-center justify-between">
-            <label htmlFor="general-notes" className="text-xs font-semibold text-slate-700">
-              Observação geral da turma nesta chamada
-            </label>
-            <span className="text-[11px] text-slate-400 font-medium">{generalNotes.length}/2000</span>
-          </div>
-          <textarea
-            id="general-notes"
-            rows={2}
-            maxLength={2000}
-            disabled={!access.editable}
-            value={generalNotes}
-            onChange={(e) => {
-              if (classId && canonicalDate) {
-                setDirtyContextKey(`${classId}:${canonicalDate}`);
-              }
-              setGeneralNotes(e.target.value);
-            }}
-            placeholder="Anotações sobre a aula ou ocorrências gerais da turma..."
-            className="w-full p-2.5 text-xs sm:text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all disabled:bg-slate-50 disabled:text-slate-400 placeholder:text-slate-400"
-          />
         </div>
       </div>
 
@@ -827,7 +834,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
 
           {/* High-Density Student Calling Cards */}
           <div className="flex flex-col gap-2">
-            {visibleRows.map((row) => {
+            {visibleRows.map((row, index) => {
               const rowIndex = rows.findIndex((candidate) => candidate.student.id === row.student.id);
               const noteOpen = expandedNotes.has(row.student.id);
 
@@ -839,8 +846,8 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3">
                     {/* Student Info */}
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-800 font-bold text-xs sm:text-sm flex items-center justify-center shrink-0 border border-slate-200">
-                        {text(row.student, 'name').slice(0, 1).toUpperCase()}
+                      <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-800 font-mono font-bold text-xs sm:text-sm flex items-center justify-center shrink-0 border border-slate-200">
+                        {index + 1}
                       </div>
                       <div className="min-w-0 text-left">
                         <div className="flex items-center gap-1.5 flex-wrap">
@@ -1022,25 +1029,80 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
             })}
           </div>
 
-          {/* Quick Add/Enroll Student '+' Pill Button Aligned Left with Student Names */}
-          <div className="flex justify-start pt-1 pl-2.5 sm:pl-3">
-            <button
-              type="button"
-              aria-label="Incluir aluno na turma"
-              title="Incluir aluno na turma"
-              onClick={() =>
-                setQuickAddStudent({
-                  mode: 'new',
-                  existingStudentId: '',
-                  name: '',
-                  registrationNumber: '',
-                  contact: '',
-                })
-              }
-              className="inline-flex items-center justify-center h-9 px-4 rounded-full border border-slate-300 bg-white hover:bg-slate-950 hover:text-white hover:border-slate-950 text-slate-700 font-bold text-sm transition-all cursor-pointer shadow-2xs"
-            >
-              <Plus className="w-4 h-4 stroke-[2.5]" />
-            </button>
+          {/* Bottom Floating Pill Actions Aligned Left */}
+          <div className="flex flex-col gap-3 pt-1 pl-1">
+            <div className="flex items-center gap-2.5 flex-wrap justify-start">
+              <button
+                type="button"
+                aria-label="Incluir aluno na turma"
+                title="Incluir aluno na turma"
+                onClick={() =>
+                  setQuickAddStudent({
+                    mode: 'new',
+                    existingStudentId: '',
+                    name: '',
+                    registrationNumber: '',
+                    contact: '',
+                  })
+                }
+                className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-full border border-slate-300 bg-white hover:bg-slate-950 hover:text-white hover:border-slate-950 text-slate-700 font-bold text-xs sm:text-sm transition-all cursor-pointer shadow-2xs"
+              >
+                <Plus className="w-4 h-4 stroke-[2.5]" />
+                <span className="hidden sm:inline">Adicionar aluno</span>
+              </button>
+
+              <button
+                type="button"
+                aria-label="Observação da turma"
+                aria-expanded={showGeneralNotes}
+                onClick={() => setShowGeneralNotes((prev) => !prev)}
+                title="Anotação geral da turma nesta chamada"
+                className={`inline-flex items-center gap-1.5 h-9 px-4 rounded-full border text-xs sm:text-sm font-semibold transition-all cursor-pointer shadow-2xs ${
+                  generalNotes.trim() || showGeneralNotes
+                    ? 'bg-sky-50 border-sky-300 text-sky-800'
+                    : 'bg-white hover:bg-slate-100 border-slate-300 text-slate-700'
+                }`}
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span>Anotação da turma</span>
+                {generalNotes.trim() && <span className="w-1.5 h-1.5 rounded-full bg-sky-600" />}
+              </button>
+
+              <button
+                type="button"
+                disabled={!access.editable || !rows.length || saving}
+                onClick={() => void save()}
+                className="inline-flex items-center justify-center gap-1.5 h-9 px-5 rounded-full bg-slate-950 hover:bg-slate-800 disabled:opacity-50 text-white text-xs sm:text-sm font-bold shadow-xs transition-colors cursor-pointer"
+              >
+                <Save className="w-4 h-4" />
+                <span>{saving ? 'Salvando…' : 'Salvar chamada'}</span>
+              </button>
+            </div>
+
+            {/* Expandable General Class Notes Drawer */}
+            <div className={`bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs flex flex-col gap-1.5 text-left transition-all ${showGeneralNotes ? 'block' : 'hidden'}`}>
+              <div className="flex items-center justify-between">
+                <label htmlFor="general-notes" className="text-xs font-semibold text-slate-700">
+                  Observação geral da turma nesta chamada
+                </label>
+                <span className="text-[11px] text-slate-400 font-medium">{generalNotes.length}/2000</span>
+              </div>
+              <textarea
+                id="general-notes"
+                rows={3}
+                maxLength={2000}
+                disabled={!access.editable}
+                value={generalNotes}
+                onChange={(e) => {
+                  if (classId && canonicalDate) {
+                    setDirtyContextKey(`${classId}:${canonicalDate}`);
+                  }
+                  setGeneralNotes(e.target.value);
+                }}
+                placeholder="Anotações sobre a aula ou ocorrências gerais da turma..."
+                className="w-full p-2.5 text-xs sm:text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all disabled:bg-slate-50 disabled:text-slate-400 placeholder:text-slate-400"
+              />
+            </div>
           </div>
         </>
       )}

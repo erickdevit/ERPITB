@@ -1,6 +1,6 @@
 import React, { Component, useEffect, useState, type ErrorInfo, type PropsWithChildren, type ReactNode } from 'react';
 import QRCode from 'qrcode';
-import { AlertCircle, ArrowLeft, FileQuestion, RefreshCw, X, type LucideIcon } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Calendar, FileQuestion, RefreshCw, X, type LucideIcon } from 'lucide-react';
 import { parseBrazilDate, formatDate } from './lib/date';
 
 export class ErrorBoundary extends Component<
@@ -190,37 +190,84 @@ export function DateField({
   min?: string;
   max?: string;
 }) {
-  const [internalDate, setInternalDate] = useState(() => {
+  const toDisplay = (val: string) => {
+    if (!val) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+      const [y, m, d] = val.split('-');
+      return `${d}/${m}/${y}`;
+    }
+    return val;
+  };
+
+  const toIso = (val: string) => {
     try {
-      return parseBrazilDate(value, { allowFuture }) ?? '';
+      return parseBrazilDate(val, { allowFuture }) ?? '';
     } catch {
       return '';
     }
-  });
+  };
+
+  const [displayText, setDisplayText] = useState(() => toDisplay(value));
+  const [internalDate, setInternalDate] = useState(() => toIso(value));
+  const hiddenDateInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    try {
-      const parsed = parseBrazilDate(value, { allowFuture });
-      if (parsed) setInternalDate(parsed);
-    } catch {
-      // Keep internal date as is
-    }
+    setDisplayText(toDisplay(value));
+    setInternalDate(toIso(value));
   }, [value, allowFuture]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setInternalDate(val);
-    if (!val) {
+  const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    if (!raw) {
+      setDisplayText('');
+      setInternalDate('');
       onChange('');
       return;
     }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw.trim())) {
+      const [y, m, d] = raw.trim().split('-');
+      const br = `${d}/${m}/${y}`;
+      setDisplayText(br);
+      setInternalDate(raw.trim());
+      onChange(br);
+      return;
+    }
+    setDisplayText(raw);
     try {
-      const [year, month, day] = val.split('-');
-      if (year && month && day) {
-        onChange(`${day}/${month}/${year}`);
+      const parsedIso = parseBrazilDate(raw, { allowFuture });
+      if (parsedIso) {
+        setInternalDate(parsedIso);
       }
     } catch {
-      onChange(val);
+      // Keep internal date as is
+    }
+    onChange(raw);
+  };
+
+  const handlePickerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setInternalDate(val);
+    if (!val) {
+      setDisplayText('');
+      onChange('');
+      return;
+    }
+    const [year, month, day] = val.split('-');
+    if (year && month && day) {
+      const br = `${day}/${month}/${year}`;
+      setDisplayText(br);
+      onChange(br);
+    }
+  };
+
+  const openCalendar = () => {
+    if (hiddenDateInputRef.current) {
+      if (typeof hiddenDateInputRef.current.showPicker === 'function') {
+        hiddenDateInputRef.current.showPicker();
+      } else {
+        hiddenDateInputRef.current.focus();
+        hiddenDateInputRef.current.click();
+      }
     }
   };
 
@@ -229,16 +276,39 @@ export function DateField({
       <label htmlFor={`date-${label}`} className="text-xs font-medium text-slate-700">
         {label} {required && <span className="text-rose-500">*</span>}
       </label>
-      <input
-        id={`date-${label}`}
-        type="date"
-        required={required}
-        min={min}
-        max={max}
-        value={internalDate}
-        onChange={handleChange}
-        className="w-full px-3 py-2 text-sm text-slate-900 bg-white border border-slate-200/90 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all"
-      />
+      <div className="relative flex items-center">
+        <input
+          id={`date-${label}`}
+          type="text"
+          inputMode="numeric"
+          required={required}
+          value={displayText}
+          placeholder="dd/mm/aaaa"
+          onChange={handleTextChange}
+          className="w-full pl-3 pr-9 py-2 text-sm text-slate-900 bg-white border border-slate-200/90 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all placeholder:text-slate-400 font-medium"
+        />
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={openCalendar}
+          aria-label="Selecionar no calendário"
+          title="Selecionar data no calendário"
+          className="absolute right-2 p-1 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+        >
+          <Calendar className="w-4 h-4" />
+        </button>
+        <input
+          ref={hiddenDateInputRef}
+          type="date"
+          tabIndex={-1}
+          aria-hidden="true"
+          min={min}
+          max={max}
+          value={internalDate}
+          onChange={handlePickerChange}
+          className="sr-only pointer-events-none opacity-0 absolute"
+        />
+      </div>
       {helperText && <span className="text-[11px] text-slate-400">{helperText}</span>}
     </div>
   );

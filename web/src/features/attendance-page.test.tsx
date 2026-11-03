@@ -157,6 +157,7 @@ describe('AttendancePage', () => {
     const user = userEvent.setup();
     mocks.entities.enrollments = [{ id: 'enrollment-1', class_id: 'class-1', student_id: 'student-1', status: 'trancada' }];
     render(<AttendancePage today="2026-08-15" />);
+    await user.selectOptions(screen.getByLabelText('Status'), 'trancados');
     await screen.findByText('Ana Souza');
 
     expect(screen.getByText('Trancada')).toBeInTheDocument();
@@ -199,5 +200,52 @@ describe('AttendancePage', () => {
     });
     expect(mocks.reload).toHaveBeenCalled();
     expect(mocks.sync).toHaveBeenCalled();
+  });
+
+  it('renders ascending roll call order numbers instead of initials and filters by student status', async () => {
+    const user = userEvent.setup();
+    mocks.entities.students = [
+      { id: 'student-1', name: 'Ana Souza', registration_number: '001', active: 1 },
+      { id: 'student-2', name: 'Bruno Lima', registration_number: '002', active: 1 },
+      { id: 'student-3', name: 'Carlos Dias', registration_number: '003', active: 1 },
+    ];
+    mocks.entities.enrollments = [
+      { id: 'enrollment-1', class_id: 'class-1', student_id: 'student-1', status: 'ativa' },
+      { id: 'enrollment-2', class_id: 'class-1', student_id: 'student-2', status: 'trancada' },
+      { id: 'enrollment-3', class_id: 'class-1', student_id: 'student-3', status: 'ativa' },
+    ];
+
+    render(<AttendancePage today="2026-08-15" />);
+
+    // By default, studentStatusFilter is 'ativos': Ana (1) and Carlos (2) are visible, Bruno (locked) is not
+    expect(await screen.findByText('Ana Souza')).toBeInTheDocument();
+    expect(screen.getByText('Carlos Dias')).toBeInTheDocument();
+    expect(screen.queryByText('Bruno Lima')).not.toBeInTheDocument();
+
+    // Verify sequential numbering: '1' and '2' should be in document
+    expect(screen.getByText('1')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
+
+    // Verify lesson counter is not present in filter bar
+    expect(screen.queryByText(/aula\(s\)/i)).not.toBeInTheDocument();
+
+    // Switch filter to 'trancados'
+    await user.selectOptions(screen.getByLabelText('Status'), 'trancados');
+    expect(await screen.findByText('Bruno Lima')).toBeInTheDocument();
+    expect(screen.getByText('Trancada')).toBeInTheDocument();
+    expect(screen.queryByText('Ana Souza')).not.toBeInTheDocument();
+    expect(screen.queryByText('Carlos Dias')).not.toBeInTheDocument();
+    // Bruno is #1 in this view
+    expect(screen.getByText('1')).toBeInTheDocument();
+
+    // Switch filter to 'todos'
+    await user.selectOptions(screen.getByLabelText('Status'), 'todos');
+    expect(await screen.findByText('Ana Souza')).toBeInTheDocument();
+    expect(screen.getByText('Bruno Lima')).toBeInTheDocument();
+    expect(screen.getByText('Carlos Dias')).toBeInTheDocument();
+    // Numbers 1, 2, 3
+    expect(screen.getByText('1')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
+    expect(screen.getByText('3')).toBeInTheDocument();
   });
 });
