@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AlertCircle,
   Archive,
   ArrowRightLeft,
   Calendar,
-  Compass,
+  Check,
   Edit3,
+  Loader2,
   Lock,
   MessageSquare,
   Plus,
@@ -126,9 +128,6 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   const [classId, setClassId] = useState('');
   const [date, setDate] = useState(formatDate(today));
   const [search, setSearch] = useState('');
-  const [searchOpen, setSearchOpen] = useState(false);
-  const searchOverlayRef = useRef<HTMLDivElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
   const generalNotesContainerRef = useRef<HTMLDivElement>(null);
   const [studentStatusFilter, setStudentStatusFilter] = useState<'ativos' | 'trancados' | 'todos'>('ativos');
   const [rows, setRows] = useState<AttendanceDraftRow[]>([]);
@@ -146,6 +145,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   }>();
   const [taughtSessionsCount, setTaughtSessionsCount] = useState<number>(0);
   const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const [notice, setNotice] = useState<{ severity: 'success' | 'error'; message: string }>();
 
   const [filterWeekDay, setFilterWeekDay] = useState('');
@@ -170,26 +170,23 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
     }
   }, [date]);
 
-  // Click outside & Escape handler for expandable search overlay
+  // Auto-dismiss notice toast after 5 seconds
   useEffect(() => {
-    if (!searchOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (searchOverlayRef.current && !searchOverlayRef.current.contains(e.target as Node)) {
-        setSearchOpen(false);
-      }
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setSearchOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [searchOpen]);
+    if (!notice) return;
+    const timer = setTimeout(() => {
+      setNotice(undefined);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [notice]);
+
+  // Auto-reset save success visual feedback after 4 seconds
+  useEffect(() => {
+    if (!saveSuccess) return;
+    const timer = setTimeout(() => {
+      setSaveSuccess(false);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [saveSuccess]);
 
   // Click outside & Escape handler for floating general class notes
   useEffect(() => {
@@ -353,6 +350,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
 
 
   const updateRow = (index: number, update: (row: AttendanceDraftRow) => AttendanceDraftRow) => {
+    setSaveSuccess(false);
     if (classId && canonicalDate) {
       setDirtyContextKey(`${classId}:${canonicalDate}`);
     }
@@ -407,6 +405,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   const save = async () => {
     if (!access.editable || !classId || !canonicalDate || saving) return;
     setSaving(true);
+    setSaveSuccess(false);
     setNotice(undefined);
     try {
       await saveAttendanceCall({
@@ -422,12 +421,14 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
       setDirtyContextKey(null);
       await Promise.all([attendance.reload(), classNotes.reload(), replacements.reload()]);
       setTaughtSessionsCount((prev) => Math.max(prev, 1));
+      setSaveSuccess(true);
       setNotice({
         severity: 'success',
         message: 'Chamada registrada com sucesso no servidor.',
       });
       void sync();
     } catch (error) {
+      setSaveSuccess(false);
       setNotice({
         severity: 'error',
         message: error instanceof Error ? error.message : 'Não foi possível salvar a chamada.',
@@ -771,29 +772,27 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   return (
     <div className="flex flex-col gap-3">
       {/* Unified Single-Line Toolbar */}
-      <div className="relative bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs">
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs">
         <div className="flex flex-wrap xl:flex-nowrap items-end gap-2.5">
-          {/* Compass Search Button at left start of line */}
-          <div className="shrink-0">
-            <button
-              type="button"
-              aria-label="Abrir busca de alunos"
-              title="Buscar aluno na chamada"
-              onClick={() => {
-                setSearchOpen(true);
-                setTimeout(() => searchInputRef.current?.focus(), 50);
-              }}
-              className={`h-[38px] w-[38px] rounded-lg border flex items-center justify-center shrink-0 transition-colors cursor-pointer relative ${
-                search.trim() || searchOpen
-                  ? 'bg-sky-50 border-sky-300 text-sky-700'
-                  : 'bg-white hover:bg-slate-50 border-slate-200/90 text-slate-600 shadow-2xs'
-              }`}
-            >
-              <Compass className="w-5 h-5" />
-              {search.trim() && !searchOpen && (
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-sky-600" />
-              )}
-            </button>
+          {/* Busca aluno - no canto esquerdo iniciando a linha */}
+          <div className="flex-1 min-w-[180px] flex flex-col gap-1.5 text-left">
+            <label htmlFor="search-student" className="text-xs font-semibold text-slate-700">
+              Buscar aluno
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                <Search className="w-4 h-4" />
+              </div>
+              <input
+                id="search-student"
+                aria-label="Buscar aluno na chamada"
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar por nome ou matrícula"
+                className="w-full pl-9 pr-3 py-2 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all placeholder:text-slate-400"
+              />
+            </div>
           </div>
 
           {/* Turma */}
@@ -856,51 +855,6 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
               ]}
             />
           </div>
-        </div>
-
-        {/* Expandable Search Overlay Covering the Filters */}
-        <div
-          ref={searchOverlayRef}
-          className={`absolute inset-0 z-20 bg-white rounded-2xl px-3 sm:px-4 py-2 flex items-center gap-2.5 shadow-md border border-slate-300 transition-all ${
-            searchOpen ? 'flex' : 'hidden'
-          }`}
-        >
-          <Compass className="w-5 h-5 text-sky-600 shrink-0" />
-          <label htmlFor="search-student" className="sr-only">
-            Buscar aluno na chamada
-          </label>
-          <input
-            ref={searchInputRef}
-            id="search-student"
-            aria-label="Buscar aluno na chamada"
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar aluno por nome ou matrícula..."
-            className="flex-1 min-w-0 py-1.5 text-sm sm:text-base text-slate-900 bg-transparent border-none focus:outline-none placeholder:text-slate-400 font-medium"
-          />
-          {search && (
-            <button
-              type="button"
-              onClick={() => {
-                setSearch('');
-                searchInputRef.current?.focus();
-              }}
-              aria-label="Limpar busca"
-              title="Limpar busca"
-              className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setSearchOpen(false)}
-            aria-label="Fechar busca"
-            className="px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer shrink-0"
-          >
-            Fechar
-          </button>
         </div>
       </div>
 
@@ -1227,10 +1181,26 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                 disabled={!access.editable || !rows.length || saving}
                 onClick={() => void save()}
                 aria-label="Salvar chamada"
-                title="Salvar chamada"
-                className="inline-flex items-center justify-center h-10 w-10 rounded-full bg-slate-950 hover:bg-slate-800 disabled:opacity-50 text-white shadow-xs transition-colors cursor-pointer"
+                title={
+                  saveSuccess
+                    ? 'Chamada salva com sucesso'
+                    : saving
+                    ? 'Salvando chamada…'
+                    : 'Salvar chamada'
+                }
+                className={`inline-flex items-center justify-center h-10 w-10 rounded-full shadow-xs transition-all cursor-pointer ${
+                  saveSuccess
+                    ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-500/20'
+                    : 'bg-slate-950 hover:bg-slate-800 disabled:opacity-50 text-white'
+                }`}
               >
-                <Save className="w-4 h-4" />
+                {saving ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                ) : saveSuccess ? (
+                  <Check className="w-4 h-4 stroke-[3] text-white animate-in zoom-in-75 duration-150" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
               </button>
             </div>
           </div>
@@ -1566,16 +1536,33 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
         </div>
       </PageDialog>
 
-      {/* Save Notice Toast */}
+      {/* Top Notice Toast (durates 5 seconds) */}
       {notice && (
         <div
-          className={`fixed bottom-4 right-4 z-50 max-w-md p-4 rounded-xl shadow-xl text-xs font-semibold flex items-center gap-3 ${
+          role="status"
+          aria-live="polite"
+          className={`fixed top-4 right-4 z-50 max-w-md w-[calc(100vw-2rem)] sm:w-auto p-3.5 sm:p-4 rounded-xl shadow-2xl text-xs sm:text-sm font-semibold flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-200 ${
             notice.severity === 'success'
               ? 'bg-emerald-950 text-emerald-100 border border-emerald-800'
               : 'bg-rose-950 text-rose-100 border border-rose-800'
           }`}
         >
-          <span>{notice.message}</span>
+          <div className="flex items-center gap-2.5">
+            {notice.severity === 'success' ? (
+              <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            )}
+            <span>{notice.message}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setNotice(undefined)}
+            aria-label="Fechar notificação"
+            className="p-1 rounded-md text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
     </div>
