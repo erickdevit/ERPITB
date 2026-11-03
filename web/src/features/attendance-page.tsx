@@ -114,6 +114,35 @@ interface TransferStudentDialogState {
   error?: string;
 }
 
+export function getWeekDayForDate(isoDate: string): string {
+  if (!isoDate || !/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return '';
+  const [y, m, d] = isoDate.split('-').map(Number);
+  const dateObj = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  const weekDays = [
+    'Domingo',
+    'Segunda-feira',
+    'Terça-feira',
+    'Quarta-feira',
+    'Quinta-feira',
+    'Sexta-feira',
+    'Sábado',
+  ];
+  return weekDays[dateObj.getUTCDay()] || '';
+}
+
+export function getCurrentShift(dateObj: Date = new Date()): string {
+  const hour = Number(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Sao_Paulo',
+      hour: 'numeric',
+      hourCycle: 'h23',
+    }).format(dateObj),
+  );
+  if (hour < 12) return 'manha';
+  if (hour < 18) return 'tarde';
+  return 'noite';
+}
+
 export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }) {
   const { store, api, sync, session } = useApp();
   const classes = useEntity('classes');
@@ -148,8 +177,8 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [notice, setNotice] = useState<{ severity: 'success' | 'error'; message: string }>();
 
-  const [filterWeekDay, setFilterWeekDay] = useState('');
-  const [filterShift, setFilterShift] = useState('');
+  const [filterWeekDay, setFilterWeekDay] = useState(() => getWeekDayForDate(today));
+  const [filterShift, setFilterShift] = useState(() => getCurrentShift());
   const [filterLabId, setFilterLabId] = useState('');
   const [dirtyContextKey, setDirtyContextKey] = useState<string | null>(null);
 
@@ -170,6 +199,18 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
     }
   }, [date]);
 
+  const prevDateRef = useRef(canonicalDate);
+
+  useEffect(() => {
+    if (canonicalDate && canonicalDate !== prevDateRef.current) {
+      prevDateRef.current = canonicalDate;
+      const day = getWeekDayForDate(canonicalDate);
+      if (day) {
+        setFilterWeekDay(day);
+      }
+    }
+  }, [canonicalDate]);
+
   // Auto-dismiss notice toast after 5 seconds
   useEffect(() => {
     if (!notice) return;
@@ -179,14 +220,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
     return () => clearTimeout(timer);
   }, [notice]);
 
-  // Auto-reset save success visual feedback after 4 seconds
-  useEffect(() => {
-    if (!saveSuccess) return;
-    const timer = setTimeout(() => {
-      setSaveSuccess(false);
-    }, 4000);
-    return () => clearTimeout(timer);
-  }, [saveSuccess]);
+
 
   // Click outside & Escape handler for floating general class notes
   useEffect(() => {
@@ -417,6 +451,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
         generalNotes,
         existingClassNote,
         classRecord: selectedClass,
+        today,
       });
       setDirtyContextKey(null);
       await Promise.all([attendance.reload(), classNotes.reload(), replacements.reload()]);
@@ -439,6 +474,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   };
 
   const handleSaveQuickEditStudent = async () => {
+    setSaveSuccess(false);
     if (!quickEditStudent) return;
     if (!quickEditStudent.name.trim()) {
       setQuickEditStudent({ ...quickEditStudent, error: 'O nome do aluno é obrigatório.' });
@@ -485,6 +521,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   };
 
   const executeConfirmedStudentAction = async () => {
+    setSaveSuccess(false);
     if (!confirmActionModal) return;
     const { type, studentId, studentName } = confirmActionModal;
     setConfirmActionModal(undefined);
@@ -614,6 +651,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   };
 
   const executeTransferStudent = async () => {
+    setSaveSuccess(false);
     if (!transferStudentDialog || !classId) return;
     const { studentId, studentName, targetClassId } = transferStudentDialog;
 
@@ -679,6 +717,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   };
 
   const handleConfirmQuickAddStudent = async () => {
+    setSaveSuccess(false);
     if (!quickAddStudent || !classId) return;
     try {
       let targetStudentId = quickAddStudent.existingStudentId;
@@ -797,7 +836,15 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
 
           {/* Turma */}
           <div className="flex-1 min-w-[200px]">
-            <SelectField label="Turma" value={classId} onChange={setClassId} options={classOptions} />
+            <SelectField
+              label="Turma"
+              value={classId}
+              onChange={(val) => {
+                setSaveSuccess(false);
+                setClassId(val);
+              }}
+              options={classOptions}
+            />
           </div>
 
           {/* Data */}
@@ -805,10 +852,13 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
             <DateField
               label="Data da chamada"
               value={date}
-              onChange={setDate}
+              onChange={(val) => {
+                setSaveSuccess(false);
+                setDate(val);
+              }}
               required
               min={classStartDate || undefined}
-              max={classEndDate || undefined}
+              max={classEndDate && classEndDate < today ? classEndDate : today}
             />
           </div>
 
@@ -1155,6 +1205,7 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                     disabled={!access.editable}
                     value={generalNotes}
                     onChange={(e) => {
+                      setSaveSuccess(false);
                       if (classId && canonicalDate) {
                         setDirtyContextKey(`${classId}:${canonicalDate}`);
                       }

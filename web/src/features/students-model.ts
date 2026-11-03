@@ -57,11 +57,11 @@ const activeStudent = (record: LocalRecord) => current(record) && record.active 
 
 export function permissionsForStudents(role: Role): StudentPermissions {
   return {
-    canCreate: role === 'admin' || role === 'pedagogico',
-    canEdit: role === 'admin' || role === 'pedagogico',
+    canCreate: role === 'admin' || role === 'pedagogico' || role === 'professor',
+    canEdit: role === 'admin' || role === 'pedagogico' || role === 'professor',
     canDelete: role === 'admin',
     canInactivate: role === 'pedagogico',
-    readOnly: role === 'professor',
+    readOnly: role !== 'admin' && role !== 'pedagogico' && role !== 'professor',
   };
 }
 

@@ -289,4 +289,36 @@ describe('AttendancePage', () => {
     await user.click(saveBtn);
     expect(await screen.findByText(/Chamada registrada com sucesso/i)).toBeInTheDocument();
   });
+
+  it('auto-selects day and shift, limits future dates, and keeps save button green until attendance is modified', async () => {
+    const user = userEvent.setup();
+    // 2026-11-03 is Tuesday (Terça-feira)
+    render(<AttendancePage today="2026-11-03" />);
+    await screen.findByText('Ana Souza');
+
+    // 1. Auto-selection check
+    const daySelect = screen.getByLabelText('Dia') as HTMLSelectElement;
+    expect(daySelect.value).toBe('Terça-feira');
+    const shiftSelect = screen.getByLabelText('Turno') as HTMLSelectElement;
+    expect(['manha', 'tarde', 'noite']).toContain(shiftSelect.value);
+
+    // 2. Future date limit: date picker input should have max set to today
+    const dateInput = document.querySelector('input[type="date"]') as HTMLInputElement;
+    expect(dateInput.max).toBe('2026-11-03');
+
+    // 3. Save button: stays green with check until modified
+    const saveBtn = screen.getByRole('button', { name: 'Salvar chamada' });
+    await user.click(saveBtn);
+    expect(await screen.findByText(/Chamada registrada com sucesso/i)).toBeInTheDocument();
+
+    // Verify button has green background and success title
+    expect(saveBtn).toHaveClass('bg-emerald-600');
+    expect(saveBtn).toHaveAttribute('title', 'Chamada salva com sucesso');
+
+    // Modifying attendance (e.g. toggling status) resets the save button back to default
+    const presentBtn = screen.getByRole('button', { name: 'P' });
+    await user.click(presentBtn);
+    expect(saveBtn).not.toHaveClass('bg-emerald-600');
+    expect(saveBtn).toHaveAttribute('title', 'Salvar chamada');
+  });
 });

@@ -37,15 +37,15 @@ export function filterClassesByAttributes<T extends Record<string, unknown>>(
   return classes.filter((c) => {
     if (filters.weekDay) {
       const day = String(c.week_day || c.weekDay || '').trim();
-      if (day.toLowerCase() !== filters.weekDay.trim().toLowerCase()) return false;
+      if (day && day.toLowerCase() !== filters.weekDay.trim().toLowerCase()) return false;
     }
     if (filters.shift) {
       const shift = String(c.shift || '').trim();
-      if (shift.toLowerCase() !== filters.shift.trim().toLowerCase()) return false;
+      if (shift && shift.toLowerCase() !== filters.shift.trim().toLowerCase()) return false;
     }
     if (filters.laboratoryId) {
       const labId = String(c.laboratory_id || c.laboratoryId || '').trim();
-      if (labId !== filters.laboratoryId.trim()) return false;
+      if (labId && labId !== filters.laboratoryId.trim()) return false;
     }
     return true;
   });

@@ -43,6 +43,14 @@ describe('attendanceCallAccess', () => {
       message: expect.stringContaining('posterior à data de encerramento'),
     });
     expect(attendanceCallAccess('admin', '2026-05-15', '2026-08-15', false, limits)).toEqual({ editable: true });
+    expect(attendanceCallAccess('admin', '2026-08-16', '2026-08-15', false, limits)).toMatchObject({
+      editable: false,
+      message: 'Não é possível lançar frequência em uma data futura.',
+    });
+    expect(attendanceCallAccess('professor', '2026-08-16', '2026-08-15', false, limits)).toMatchObject({
+      editable: false,
+      message: 'Não é possível lançar frequência em uma data futura.',
+    });
   });
 });
 
@@ -140,6 +148,12 @@ describe('saveAttendanceCall', () => {
       classRecord: { startDate: '2026-03-01', endDate: '2026-11-30' },
       rows: [{ student: student('student-1', 'Ana'), status: 'P', notes: '', statusChanged: true }],
     })).rejects.toThrow('posterior à data de encerramento da turma');
+
+    await expect(saveAttendanceCall({
+      store, classId: 'class-1', date: '2026-08-16', userId: 'teacher-1', generalNotes: '',
+      today: '2026-08-15',
+      rows: [{ student: student('student-1', 'Ana'), status: 'P', notes: '', statusChanged: true }],
+    })).rejects.toThrow('Não é possível registrar frequência em uma data futura.');
   });
 
   it('persists statuses, replacement metadata, removals and the general note as one logical batch', async () => {

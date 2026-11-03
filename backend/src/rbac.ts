@@ -37,7 +37,7 @@ const grants: Record<Role, ReadonlySet<Permission>> = {
     'laboratories:update', 'courses:update', 'classes:update', 'students:write', 'teachers:assign',
     'attendance:write', 'grades:write', 'conflicts:resolve', 'audit:read',
   ]),
-  professor: new Set(['attendance:write', 'grades:write']),
+  professor: new Set(['attendance:write', 'grades:write', 'students:write']),
   financeiro: new Set(['finance:read', 'finance:write', 'reports:finance']),
   machine: new Set([]),
 };
@@ -48,7 +48,7 @@ export function hasPermission(role: Role, permission: Permission): boolean {
 
 export function canAccessStudentPii(user: AuthUser): boolean {
   if (!user.isApiKey) {
-    return user.role === 'admin' || user.role === 'pedagogico';
+    return user.role === 'admin' || user.role === 'pedagogico' || user.role === 'professor';
   }
   const scopes = user.scopes ?? [];
   return scopes.includes('students:pii') || scopes.includes('*');

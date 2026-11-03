@@ -1,5 +1,5 @@
 import { latestAttendance } from '../lib/attendance';
-import { formatDate } from '../lib/date';
+import { formatDate, todayInSaoPaulo } from '../lib/date';
 import type { LocalMutation } from '../lib/db';
 import type { AttendanceStatus, LocalRecord, Role } from '../types';
 
@@ -43,6 +43,7 @@ export interface SaveAttendanceCallInput {
   existingClassNote?: LocalRecord;
   createId?: () => string;
   classRecord?: LocalRecord | { startDate?: string; endDate?: string };
+  today?: string;
 }
 
 const text = (record: Record<string, unknown> | undefined, field: string) => String(record?.[field] ?? '');
@@ -73,6 +74,9 @@ export function attendanceCallAccess(
       editable: false,
       message: `Não é possível registrar frequência posterior à data de encerramento da turma (${formatDate(classLimits.endDate)}).`,
     };
+  }
+  if (date > today) {
+    return { editable: false, message: 'Não é possível lançar frequência em uma data futura.' };
   }
   if (role !== 'professor') return { editable: true };
   const age = differenceInDays(date, today);
@@ -185,6 +189,8 @@ export async function saveAttendanceCall(input: SaveAttendanceCallInput): Promis
     if (sDate && input.date < sDate) throw new Error(`Não é possível registrar frequência anterior à data de início da turma (${formatDate(sDate)}).`);
     if (eDate && input.date > eDate) throw new Error(`Não é possível registrar frequência posterior à data de encerramento da turma (${formatDate(eDate)}).`);
   }
+  const effectiveToday = input.today ?? todayInSaoPaulo();
+  if (input.date > effectiveToday) throw new Error('Não é possível registrar frequência em uma data futura.');
   if (input.generalNotes.length > 2000) throw new Error('A observação geral deve ter no máximo 2000 caracteres.');
   for (const row of input.rows) {
     if (row.notes.length > 1000) throw new Error(`A anotação de ${text(row.student, 'name')} deve ter no máximo 1000 caracteres.`);

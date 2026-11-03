@@ -35,13 +35,14 @@ describe('StudentsPage', () => {
     mocks.app.api.get.mockResolvedValue({ items: [{ id: 'teacher-1', name: 'Professor', role: 'professor', active: 1 }] });
   });
 
-  it('mantém professor em leitura e dentro das turmas atribuídas', () => {
+  it('mantém professor dentro das turmas atribuídas e permite criar alunos', () => {
     render(<MemoryRouter><StudentsPage /></MemoryRouter>);
 
     expect(screen.getByText(/somente os alunos das turmas atribuídas/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Aluno Teste' })).toHaveAttribute('href', '/alunos/student-1');
-    expect(screen.queryByRole('button', { name: /Novo aluno/i })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/Editar Aluno Teste/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Novo aluno/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/Editar Aluno Teste/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Excluir Aluno Teste/i)).not.toBeInTheDocument();
     expect(mocks.app.api.get).not.toHaveBeenCalled();
   });
 

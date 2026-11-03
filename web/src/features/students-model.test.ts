@@ -37,10 +37,10 @@ const build = (role: 'admin' | 'pedagogico' | 'professor' = 'admin', id = 'admin
 });
 
 describe('students model', () => {
-  it('limita professor às turmas atribuídas e mantém a tela somente leitura', () => {
+  it('limita professor às turmas atribuídas e permite criar e editar alunos', () => {
     expect(classesVisibleToSession(classes, assignments, { id: 'teacher-1', role: 'professor' }).map((item) => item.id)).toEqual(['class-1']);
     expect(build('professor', 'teacher-1')).toEqual([expect.objectContaining({ id: 'student-1', classId: 'class-1' })]);
-    expect(permissionsForStudents('professor')).toMatchObject({ readOnly: true, canCreate: false, canEdit: false, canDelete: false });
+    expect(permissionsForStudents('professor')).toMatchObject({ readOnly: false, canCreate: true, canEdit: true, canDelete: false });
   });
 
   it('calcula a última marcação por dia e aplica as faixas históricas de desempenho', () => {
