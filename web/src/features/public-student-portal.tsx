@@ -238,11 +238,14 @@ function CircularGauge({
   sublabel: string;
   strokeColor?: string;
 }) {
-  const radius = 38;
-  const stroke = 9;
+  const radius = 40;
+  const stroke = 7.5;
   const circumference = 2 * Math.PI * radius;
   const percent = max > 0 ? Math.min(Math.max(value / max, 0), 1) : 0;
   const strokeDashoffset = circumference - percent * circumference;
+
+  const isPercent = displayValue.endsWith('%');
+  const numberPart = isPercent ? displayValue.slice(0, -1) : displayValue;
 
   return (
     <div className="flex flex-col items-center text-center">
@@ -269,10 +272,21 @@ function CircularGauge({
             className="transition-all duration-700 ease-out"
           />
         </svg>
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            {displayValue}
-          </span>
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none px-1">
+          {isPercent ? (
+            <span className="font-extrabold text-slate-900 tracking-tight flex items-baseline justify-center">
+              <span className={numberPart.length > 3 ? 'text-lg sm:text-xl' : 'text-xl sm:text-2xl'}>
+                {numberPart}
+              </span>
+              <span className="text-xs sm:text-sm font-bold text-slate-700 ml-0.5">
+                %
+              </span>
+            </span>
+          ) : (
+            <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              {displayValue}
+            </span>
+          )}
         </div>
       </div>
       <div className="mt-2 text-sm sm:text-base font-bold text-slate-900">{label}</div>
@@ -853,6 +867,12 @@ export function PublicStudentPortal() {
         <button type="button" onClick={() => setActiveTab('all')}>Visão Completa</button>
         <button type="button" onClick={() => setActiveTab('boletim')}>Boletim de Notas</button>
         <button type="button" onClick={() => setActiveTab('frequencia')}>Frequência</button>
+        <button type="button" onClick={() => setActiveTab(activeTab === 'oficial' ? 'all' : 'oficial')}>
+          {activeTab === 'oficial' ? 'Fechar Folha A4' : 'Folha Oficial (A4)'}
+        </button>
+        <button type="button" onClick={handleCopyLink}>Copiar link</button>
+        <button type="button" onClick={() => void handleDownloadPdf()}>Baixar PDF</button>
+        <button type="button" onClick={handlePrintReportCard}>Imprimir</button>
         <label htmlFor="sr-history-filter-select">Filtrar por status</label>
         <select
           id="sr-history-filter-select"
@@ -1205,55 +1225,11 @@ export function PublicStudentPortal() {
         )}
 
         {/* ========================================================= */}
-        {/* FOOTER & DISCREET UTILITY ACTIONS                         */}
+        {/* FOOTER                                                    */}
         {/* ========================================================= */}
-        <footer className="pt-6 pb-8 text-center space-y-4">
+        <footer className="pt-6 pb-8 text-center">
           <div className="text-xs text-slate-400 font-medium">
             Notas lançadas até {latestUpdateDate} · Dúvidas? Fale com a secretaria do ITB.
-          </div>
-
-          {/* Discreet Utility Actions (Preserves PDF, Print, Folha Oficial & Link sharing) */}
-          <div className="flex flex-wrap items-center justify-center gap-2 pt-1 print:hidden">
-            <button
-              type="button"
-              onClick={handleCopyLink}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold border border-slate-200/90 shadow-2xs transition-colors cursor-pointer"
-              title="Copiar link deste boletim"
-            >
-              <Copy className="w-3.5 h-3.5 text-slate-500" />
-              <span>{copied ? 'Copiado!' : 'Copiar link'}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleDownloadPdf()}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold border border-slate-200/90 shadow-2xs transition-colors cursor-pointer"
-              title="Baixar Boletim em PDF A4"
-            >
-              <Download className="w-3.5 h-3.5 text-slate-500" />
-              <span>Baixar PDF</span>
-            </button>
-            <button
-              type="button"
-              onClick={handlePrintReportCard}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold border border-slate-200/90 shadow-2xs transition-colors cursor-pointer"
-              title="Imprimir boletim escolar"
-            >
-              <Printer className="w-3.5 h-3.5 text-slate-500" />
-              <span>Imprimir</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab(activeTab === 'oficial' ? 'all' : 'oficial')}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors cursor-pointer ${
-                activeTab === 'oficial'
-                  ? 'bg-[#1E2B7A] text-white border-[#1E2B7A] shadow-xs'
-                  : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200/90 shadow-2xs'
-              }`}
-              title="Ver formato oficial da folha A4"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>{activeTab === 'oficial' ? 'Fechar Folha A4' : 'Folha Oficial (A4)'}</span>
-            </button>
           </div>
         </footer>
       </main>
