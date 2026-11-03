@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Archive,
   ArrowRightLeft,
   Calendar,
+  Compass,
   Edit3,
   Lock,
   MessageSquare,
@@ -12,6 +13,7 @@ import {
   UserCog,
   UserCheck,
   UserMinus,
+  X,
 } from 'lucide-react';
 import { useApp } from '../app-context';
 import { DateField, PageDialog, SelectField } from '../components';
@@ -124,6 +126,10 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   const [classId, setClassId] = useState('');
   const [date, setDate] = useState(formatDate(today));
   const [search, setSearch] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchOverlayRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const generalNotesContainerRef = useRef<HTMLDivElement>(null);
   const [studentStatusFilter, setStudentStatusFilter] = useState<'ativos' | 'trancados' | 'todos'>('ativos');
   const [rows, setRows] = useState<AttendanceDraftRow[]>([]);
   const [generalNotes, setGeneralNotes] = useState('');
@@ -164,6 +170,51 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
     }
   }, [date]);
 
+  // Click outside & Escape handler for expandable search overlay
+  useEffect(() => {
+    if (!searchOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchOverlayRef.current && !searchOverlayRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSearchOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [searchOpen]);
+
+  // Click outside & Escape handler for floating general class notes
+  useEffect(() => {
+    if (!showGeneralNotes) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        generalNotesContainerRef.current &&
+        !generalNotesContainerRef.current.contains(e.target as Node)
+      ) {
+        setShowGeneralNotes(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowGeneralNotes(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showGeneralNotes]);
+
   const filteredClasses = useMemo(() => {
     return filterClassesByAttributes(classes.items ?? [], {
       weekDay: filterWeekDay,
@@ -181,12 +232,11 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
           ? Number(item.class_number)
           : extractClassNumber(rawName);
         const clean = cleanClassName(rawName);
-        const course = courses.items.find((crs) => crs.id === item.course_id);
         const base = formatClassDisplayName(num, clean);
         return {
           value: item.id,
           classNumber: num,
-          label: course ? `${base} — ${course.name}` : base,
+          label: base,
         };
       })
       .sort((a, b) => {
@@ -721,8 +771,31 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
   return (
     <div className="flex flex-col gap-3">
       {/* Unified Single-Line Toolbar */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs">
+      <div className="relative bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs">
         <div className="flex flex-wrap xl:flex-nowrap items-end gap-2.5">
+          {/* Compass Search Button at left start of line */}
+          <div className="shrink-0">
+            <button
+              type="button"
+              aria-label="Abrir busca de alunos"
+              title="Buscar aluno na chamada"
+              onClick={() => {
+                setSearchOpen(true);
+                setTimeout(() => searchInputRef.current?.focus(), 50);
+              }}
+              className={`h-[38px] w-[38px] rounded-lg border flex items-center justify-center shrink-0 transition-colors cursor-pointer relative ${
+                search.trim() || searchOpen
+                  ? 'bg-sky-50 border-sky-300 text-sky-700'
+                  : 'bg-white hover:bg-slate-50 border-slate-200/90 text-slate-600 shadow-2xs'
+              }`}
+            >
+              <Compass className="w-5 h-5" />
+              {search.trim() && !searchOpen && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-sky-600" />
+              )}
+            </button>
+          </div>
+
           {/* Turma */}
           <div className="flex-1 min-w-[200px]">
             <SelectField label="Turma" value={classId} onChange={setClassId} options={classOptions} />
@@ -783,27 +856,51 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
               ]}
             />
           </div>
+        </div>
 
-          {/* Busca aluno */}
-          <div className="flex-1 min-w-[180px] flex flex-col gap-1.5 text-left">
-            <label htmlFor="search-student" className="text-xs font-semibold text-slate-700">
-              Buscar aluno
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                <Search className="w-4 h-4" />
-              </div>
-              <input
-                id="search-student"
-                aria-label="Buscar aluno na chamada"
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar por nome ou matrícula"
-                className="w-full pl-9 pr-3 py-2 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all placeholder:text-slate-400"
-              />
-            </div>
-          </div>
+        {/* Expandable Search Overlay Covering the Filters */}
+        <div
+          ref={searchOverlayRef}
+          className={`absolute inset-0 z-20 bg-white rounded-2xl px-3 sm:px-4 py-2 flex items-center gap-2.5 shadow-md border border-slate-300 transition-all ${
+            searchOpen ? 'flex' : 'hidden'
+          }`}
+        >
+          <Compass className="w-5 h-5 text-sky-600 shrink-0" />
+          <label htmlFor="search-student" className="sr-only">
+            Buscar aluno na chamada
+          </label>
+          <input
+            ref={searchInputRef}
+            id="search-student"
+            aria-label="Buscar aluno na chamada"
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar aluno por nome ou matrícula..."
+            className="flex-1 min-w-0 py-1.5 text-sm sm:text-base text-slate-900 bg-transparent border-none focus:outline-none placeholder:text-slate-400 font-medium"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearch('');
+                searchInputRef.current?.focus();
+              }}
+              aria-label="Limpar busca"
+              title="Limpar busca"
+              className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setSearchOpen(false)}
+            aria-label="Fechar busca"
+            className="px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer shrink-0"
+          >
+            Fechar
+          </button>
         </div>
       </div>
 
@@ -1029,9 +1126,10 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
             })}
           </div>
 
-          {/* Bottom Floating Pill Actions Aligned Left */}
-          <div className="flex flex-col gap-3 pt-1 pl-1">
-            <div className="flex items-center gap-2.5 flex-wrap justify-start">
+          {/* Bottom Action Bar: Novo Aluno on Left, Anotação and Salvar on Right */}
+          <div className="flex items-center justify-between w-full pt-1.5 px-0.5 sm:px-1">
+            {/* Novo Aluno Pill on Left */}
+            <div>
               <button
                 type="button"
                 aria-label="Incluir aluno na turma"
@@ -1045,63 +1143,95 @@ export function AttendancePage({ today = todayInSaoPaulo() }: { today?: string }
                     contact: '',
                   })
                 }
-                className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-full border border-slate-300 bg-white hover:bg-slate-950 hover:text-white hover:border-slate-950 text-slate-700 font-bold text-xs sm:text-sm transition-all cursor-pointer shadow-2xs"
+                className="inline-flex items-center justify-center h-10 w-10 rounded-full border border-slate-300 bg-white hover:bg-slate-950 hover:text-white hover:border-slate-950 text-slate-700 transition-all cursor-pointer shadow-2xs"
               >
                 <Plus className="w-4 h-4 stroke-[2.5]" />
-                <span className="hidden sm:inline">Adicionar aluno</span>
               </button>
+            </div>
 
-              <button
-                type="button"
-                aria-label="Observação da turma"
-                aria-expanded={showGeneralNotes}
-                onClick={() => setShowGeneralNotes((prev) => !prev)}
-                title="Anotação geral da turma nesta chamada"
-                className={`inline-flex items-center gap-1.5 h-9 px-4 rounded-full border text-xs sm:text-sm font-semibold transition-all cursor-pointer shadow-2xs ${
-                  generalNotes.trim() || showGeneralNotes
-                    ? 'bg-sky-50 border-sky-300 text-sky-800'
-                    : 'bg-white hover:bg-slate-100 border-slate-300 text-slate-700'
-                }`}
-              >
-                <MessageSquare className="w-4 h-4" />
-                <span>Anotação da turma</span>
-                {generalNotes.trim() && <span className="w-1.5 h-1.5 rounded-full bg-sky-600" />}
-              </button>
+            {/* Anotação and Salvar Pills on Right */}
+            <div className="flex items-center gap-2 sm:gap-2.5">
+              {/* Anotação da turma Wrapper with Floating Box */}
+              <div ref={generalNotesContainerRef} className="relative">
+                <button
+                  type="button"
+                  aria-label="Observação da turma"
+                  aria-expanded={showGeneralNotes}
+                  onClick={() => setShowGeneralNotes((prev) => !prev)}
+                  title="Anotação geral da turma nesta chamada"
+                  className={`relative inline-flex items-center justify-center h-10 w-10 rounded-full border transition-all cursor-pointer shadow-2xs ${
+                    generalNotes.trim() || showGeneralNotes
+                      ? 'bg-sky-50 border-sky-300 text-sky-800'
+                      : 'bg-white hover:bg-slate-100 border-slate-300 text-slate-700'
+                  }`}
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  {generalNotes.trim() && (
+                    <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-sky-600" />
+                  )}
+                </button>
 
+                {/* Floating Class Notes Popover directly above the button */}
+                <div
+                  className={`absolute bottom-full right-0 mb-2 z-30 w-80 sm:w-96 max-w-[calc(100vw-2rem)] bg-white border border-slate-200/95 rounded-2xl p-4 shadow-xl flex flex-col gap-2.5 text-left animate-in fade-in duration-150 ${
+                    showGeneralNotes ? 'block' : 'hidden'
+                  }`}
+                >
+                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+                    <label htmlFor="general-notes" className="text-xs font-bold text-slate-800">
+                      Observação geral da turma nesta chamada
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-slate-400 font-medium">{generalNotes.length}/2000</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowGeneralNotes(false)}
+                        aria-label="Fechar anotação"
+                        title="Fechar anotação"
+                        className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <textarea
+                    id="general-notes"
+                    rows={4}
+                    maxLength={2000}
+                    disabled={!access.editable}
+                    value={generalNotes}
+                    onChange={(e) => {
+                      if (classId && canonicalDate) {
+                        setDirtyContextKey(`${classId}:${canonicalDate}`);
+                      }
+                      setGeneralNotes(e.target.value);
+                    }}
+                    placeholder="Anotações sobre a aula ou ocorrências gerais da turma..."
+                    className="w-full p-2.5 text-xs sm:text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all disabled:bg-slate-50 disabled:text-slate-400 placeholder:text-slate-400 resize-none"
+                  />
+                  <div className="flex justify-end pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowGeneralNotes(false)}
+                      className="px-3.5 py-1.5 text-xs font-bold text-white bg-slate-950 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer shadow-xs"
+                    >
+                      Concluído
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Salvar Chamada Pill */}
               <button
                 type="button"
                 disabled={!access.editable || !rows.length || saving}
                 onClick={() => void save()}
-                className="inline-flex items-center justify-center gap-1.5 h-9 px-5 rounded-full bg-slate-950 hover:bg-slate-800 disabled:opacity-50 text-white text-xs sm:text-sm font-bold shadow-xs transition-colors cursor-pointer"
+                aria-label="Salvar chamada"
+                title="Salvar chamada"
+                className="inline-flex items-center justify-center h-10 w-10 rounded-full bg-slate-950 hover:bg-slate-800 disabled:opacity-50 text-white shadow-xs transition-colors cursor-pointer"
               >
                 <Save className="w-4 h-4" />
-                <span>{saving ? 'Salvando…' : 'Salvar chamada'}</span>
               </button>
-            </div>
-
-            {/* Expandable General Class Notes Drawer */}
-            <div className={`bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs flex flex-col gap-1.5 text-left transition-all ${showGeneralNotes ? 'block' : 'hidden'}`}>
-              <div className="flex items-center justify-between">
-                <label htmlFor="general-notes" className="text-xs font-semibold text-slate-700">
-                  Observação geral da turma nesta chamada
-                </label>
-                <span className="text-[11px] text-slate-400 font-medium">{generalNotes.length}/2000</span>
-              </div>
-              <textarea
-                id="general-notes"
-                rows={3}
-                maxLength={2000}
-                disabled={!access.editable}
-                value={generalNotes}
-                onChange={(e) => {
-                  if (classId && canonicalDate) {
-                    setDirtyContextKey(`${classId}:${canonicalDate}`);
-                  }
-                  setGeneralNotes(e.target.value);
-                }}
-                placeholder="Anotações sobre a aula ou ocorrências gerais da turma..."
-                className="w-full p-2.5 text-xs sm:text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all disabled:bg-slate-50 disabled:text-slate-400 placeholder:text-slate-400"
-              />
             </div>
           </div>
         </>

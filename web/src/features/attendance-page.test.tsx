@@ -248,4 +248,47 @@ describe('AttendancePage', () => {
     expect(screen.getByText('2')).toBeInTheDocument();
     expect(screen.getByText('3')).toBeInTheDocument();
   });
+
+  it('renders class options without course name, compass expandable search and icon-only pill actions', async () => {
+    const user = userEvent.setup();
+    render(<AttendancePage today="2026-08-15" />);
+    await screen.findByText('Ana Souza');
+
+    // 1. Verify class option label has no course name suffix
+    const classSelect = screen.getByLabelText('Turma');
+    expect(within(classSelect).getByRole('option', { name: 'Turma A' })).toBeInTheDocument();
+    expect(within(classSelect).queryByText(/Tecnologia/)).not.toBeInTheDocument();
+
+    // 2. Verify Compass search button
+    const compassBtn = screen.getByRole('button', { name: 'Abrir busca de alunos' });
+    expect(compassBtn).toBeInTheDocument();
+    await user.click(compassBtn);
+
+    const searchInput = screen.getByLabelText('Buscar aluno na chamada');
+    expect(searchInput).toBeInTheDocument();
+    await user.type(searchInput, '001');
+    expect(screen.getByText('Ana Souza')).toBeInTheDocument();
+
+    // Close search overlay
+    await user.click(screen.getByRole('button', { name: 'Fechar busca' }));
+
+    // 3. Verify icon-only action pills
+    const addBtn = screen.getByRole('button', { name: 'Incluir aluno na turma' });
+    expect(addBtn).toBeInTheDocument();
+    expect(within(addBtn).queryByText('Adicionar aluno')).not.toBeInTheDocument();
+
+    const saveBtn = screen.getByRole('button', { name: 'Salvar chamada' });
+    expect(saveBtn).toBeInTheDocument();
+    expect(within(saveBtn).queryByText('Salvar chamada')).not.toBeInTheDocument();
+
+    const notesBtn = screen.getByRole('button', { name: 'Observação da turma' });
+    expect(notesBtn).toBeInTheDocument();
+    expect(within(notesBtn).queryByText('Anotação da turma')).not.toBeInTheDocument();
+
+    // 4. Click notes button to open floating popover
+    await user.click(notesBtn);
+    expect(screen.getByLabelText('Observação geral da turma nesta chamada')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Observação geral da turma nesta chamada'), 'Aula prática no lab');
+    await user.click(screen.getByRole('button', { name: 'Concluído' }));
+  });
 });
