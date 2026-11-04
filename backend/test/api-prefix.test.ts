@@ -33,4 +33,17 @@ describe('PWA API prefix', () => {
     const resSpecific = await worker.fetch(reqWithOrigin, specificEnv);
     expect(resSpecific.headers.get('access-control-allow-origin')).toBe('https://erp.itbcursos.com');
   });
+
+  it('enforces defensive security headers (clickjacking and content protection)', async () => {
+    const res = await worker.fetch(new Request('https://example.test/health'), env);
+    expect(res.headers.get('x-frame-options')).toBe('DENY');
+    expect(res.headers.get('content-security-policy')).toBe("frame-ancestors 'none'");
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(res.headers.get('x-xss-protection')).toBe('0');
+
+    // Also verify preflight OPTIONS response includes defensive headers
+    const optionsRes = await worker.fetch(new Request('https://example.test/health', { method: 'OPTIONS' }), env);
+    expect(optionsRes.headers.get('x-frame-options')).toBe('DENY');
+    expect(optionsRes.headers.get('content-security-policy')).toBe("frame-ancestors 'none'");
+  });
 });
