@@ -27,18 +27,6 @@ import { StudentReportCardView } from './reports/student-report-card-view';
 import { StudentBoletimSpreadsheetView } from './reports/student-boletim-spreadsheet-view';
 import { ClassBoletimView } from './reports/class-boletim-view';
 import { ClassBatchBoletimPrintView } from './reports/class-batch-boletim-view';
-import {
-  CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
 import { useApp } from '../app-context';
 import { CardSkeleton, EmptyState, Section, TableSkeleton } from '../components';
 import { buildAnalytics } from '../lib/analytics';
@@ -46,6 +34,13 @@ import { formatDate } from '../lib/date';
 import { useEntity } from '../lib/use-entity';
 import type { LocalRecord } from '../types';
 import { cleanClassName, extractClassNumber, formatClassDisplayName, shiftLabel } from './classes-model';
+import {
+  ChartContainer,
+  LineTrendChart,
+  DonutMetricChart,
+  formatPercent,
+  formatInteger,
+} from '../lib/charts';
 
 const text = (record: Record<string, unknown> | undefined, key: string) => String(record?.[key] ?? '');
 
@@ -100,46 +95,63 @@ function AnalyticsCard({
   }, [filteredAttendance, classes, students, enrollments, classTeachers, filter]);
 
   const distribution = [
-    { key: 'P', name: 'Presenças', value: analytics.present },
-    { key: 'F', name: 'Faltas', value: analytics.absent },
-    { key: 'J', name: 'Justificadas', value: analytics.justified },
-    { key: 'A', name: 'Atrasos', value: analytics.delayed },
-    { key: 'R', name: 'Reposições', value: analytics.replacements },
-  ];
+    { name: 'Presenças', value: analytics.present, color: statusColors.P },
+    { name: 'Faltas', value: analytics.absent, color: statusColors.F },
+    { name: 'Justificadas', value: analytics.justified, color: statusColors.J },
+    { name: 'Atrasos', value: analytics.delayed, color: statusColors.A },
+    { name: 'Reposições', value: analytics.replacements, color: statusColors.R },
+  ].filter((item) => item.value > 0);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 text-left">
-      <div className="lg:col-span-2 bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs">
-        <h3 className="text-sm font-bold text-slate-900 mb-1">Evolução da Frequência</h3>
-        <p className="text-xs text-slate-500 mb-4">Taxa de presença ao longo do tempo</p>
-        <div className="w-full h-60">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={analytics.evolution}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-              <XAxis dataKey="date" tickFormatter={formatDate} minTickGap={28} tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
-              <YAxis domain={[0, 100]} unit="%" tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
-              <Tooltip labelFormatter={(val) => formatDate(String(val))} contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0' }} />
-              <Line type="monotone" dataKey="rate" name="Frequência" stroke="#2563EB" strokeWidth={2.5} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+      <div className="lg:col-span-2">
+        <ChartContainer
+          title="Evolução da Frequência"
+          subtitle="Taxa de presença ao longo do tempo"
+          ariaLabel="Evolução da frequência"
+          summary={`Frequência consolidada de ${formatPercent(analytics.attendanceRate)}.`}
+          empty={!analytics.evolution.length}
+          emptyMessage="Não há registros de presença para exibir a evolução."
+          height={240}
+          tableData={analytics.evolution}
+          tableColumns={[
+            { header: 'Data', key: 'date', format: (d) => formatDate(String(d)) },
+            { header: 'Frequência', key: 'rate', align: 'right', format: (r) => formatPercent(Number(r)) },
+          ]}
+        >
+          <LineTrendChart
+            data={analytics.evolution}
+            series={[{ key: 'rate', name: 'Frequência (%)', color: '#2563EB' }]}
+            targetValue={75}
+            targetLabel="Meta: 75%"
+            height={240}
+          />
+        </ChartContainer>
       </div>
 
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs">
-        <h3 className="text-sm font-bold text-slate-900 mb-1">Distribuição das Marcações</h3>
-        <p className="text-xs text-slate-500 mb-4">Total de registros por situação</p>
-        <div className="w-full h-60">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie data={distribution} dataKey="value" nameKey="name" innerRadius={45} outerRadius={70} paddingAngle={2}>
-                {distribution.map((entry) => (
-                  <Cell key={entry.key} fill={statusColors[entry.key as keyof typeof statusColors]} />
-                ))}
-              </Pie>
-              <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0' }} />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
+      <div>
+        <ChartContainer
+          title="Distribuição das Marcações"
+          subtitle="Total de registros por situação"
+          ariaLabel="Distribuição das situações de presença e faltas"
+          summary={`Total de ${formatInteger(analytics.records)} marcações registradas.`}
+          empty={!analytics.records}
+          emptyMessage="Nenhuma marcação encontrada para distribuição."
+          height={240}
+          tableData={distribution}
+          tableColumns={[
+            { header: 'Situação', key: 'name' },
+            { header: 'Quantidade', key: 'value', align: 'right', format: (v) => formatInteger(Number(v)) },
+          ]}
+        >
+          <DonutMetricChart
+            data={distribution}
+            centerLabel="Marcações"
+            centerValue={formatInteger(analytics.records)}
+            valueFormatter={(v) => formatInteger(v)}
+            height={240}
+          />
+        </ChartContainer>
       </div>
     </div>
   );

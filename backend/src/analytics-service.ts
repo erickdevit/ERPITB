@@ -415,6 +415,51 @@ export async function getAnalyticsData(env: Env, user: AuthUser, url: URL): Prom
     const inflows = cashSummaryRow?.inflows ?? 0;
     const outflows = cashSummaryRow?.outflows ?? 0;
 
+    // Receivables Aging Buckets: 1-15d, 16-30d, 31-60d, 60+d overdue relative to reference date `to`
+    const overdueFees = await env.DB.prepare(`
+      SELECT due_date, amount_cents, paid_amount_cents
+        FROM financial_fees
+       WHERE deleted_at IS NULL
+         AND (status = 'atrasada' OR (status IN ('aberto', 'parcial') AND due_date < ?))
+    `).bind(to).all<{ due_date: string; amount_cents: number; paid_amount_cents: number }>();
+
+    const agingMap = {
+      d1_15: { bucket: '1 a 15 dias', amountCents: 0, count: 0 },
+      d16_30: { bucket: '16 a 30 dias', amountCents: 0, count: 0 },
+      d31_60: { bucket: '31 a 60 dias', amountCents: 0, count: 0 },
+      d60_plus: { bucket: 'Mais de 60 dias', amountCents: 0, count: 0 },
+    };
+
+    const refDateMs = new Date(`${to}T12:00:00Z`).getTime();
+
+    for (const f of overdueFees.results) {
+      const balance = Math.max(0, f.amount_cents - (f.paid_amount_cents || 0));
+      if (balance <= 0) continue;
+      const dueDateMs = new Date(`${f.due_date}T12:00:00Z`).getTime();
+      const diffDays = Math.max(1, Math.floor((refDateMs - dueDateMs) / (1000 * 60 * 60 * 24)));
+
+      if (diffDays <= 15) {
+        agingMap.d1_15.amountCents += balance;
+        agingMap.d1_15.count += 1;
+      } else if (diffDays <= 30) {
+        agingMap.d16_30.amountCents += balance;
+        agingMap.d16_30.count += 1;
+      } else if (diffDays <= 60) {
+        agingMap.d31_60.amountCents += balance;
+        agingMap.d31_60.count += 1;
+      } else {
+        agingMap.d60_plus.amountCents += balance;
+        agingMap.d60_plus.count += 1;
+      }
+    }
+
+    const agingBuckets = [
+      agingMap.d1_15,
+      agingMap.d16_30,
+      agingMap.d31_60,
+      agingMap.d60_plus,
+    ];
+
     financial = {
       expectedRevenueCents: expected,
       receivedRevenueCents: paid,
@@ -426,6 +471,7 @@ export async function getAnalyticsData(env: Env, user: AuthUser, url: URL): Prom
       cashInflowCents: inflows,
       cashOutflowCents: outflows,
       cashClosingBalanceCents: opening + inflows - outflows,
+      agingBuckets,
     };
   }
 

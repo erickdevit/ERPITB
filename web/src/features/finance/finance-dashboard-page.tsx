@@ -22,21 +22,6 @@ import {
   Wallet,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Legend,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
 import { useApp } from '../../app-context';
 import { useEntity } from '../../lib/use-entity';
 import {
@@ -51,19 +36,25 @@ import {
 } from '../classes-model';
 import { ClassFilterFields, filterClassesByAttributes } from '../class-filter-controls';
 import { formatPrintDocumentTitle, printWithDocumentTitle } from '../../lib/print-helper';
+import {
+  AgingBucketsChart,
+  CashFlowWaterfallChart,
+  ChartContainer,
+  DonutMetricChart,
+  HorizontalBarChart,
+  formatCurrencyCents,
+  formatCurrencyValue,
+  formatPercent,
+  formatInteger,
+  CHART_TOKENS,
+} from '../../lib/charts';
 
 function formatCents(cents: number): string {
-  return (cents / 100).toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  });
+  return formatCurrencyCents(cents);
 }
 
 function formatCurrency(val: number): string {
-  return val.toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  });
+  return formatCurrencyValue(val);
 }
 
 function formatDate(iso: string): string {
@@ -272,76 +263,67 @@ export function FinanceDashboardPage() {
     };
   }, [filteredFees]);
 
-  // Daily Cash Flow Chart Data
-  const dailyCashFlowData = useMemo(() => {
-    const daysInMonth = new Date(
-      parseInt(filterYear, 10),
-      parseInt(filterMonth, 10),
-      0,
-    ).getDate();
+  // Aging distribution of overdue fees
+  const agingBucketsData = useMemo(() => {
+    const today = new Date();
+    const d1_15 = { bucket: '1 a 15 dias', amountCents: 0, count: 0, color: '#F59E0B' };
+    const d16_30 = { bucket: '16 a 30 dias', amountCents: 0, count: 0, color: '#F97316' };
+    const d31_60 = { bucket: '31 a 60 dias', amountCents: 0, count: 0, color: '#EF4444' };
+    const d60_plus = { bucket: 'Mais de 60 dias', amountCents: 0, count: 0, color: '#B91C1C' };
 
-    const dayMap = new Map<number, { entradas: number; saidas: number }>();
-    for (let d = 1; d <= daysInMonth; d++) {
-      dayMap.set(d, { entradas: 0, saidas: 0 });
-    }
+    for (const f of filteredFees) {
+      if (f.status !== 'atrasada') continue;
+      const balance = Math.max(0, (f.amountCents || 0) - (f.paidAmountCents || 0));
+      if (balance <= 0) continue;
+      const due = new Date(f.dueDate);
+      const diffDays = Math.max(1, Math.floor((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24)));
 
-    for (const tx of cashList) {
-      if (!tx.date) continue;
-      const day = parseInt(tx.date.slice(8, 10), 10);
-      if (dayMap.has(day)) {
-        const item = dayMap.get(day)!;
-        if (tx.type === 'entrada') {
-          item.entradas += (tx.amountCents || 0) / 100;
-        } else if (tx.type === 'saida') {
-          item.saidas += (tx.amountCents || 0) / 100;
-        }
+      if (diffDays <= 15) {
+        d1_15.amountCents += balance;
+        d1_15.count++;
+      } else if (diffDays <= 30) {
+        d16_30.amountCents += balance;
+        d16_30.count++;
+      } else if (diffDays <= 60) {
+        d31_60.amountCents += balance;
+        d31_60.count++;
+      } else {
+        d60_plus.amountCents += balance;
+        d60_plus.count++;
       }
     }
 
-    let runningBalance = (cashSummary.openingBalanceCents || 0) / 100;
-    return Array.from(dayMap.entries()).map(([day, val]) => {
-      runningBalance += val.entradas - val.saidas;
-      return {
-        day: `Dia ${String(day).padStart(2, '0')}`,
-        entradas: val.entradas,
-        saidas: val.saidas,
-        saldo: Math.round(runningBalance * 100) / 100,
-      };
-    });
-  }, [cashList, filterYear, filterMonth, cashSummary.openingBalanceCents]);
+    return [d1_15, d16_30, d31_60, d60_plus];
+  }, [filteredFees]);
 
   // Status Distribution Chart Data (Donut)
   const statusDistributionData = useMemo(() => {
     return [
       {
         name: 'Pagas',
-        key: 'paga',
         value: metrics.paidCents / 100,
         count: metrics.countPaid,
         color: STATUS_COLORS.paga,
       },
       {
         name: 'Em Aberto',
-        key: 'aberto',
         value: metrics.pendingCents / 100,
         count: metrics.countOpen,
         color: STATUS_COLORS.aberto,
       },
       {
         name: 'Atrasadas',
-        key: 'atrasada',
         value: metrics.overdueCents / 100,
         count: metrics.countOverdue,
         color: STATUS_COLORS.atrasada,
       },
       {
         name: 'Parciais',
-        key: 'parcial',
         value: metrics.partialCents / 100,
         count: metrics.countPartial,
         color: STATUS_COLORS.parcial,
       },
-    ].filter((item) => item.value > 0 || item.count > 0);
+    ].filter((item) => item.value > 0 || (item.count !== undefined && item.count > 0));
   }, [metrics]);
 
   // Arrecadação por Turma ou por Aluno (quando uma turma está filtrada)
@@ -434,7 +416,8 @@ export function FinanceDashboardPage() {
       }
     }
     return Array.from(catMap.values())
-      .sort((a, b) => (b.entrada + b.saida) - (a.entrada + a.saida))
+      .map((item) => ({ ...item, total: item.entrada + item.saida }))
+      .sort((a, b) => b.total - a.total)
       .slice(0, 8);
   }, [cashList]);
 
@@ -787,335 +770,130 @@ export function FinanceDashboardPage() {
         </div>
       </div>
 
-      {/* Visual Charts Row 1: Daily Cash Flow & Status Donut */}
+      {/* Visual Charts Row 1: Cash Flow Waterfall & Status Donut */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Daily Cash Flow AreaChart */}
-        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-2xs">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-sky-600" />
-                <span>Fluxo Financeiro Diário</span>
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Entradas vs. Saídas diárias e evolução do saldo acumulado
-              </p>
-            </div>
-            <div className="flex items-center gap-3 text-xs">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                <span className="font-semibold text-slate-600">Entradas</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-                <span className="font-semibold text-slate-600">Saídas</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="w-full h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart
-                data={dailyCashFlowData}
-                margin={{ top: 8, right: 16, bottom: 4, left: 8 }}
-              >
-                <defs>
-                  <linearGradient id="colorEntradas" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10B981" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#10B981" stopOpacity={0.0} />
-                  </linearGradient>
-                  <linearGradient id="colorSaidas" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#F43F5E" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#F43F5E" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                <XAxis
-                  dataKey="day"
-                  tick={{ fontSize: 11, fill: '#64748B' }}
-                  stroke="#E2E8F0"
-                  minTickGap={20}
-                />
-                <YAxis
-                  tickFormatter={(val) => `R$${val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val}`}
-                  tick={{ fontSize: 11, fill: '#64748B' }}
-                  stroke="#E2E8F0"
-                  width={60}
-                />
-                <Tooltip
-                  formatter={(value: any, name: any) => [
-                    formatCurrency(Number(value)),
-                    name === 'entradas' ? 'Entradas' : name === 'saidas' ? 'Saídas' : 'Saldo',
-                  ]}
-                  contentStyle={{
-                    borderRadius: 12,
-                    border: '1px solid #E2E8F0',
-                    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05)',
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="entradas"
-                  stroke="#10B981"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#colorEntradas)"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="saidas"
-                  stroke="#F43F5E"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#colorSaidas)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+        {/* Waterfall Cash Bridge */}
+        <div className="lg:col-span-2">
+          <ChartContainer
+            title="Ponte Financeira de Caixa (Waterfall)"
+            subtitle="Saldo anterior, total arrecadado, despesas liquidadas e saldo de fechamento"
+            ariaLabel="Gráfico em cascata do fluxo de caixa com saldo inicial, entradas, saídas e saldo final"
+            summary={`Saldo inicial de ${formatCents(cashSummary.openingBalanceCents || 0)}, entradas de ${formatCents(cashSummary.totalInflowCents || 0)}, saídas de ${formatCents(cashSummary.totalOutflowCents || 0)}, resultando em saldo final de ${formatCents(cashSummary.closingBalanceCents || 0)}.`}
+            empty={!cashList.length && !cashSummary.openingBalanceCents}
+            emptyMessage="Nenhuma movimentação de caixa registrada no período."
+            height={280}
+            tableData={[
+              { etapa: 'Saldo Anterior', valor: formatCents(cashSummary.openingBalanceCents || 0) },
+              { etapa: 'Entradas (+)', valor: formatCents(cashSummary.totalInflowCents || 0) },
+              { etapa: 'Saídas (-)', valor: formatCents(cashSummary.totalOutflowCents || 0) },
+              { etapa: 'Saldo Final', valor: formatCents(cashSummary.closingBalanceCents || 0) },
+            ]}
+            tableColumns={[
+              { header: 'Etapa do Caixa', key: 'etapa' },
+              { header: 'Valor Líquido', key: 'valor', align: 'right' },
+            ]}
+          >
+            <CashFlowWaterfallChart
+              openingCents={cashSummary.openingBalanceCents || 0}
+              inflowsCents={cashSummary.totalInflowCents || 0}
+              outflowsCents={cashSummary.totalOutflowCents || 0}
+              closingCents={cashSummary.closingBalanceCents || 0}
+              height={280}
+            />
+          </ChartContainer>
         </div>
 
         {/* Status Distribution Donut Chart */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-2xs">
-          <div className="mb-4">
-            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <PieIcon className="w-4 h-4 text-indigo-600" />
-              <span>Situação das Mensalidades</span>
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">Composição por valores e parcelas</p>
-          </div>
-
-          <div className="w-full h-72">
-            {statusDistributionData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={statusDistributionData}
-                    dataKey="value"
-                    nameKey="name"
-                    innerRadius={55}
-                    outerRadius={85}
-                    paddingAngle={3}
-                  >
-                    {statusDistributionData.map((item) => (
-                      <Cell key={item.key} fill={item.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(val: any, _name: any, item: any) => [
-                      `${formatCurrency(Number(val))} (${item.payload.count} títulos)`,
-                      item.payload.name,
-                    ]}
-                    contentStyle={{
-                      borderRadius: 12,
-                      border: '1px solid #E2E8F0',
-                      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05)',
-                    }}
-                  />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center text-slate-400 text-xs">
-                <Layers className="w-8 h-8 mb-2 stroke-1 text-slate-300" />
-                <p>Nenhuma mensalidade neste período.</p>
-              </div>
-            )}
-          </div>
+        <div>
+          <ChartContainer
+            title="Situação das Mensalidades"
+            subtitle="Composição por valores e parcelas"
+            ariaLabel="Gráfico de distribuição da situação das mensalidades"
+            summary={`De ${metrics.totalCount} títulos no período, ${metrics.countPaid} estão quitados e ${metrics.countOverdue} estão em atraso (${metrics.delinquencyRate}% de inadimplência).`}
+            empty={!statusDistributionData.length}
+            emptyMessage="Nenhuma mensalidade neste período."
+            height={280}
+            tableData={statusDistributionData}
+            tableColumns={[
+              { header: 'Situação', key: 'name' },
+              { header: 'Títulos', key: 'count', align: 'center', format: (c) => formatInteger(Number(c)) },
+              { header: 'Valor Total', key: 'value', align: 'right', format: (v) => formatCurrency(Number(v)) },
+            ]}
+          >
+            <DonutMetricChart
+              data={statusDistributionData}
+              centerLabel="Previsto"
+              centerValue={formatCents(metrics.expectedCents)}
+              valueFormatter={(v, item) => `${formatCurrency(v)} (${item?.count ?? 0} títulos)`}
+              height={280}
+            />
+          </ChartContainer>
         </div>
       </div>
 
-      {/* Visual Charts Row 2: Turmas Comparison & Expense by Category */}
+      {/* Visual Charts Row 2: Turmas Comparison & Receivables Aging */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Arrecadação por Turma ou por Aluno */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-2xs">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <Building className="w-4 h-4 text-sky-600" />
-                <span>
-                  {selectedClassId ? 'Arrecadação por Aluno' : 'Arrecadação e Inadimplência por Turma'}
-                </span>
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                {selectedClassId
-                  ? selectedClassName
-                    ? `Comparativo de valores por aluno em ${selectedClassName}`
-                    : 'Comparativo de valores por aluno na turma selecionada'
-                  : 'Comparativo de valores previstos e realizados por turma'}
-              </p>
-            </div>
-          </div>
-
-          {classBreakdownData.length > 0 ? (
-            <div
-              style={{
-                height: Math.min(480, Math.max(260, classBreakdownData.length * 48)),
-              }}
-              className="w-full"
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={classBreakdownData}
-                  layout="vertical"
-                  margin={{ top: 8, right: 72, bottom: 8, left: 8 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" horizontal={false} />
-                  <XAxis
-                    type="number"
-                    tickFormatter={(val) => `R$${val}`}
-                    tick={{ fontSize: 11, fill: '#64748B' }}
-                    stroke="#E2E8F0"
-                  />
-                  <YAxis type="category" dataKey="name" hide />
-                  <Tooltip
-                    formatter={(val: any, name: any) => [
-                      formatCurrency(Number(val)),
-                      name === 'expected'
-                        ? 'Previsto'
-                        : name === 'paid'
-                        ? 'Recebido'
-                        : 'Em Atraso',
-                    ]}
-                    contentStyle={{
-                      borderRadius: 12,
-                      border: '1px solid #E2E8F0',
-                      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05)',
-                    }}
-                  />
-                  <Bar
-                    dataKey="expected"
-                    name="Previsto"
-                    fill="#E2E8F0"
-                    radius={[0, 6, 6, 0]}
-                    barSize={28}
-                    label={(props: any) => {
-                      const { x, y, width, height, index } = props;
-                      const entry = classBreakdownData[index];
-                      if (!entry) return null;
-                      const displayName = entry.name;
-                      const nameEstimateWidth = displayName.length * 7.2;
-                      const minPctX = x + 12 + nameEstimateWidth + 14;
-                      const pctX = Math.max(x + width + 8, minPctX);
-                      return (
-                        <g>
-                          <text
-                            x={x + 12}
-                            y={y + height / 2}
-                            fill="#0F172A"
-                            fontSize={12}
-                            fontWeight={600}
-                            dominantBaseline="central"
-                            style={{ pointerEvents: 'none' }}
-                          >
-                            {displayName}
-                          </text>
-                          <text
-                            x={pctX}
-                            y={y + height / 2}
-                            fill="#0F172A"
-                            fontSize={11}
-                            fontWeight={700}
-                            dominantBaseline="central"
-                          >
-                            {entry.rate}%
-                          </text>
-                        </g>
-                      );
-                    }}
-                  />
-                  <Bar
-                    dataKey="paid"
-                    name="Recebido"
-                    fill="#10B981"
-                    radius={[0, 6, 6, 0]}
-                    barSize={14}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <div className="py-12 text-center text-slate-400 text-xs">
-              {selectedClassId
+        <div>
+          <ChartContainer
+            title={selectedClassId ? 'Arrecadação por Aluno' : 'Arrecadação e Inadimplência por Turma'}
+            subtitle={
+              selectedClassId
+                ? selectedClassName
+                  ? `Comparativo de valores por aluno em ${selectedClassName}`
+                  : 'Comparativo de valores por aluno na turma selecionada'
+                : 'Comparativo de valores previstos e realizados por turma'
+            }
+            ariaLabel={selectedClassId ? 'Gráfico comparativo de arrecadação por aluno' : 'Gráfico comparativo de arrecadação por turma'}
+            empty={!classBreakdownData.length}
+            emptyMessage={
+              selectedClassId
                 ? 'Nenhum aluno com mensalidades nesta turma para esta competência.'
-                : 'Nenhuma turma com mensalidades lançadas para esta competência.'}
-            </div>
-          )}
+                : 'Nenhuma turma com mensalidades lançadas para esta competência.'
+            }
+            height={Math.min(480, Math.max(260, classBreakdownData.length * 48))}
+            tableData={classBreakdownData}
+            tableColumns={[
+              { header: selectedClassId ? 'Aluno' : 'Turma', key: 'name' },
+              { header: 'Previsto', key: 'expected', align: 'right', format: (v) => formatCurrency(Number(v)) },
+              { header: 'Recebido', key: 'paid', align: 'right', format: (v) => formatCurrency(Number(v)) },
+              { header: 'Adimplência', key: 'rate', align: 'right', format: (v) => formatPercent(Number(v)) },
+            ]}
+          >
+            <HorizontalBarChart
+              data={classBreakdownData}
+              categoryKey="name"
+              valueKey="paid"
+              valueSuffix=""
+              valueFormatter={(val, item) => `${formatCurrency(val)} / ${formatCurrency(item?.expected ?? 0)} (${item?.rate ?? 0}%)`}
+              barColor="#10B981"
+              height={Math.min(480, Math.max(260, classBreakdownData.length * 48))}
+            />
+          </ChartContainer>
         </div>
 
-        {/* Categorias de Entradas e Saídas */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-2xs">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <CreditCard className="w-4 h-4 text-emerald-600" />
-                <span>Movimentações por Categoria</span>
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Principais categorias de receitas e despesas no período
-              </p>
-            </div>
-          </div>
-
-          {categoryBreakdownData.length > 0 ? (
-            <div
-              style={{
-                height: Math.min(480, Math.max(260, categoryBreakdownData.length * 44)),
-              }}
-              className="w-full"
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={categoryBreakdownData}
-                  layout="vertical"
-                  margin={{ top: 8, right: 36, bottom: 8, left: 8 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" horizontal={false} />
-                  <XAxis
-                    type="number"
-                    tickFormatter={(val) => `R$${val}`}
-                    tick={{ fontSize: 11, fill: '#64748B' }}
-                    stroke="#E2E8F0"
-                  />
-                  <YAxis
-                    type="category"
-                    dataKey="category"
-                    width={130}
-                    tick={{ fontSize: 11, fill: '#334155', fontWeight: 600 }}
-                    stroke="#E2E8F0"
-                  />
-                  <Tooltip
-                    formatter={(val: any, name: any) => [
-                      formatCurrency(Number(val)),
-                      name === 'entrada' ? 'Receita' : 'Despesa',
-                    ]}
-                    contentStyle={{
-                      borderRadius: 12,
-                      border: '1px solid #E2E8F0',
-                      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05)',
-                    }}
-                  />
-                  <Bar
-                    dataKey="entrada"
-                    name="Receita"
-                    fill="#10B981"
-                    radius={[0, 4, 4, 0]}
-                    barSize={14}
-                  />
-                  <Bar
-                    dataKey="saida"
-                    name="Despesa"
-                    fill="#F43F5E"
-                    radius={[0, 4, 4, 0]}
-                    barSize={14}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <div className="py-12 text-center text-slate-400 text-xs">
-              Nenhuma movimentação de caixa categorizada no período.
-            </div>
-          )}
+        {/* Receivables Aging Buckets */}
+        <div>
+          <ChartContainer
+            title="Aging de Inadimplência (Faixas de Atraso)"
+            subtitle="Distribuição da dívida vencida por faixa temporal de cobrança"
+            ariaLabel="Gráfico de barras da distribuição de mensalidades em atraso por faixa de tempo"
+            summary={`Total de títulos atrasados agrupados nas faixas de 1-15 dias, 16-30 dias, 31-60 dias e mais de 60 dias.`}
+            empty={!agingBucketsData.some((b) => b.amountCents > 0)}
+            emptyMessage="Nenhuma mensalidade em atraso para distribuição de aging."
+            height={Math.min(480, Math.max(260, classBreakdownData.length * 48))}
+            tableData={agingBucketsData}
+            tableColumns={[
+              { header: 'Faixa de Vencimento', key: 'bucket' },
+              { header: 'Títulos', key: 'count', align: 'center', format: (c) => formatInteger(Number(c)) },
+              { header: 'Valor em Atraso', key: 'amountCents', align: 'right', format: (v) => formatCents(Number(v)) },
+            ]}
+          >
+            <AgingBucketsChart
+              buckets={agingBucketsData}
+              height={Math.min(480, Math.max(260, classBreakdownData.length * 48))}
+            />
+          </ChartContainer>
         </div>
       </div>
 

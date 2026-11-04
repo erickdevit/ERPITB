@@ -11,21 +11,6 @@ import {
   Award,
   Users,
 } from 'lucide-react';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Legend,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
 import { useApp } from '../app-context';
 import { DateField } from '../components';
 import { ClassFilterFields, filterClassesByAttributes } from './class-filter-controls';
@@ -39,6 +24,15 @@ import {
   extractClassNumber,
   formatClassDisplayName,
 } from './classes-model';
+import {
+  ChartContainer,
+  LineTrendChart,
+  HorizontalBarChart,
+  DonutMetricChart,
+  CHART_TOKENS,
+  formatPercent,
+  formatInteger,
+} from '../lib/charts';
 
 type PeriodPreset = 7 | 30 | 90 | 'custom';
 
@@ -196,29 +190,6 @@ function DashboardCard({
         {subtitle && <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">{subtitle}</span>}
       </div>
       <div className="mt-3">{children}</div>
-    </div>
-  );
-}
-
-function EmptyChart({
-  icon: Icon = CalendarX,
-  title,
-  children,
-}: {
-  icon?: React.ComponentType<{ className?: string }>;
-  title?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div
-      data-testid="empty-chart"
-      className="min-h-[220px] flex flex-col items-center justify-center p-6 text-center text-slate-500"
-    >
-      <div className="w-11 h-11 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-center mb-2.5 text-slate-400 shrink-0">
-        <Icon className="w-5 h-5 text-slate-400" />
-      </div>
-      {title && <p className="text-xs sm:text-sm font-semibold text-slate-700 mb-1">{title}</p>}
-      <div className="text-xs text-slate-500 max-w-sm font-medium">{children}</div>
     </div>
   );
 }
@@ -423,12 +394,12 @@ export function DashboardPage() {
   const comparisonData = selectedClassId ? studentComparisonData : classComparisonData;
 
   const distribution = [
-    { key: 'P', name: 'P · Presenças', value: analytics.present },
-    { key: 'F', name: 'F · Faltas', value: analytics.absent },
-    { key: 'J', name: 'J · Justificadas', value: analytics.justified },
-    { key: 'A', name: 'A · Atrasos', value: analytics.delayed },
-    { key: 'R', name: 'R · Reposições', value: analytics.replacements },
-  ];
+    { name: 'Presenças', value: analytics.present, color: statusColors.P },
+    { name: 'Faltas', value: analytics.absent, color: statusColors.F },
+    { name: 'Justificadas', value: analytics.justified, color: statusColors.J },
+    { name: 'Atrasos', value: analytics.delayed, color: statusColors.A },
+    { name: 'Reposições', value: analytics.replacements, color: statusColors.R },
+  ].filter((item) => item.value > 0);
 
   const maxTeacherClasses = Math.max(1, ...(analytics.teacherWorkload ?? []).map((item) => item.classes));
 
@@ -638,205 +609,108 @@ export function DashboardPage() {
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5">
         <div className="lg:col-span-2">
-          <DashboardCard
-            title="Evolução da Frequência"
-            subtitle="Percentual diário de presenças ao longo do período"
-          >
-            {loading ? (
-              <ChartSkeleton height={288} label="Carregando evolução da frequência" />
-            ) : analytics.evolution.length ? (
-              <div role="img" aria-label="Gráfico da evolução diária da frequência" className="w-full h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={analytics.evolution} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                    <XAxis
-                      dataKey="date"
-                      tickFormatter={(val) => shortDate(String(val))}
-                      minTickGap={28}
-                      tick={{ fontSize: 11, fill: '#64748B' }}
-                      stroke="#E2E8F0"
-                    />
-                    <YAxis domain={[0, 100]} unit="%" width={44} tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
-                    <Tooltip
-                      labelFormatter={(val) => formatDate(String(val))}
-                      contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0', boxShadow: 'none' }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="rate"
-                      name="Frequência (%)"
-                      stroke="#2563EB"
-                      strokeWidth={2.5}
-                      dot={{ r: 2.5, fill: '#2563EB' }}
-                      activeDot={{ r: 5, fill: '#2563EB' }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <EmptyChart icon={TrendingUp} title="Sem evolução no período">
-                Não há frequência registrada neste período.
-              </EmptyChart>
-            )}
-          </DashboardCard>
+          {loading ? (
+            <ChartSkeleton height={288} label="Carregando evolução da frequência" />
+          ) : (
+            <ChartContainer
+              title="Evolução da Frequência"
+              subtitle="Percentual diário de presenças ao longo do período"
+              ariaLabel="Gráfico da evolução diária da frequência com linha de meta de 75%"
+              summary={`A taxa média de frequência no período é de ${formatPercent(analytics.attendanceRate)}, com meta mínima institucional de 75%.`}
+              empty={!analytics.evolution.length}
+              emptyMessage="Não há frequência registrada neste período."
+              height={288}
+              tableData={analytics.evolution}
+              tableColumns={[
+                { header: 'Data', key: 'date', format: (d) => formatDate(String(d)) },
+                { header: 'Marcações', key: 'records', align: 'center', format: (r) => formatInteger(Number(r)) },
+                { header: 'Frequência', key: 'rate', align: 'right', format: (r) => formatPercent(Number(r)) },
+              ]}
+            >
+              <LineTrendChart
+                data={analytics.evolution}
+                series={[{ key: 'rate', name: 'Frequência (%)', color: '#2563EB' }]}
+                targetValue={75}
+                targetLabel="Meta: 75%"
+                height={288}
+              />
+            </ChartContainer>
+          )}
         </div>
 
         <div>
-          <DashboardCard
-            title="Distribuição das Situações"
-            subtitle="Presença, falta, justificativa, atraso e reposição"
-          >
-            {loading ? (
-              <ChartSkeleton height={288} label="Carregando distribuição das situações" />
-            ) : analytics.records ? (
-              <div role="img" aria-label="Gráfico de distribuição das situações de frequência" className="w-full h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={distribution} dataKey="value" nameKey="name" innerRadius={52} outerRadius={84} paddingAngle={2}>
-                      {distribution.map((item) => (
-                        <Cell key={item.key} fill={statusColors[item.key as keyof typeof statusColors]} />
-                      ))}
-                    </Pie>
-                    <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0' }} />
-                    <Legend iconType="circle" wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <EmptyChart icon={Layers} title="Sem marcações para distribuir">
-                Não há marcações para distribuir neste período.
-              </EmptyChart>
-            )}
-          </DashboardCard>
+          {loading ? (
+            <ChartSkeleton height={288} label="Carregando distribuição das situações" />
+          ) : (
+            <ChartContainer
+              title="Distribuição das Situações"
+              subtitle="Presença, falta, justificativa, atraso e reposição"
+              ariaLabel="Gráfico de distribuição das situações de frequência"
+              summary={`Total de ${formatInteger(analytics.records)} marcações: ${formatInteger(analytics.present)} presenças e ${formatInteger(analytics.absent)} faltas.`}
+              empty={!analytics.records}
+              emptyMessage="Não há marcações para distribuir neste período."
+              height={288}
+              tableData={distribution}
+              tableColumns={[
+                { header: 'Situação', key: 'name' },
+                { header: 'Quantidade', key: 'value', align: 'right', format: (v) => formatInteger(Number(v)) },
+              ]}
+            >
+              <DonutMetricChart
+                data={distribution}
+                centerLabel="Total Marcações"
+                centerValue={formatInteger(analytics.records)}
+                valueFormatter={(v) => formatInteger(v)}
+                height={288}
+              />
+            </ChartContainer>
+          )}
         </div>
       </div>
 
       {/* Comparison Chart: Turma or Student Breakdown */}
-      <DashboardCard
-        title={selectedClassId ? 'Comparativo por Aluno' : 'Comparativo por Turma'}
-        subtitle={
-          selectedClassId
-            ? selectedClassName
-              ? `Frequência individual dos alunos em ${selectedClassName}`
-              : 'Frequência individual por aluno no período'
-            : 'Frequência consolidada no período selecionado'
-        }
-      >
-        {loading ? (
-          <ChartSkeleton
-            height={240}
-            label={selectedClassId ? 'Carregando comparativo por aluno' : 'Carregando comparativo por turma'}
-          />
-        ) : comparisonData.length ? (
-          <div
-            role="img"
-            aria-label={
-              selectedClassId
-                ? 'Gráfico comparativo da frequência por aluno'
-                : 'Gráfico comparativo da frequência por turma'
-            }
-            style={{ height: Math.min(640, Math.max(260, comparisonData.length * 44)) }}
-            className="w-full"
-          >
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={comparisonData}
-                layout="vertical"
-                margin={{ top: 8, right: 72, bottom: 8, left: 8 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" horizontal={false} />
-                <XAxis
-                  type="number"
-                  domain={[0, 100]}
-                  unit="%"
-                  tick={{ fontSize: 11, fill: '#64748B' }}
-                  stroke="#E2E8F0"
-                />
-                <YAxis
-                  type="category"
-                  dataKey="displayName"
-                  hide
-                />
-                <Tooltip
-                  formatter={(value: any, _name: any, item: any) => {
-                    if (item?.payload?.records === 0) {
-                      return ['Sem chamadas no período', 'Status'];
-                    }
-                    return [
-                      `${value}% (${item?.payload?.present ?? 0} presenças em ${item?.payload?.records ?? 0} marcações)`,
-                      'Frequência',
-                    ];
-                  }}
-                  contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05)' }}
-                />
-                <Bar
-                  dataKey="rate"
-                  name="Frequência (%)"
-                  radius={[0, 6, 6, 0]}
-                  barSize={32}
-                  background={{ fill: '#F1F5F9', radius: 6 }}
-                  label={(props: any) => {
-                    const { x, y, width, height, value, index } = props;
-                    const entry = comparisonData[index];
-                    if (!entry) return null;
-                    const rawName = entry.displayName || entry.name;
-                    const isZero = entry.records === 0;
-                    const displayName = rawName;
-                    const nameEstimateWidth = (displayName.length + (isZero ? 24 : 0)) * 7.2;
-                    const minPctX = x + 12 + nameEstimateWidth + 14;
-                    const pctX = Math.max(x + width + 8, minPctX);
-
-                    return (
-                      <g>
-                        <text
-                          x={x + 12}
-                          y={y + height / 2}
-                          fill={isZero ? '#94A3B8' : width > (nameEstimateWidth + 24) ? '#FFFFFF' : '#0F172A'}
-                          fontSize={12}
-                          fontWeight={600}
-                          dominantBaseline="central"
-                          style={{ pointerEvents: 'none' }}
-                        >
-                          {displayName}
-                          {isZero ? ' · Sem chamadas no período' : ''}
-                        </text>
-                        {!isZero && (
-                          <text
-                            x={pctX}
-                            y={y + height / 2}
-                            fill="#0F172A"
-                            fontSize={11}
-                            fontWeight={700}
-                            dominantBaseline="central"
-                          >
-                            {value}%
-                          </text>
-                        )}
-                      </g>
-                    );
-                  }}
-                >
-                  {comparisonData.map((entry) => (
-                    <Cell
-                      key={entry.id}
-                      fill={entry.records === 0 ? '#E2E8F0' : '#0284C7'}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        ) : (
-          <EmptyChart
-            icon={selectedClassId ? Users : CalendarX}
-            title={selectedClassId ? 'Nenhum aluno matriculado' : 'Nenhuma turma disponível'}
-          >
-            {selectedClassId
+      {loading ? (
+        <ChartSkeleton
+          height={240}
+          label={selectedClassId ? 'Carregando comparativo por aluno' : 'Carregando comparativo por turma'}
+        />
+      ) : (
+        <ChartContainer
+          title={selectedClassId ? 'Comparativo por Aluno' : 'Comparativo por Turma'}
+          subtitle={
+            selectedClassId
+              ? selectedClassName
+                ? `Frequência individual dos alunos em ${selectedClassName}`
+                : 'Frequência individual por aluno no período'
+              : 'Frequência consolidada no período selecionado'
+          }
+          ariaLabel={selectedClassId ? 'Gráfico comparativo da frequência por aluno' : 'Gráfico comparativo da frequência por turma'}
+          empty={!comparisonData.length}
+          emptyMessage={
+            selectedClassId
               ? 'Nenhum aluno ativo encontrado nesta turma para o período selecionado.'
-              : 'Nenhuma turma está disponível para comparação.'}
-          </EmptyChart>
-        )}
-      </DashboardCard>
+              : 'Nenhuma turma está disponível para comparação.'
+          }
+          height={Math.min(640, Math.max(260, comparisonData.length * 44))}
+          tableData={comparisonData}
+          tableColumns={[
+            { header: selectedClassId ? 'Aluno' : 'Turma', key: 'displayName' },
+            { header: 'Total Marcações', key: 'records', align: 'center', format: (r) => formatInteger(Number(r)) },
+            { header: 'Presenças', key: 'present', align: 'center', format: (p) => formatInteger(Number(p)) },
+            { header: 'Frequência', key: 'rate', align: 'right', format: (r) => formatPercent(Number(r)) },
+          ]}
+        >
+          <HorizontalBarChart
+            data={comparisonData}
+            categoryKey="displayName"
+            valueKey="rate"
+            valueSuffix="%"
+            valueFormatter={(val, item) => (item?.records === 0 ? 'Sem chamadas' : `${val}%`)}
+            barColor={selectedClassId ? '#0284C7' : '#0284C7'}
+            height={Math.min(640, Math.max(260, comparisonData.length * 44))}
+          />
+        </ChartContainer>
+      )}
 
       {/* Tables Row: Top Absentees & Teacher Workload */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
@@ -872,9 +746,13 @@ export function DashboardPage() {
               ))}
             </ol>
           ) : (
-            <EmptyChart icon={CheckCircle2} title="Sem faltas registradas">
-              Nenhum aluno com falta no período selecionado.
-            </EmptyChart>
+            <div data-testid="empty-chart" className="min-h-[220px] flex flex-col items-center justify-center p-6 text-center text-slate-500">
+              <div className="w-11 h-11 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-center mb-2.5 text-slate-400 shrink-0">
+                <CheckCircle2 className="w-5 h-5 text-slate-400" />
+              </div>
+              <p className="text-xs sm:text-sm font-semibold text-slate-700 mb-1">Sem faltas registradas</p>
+              <div className="text-xs text-slate-500 max-w-sm font-medium">Nenhum aluno com falta no período selecionado.</div>
+            </div>
           )}
         </DashboardCard>
 
@@ -908,9 +786,13 @@ export function DashboardPage() {
               ))}
             </div>
           ) : (
-            <EmptyChart icon={Clock} title="Sem carga docente com chamadas">
-              Nenhuma carga docente com chamadas no período.
-            </EmptyChart>
+            <div data-testid="empty-chart" className="min-h-[220px] flex flex-col items-center justify-center p-6 text-center text-slate-500">
+              <div className="w-11 h-11 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-center mb-2.5 text-slate-400 shrink-0">
+                <Clock className="w-5 h-5 text-slate-400" />
+              </div>
+              <p className="text-xs sm:text-sm font-semibold text-slate-700 mb-1">Sem carga docente com chamadas</p>
+              <div className="text-xs text-slate-500 max-w-sm font-medium">Nenhuma carga docente com chamadas no período.</div>
+            </div>
           )}
         </DashboardCard>
       </div>

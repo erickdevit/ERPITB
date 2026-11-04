@@ -19,19 +19,6 @@ import {
   Moon,
   Calendar,
 } from 'lucide-react';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-  Legend,
-} from 'recharts';
 import { Link } from 'react-router-dom';
 import { useEntity } from '../../lib/use-entity';
 import { formatDate, todayInSaoPaulo } from '../../lib/date';
@@ -40,6 +27,14 @@ import { BiFilterBar } from './bi-filter-bar';
 import { ExportActions, initialFilters } from './bi-page';
 import type { BiFilters } from './model';
 import { useBiData } from './use-bi-data';
+import {
+  ChartContainer,
+  LineTrendChart,
+  HorizontalBarChart,
+  formatPercent,
+  formatInteger,
+  CHART_TOKENS,
+} from '../../lib/charts';
 
 const DAY_NAMES = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 const SHIFT_NAMES: Record<string, string> = {
@@ -463,63 +458,92 @@ export function BiAttendancePage() {
         </div>
 
         {/* Dynamic Chart Container */}
-        <div className="w-full h-72">
-          <ResponsiveContainer width="100%" height="100%">
-            {chartMode === 'evolution' ? (
-              <LineChart data={analytics?.evolution ?? []} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#F1F5F9" />
-                <XAxis dataKey="date" tickFormatter={formatDate} minTickGap={28} tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
-                <YAxis domain={[0, 100]} unit="%" tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
-                <Tooltip
-                  labelFormatter={(val) => formatDate(String(val))}
-                  formatter={(val: any) => [`${Number(val).toFixed(1)}%`, 'Taxa de Presença']}
-                  contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                />
-                <Line type="monotone" dataKey="rate" stroke="#2563EB" strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} />
-              </LineChart>
-            ) : chartMode === 'volume' ? (
-              <BarChart data={volumeChartData} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#F1F5F9" />
-                <XAxis dataKey="displayDate" minTickGap={28} tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
-                <YAxis tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
-                <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0' }} />
-                <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
-                <Bar dataKey="present" name="Presenças" fill="#10B981" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="absent" name="Faltas" fill="#F43F5E" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="justified" name="Justificadas" fill="#0284C7" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            ) : chartMode === 'shifts' ? (
-              <BarChart data={shiftAnalysis} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#F1F5F9" />
-                <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
-                <YAxis domain={[0, 100]} unit="%" tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
-                <Tooltip
-                  formatter={(val: any) => [`${Number(val).toFixed(1)}%`, 'Frequência Média']}
-                  contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0' }}
-                />
-                <Bar dataKey="rate" name="Frequência Média (%)" fill="#6366F1" radius={[6, 6, 0, 0]}>
-                  {shiftAnalysis.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.rate >= 75 ? '#10B981' : '#F43F5E'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            ) : (
-              <BarChart data={weekdayAnalysis} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#F1F5F9" />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
-                <YAxis domain={[0, 100]} unit="%" tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
-                <Tooltip
-                  formatter={(val: any) => [`${Number(val).toFixed(1)}%`, 'Frequência do Dia']}
-                  contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0' }}
-                />
-                <Bar dataKey="rate" name="Taxa de Presença (%)" fill="#0EA5E9" radius={[6, 6, 0, 0]}>
-                  {weekdayAnalysis.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.rate >= 75 ? '#0EA5E9' : '#F43F5E'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            )}
-          </ResponsiveContainer>
+        <div>
+          {chartMode === 'evolution' ? (
+            <ChartContainer
+              ariaLabel="Gráfico de linha da taxa diária de presença"
+              summary={`Taxa média no período de ${formatPercent(totals.rate)}.`}
+              empty={!(analytics?.evolution ?? []).length}
+              height={288}
+              tableData={analytics?.evolution ?? []}
+              tableColumns={[
+                { header: 'Data', key: 'date', format: (d) => formatDate(String(d)) },
+                { header: 'Frequência', key: 'rate', align: 'right', format: (r) => formatPercent(Number(r)) },
+              ]}
+            >
+              <LineTrendChart
+                data={analytics?.evolution ?? []}
+                series={[{ key: 'rate', name: 'Taxa de Presença (%)', color: '#2563EB' }]}
+                targetValue={75}
+                targetLabel="Meta: 75%"
+                height={288}
+              />
+            </ChartContainer>
+          ) : chartMode === 'volume' ? (
+            <ChartContainer
+              ariaLabel="Gráfico comparativo de volume de marcações por data"
+              empty={!volumeChartData.length}
+              height={288}
+              tableData={volumeChartData}
+              tableColumns={[
+                { header: 'Data', key: 'displayDate' },
+                { header: 'Presenças', key: 'present', align: 'right', format: (v) => formatInteger(Number(v)) },
+                { header: 'Faltas', key: 'absent', align: 'right', format: (v) => formatInteger(Number(v)) },
+                { header: 'Justificadas', key: 'justified', align: 'right', format: (v) => formatInteger(Number(v)) },
+              ]}
+            >
+              <HorizontalBarChart
+                data={volumeChartData}
+                categoryKey="displayDate"
+                valueKey="present"
+                valueSuffix=" presenças"
+                barColor="#10B981"
+                height={288}
+              />
+            </ChartContainer>
+          ) : chartMode === 'shifts' ? (
+            <ChartContainer
+              ariaLabel="Gráfico de assiduidade por turno escolar"
+              empty={!shiftAnalysis.length}
+              height={288}
+              tableData={shiftAnalysis}
+              tableColumns={[
+                { header: 'Turno', key: 'label' },
+                { header: 'Marcações', key: 'records', align: 'center', format: (r) => formatInteger(Number(r)) },
+                { header: 'Frequência', key: 'rate', align: 'right', format: (r) => formatPercent(Number(r)) },
+              ]}
+            >
+              <HorizontalBarChart
+                data={shiftAnalysis}
+                categoryKey="label"
+                valueKey="rate"
+                valueSuffix="%"
+                barColor="#6366F1"
+                height={288}
+              />
+            </ChartContainer>
+          ) : (
+            <ChartContainer
+              ariaLabel="Gráfico de assiduidade por dia da semana"
+              empty={!weekdayAnalysis.length}
+              height={288}
+              tableData={weekdayAnalysis}
+              tableColumns={[
+                { header: 'Dia da Semana', key: 'name' },
+                { header: 'Chamadas', key: 'totalCalls', align: 'center', format: (c) => formatInteger(Number(c)) },
+                { header: 'Frequência', key: 'rate', align: 'right', format: (r) => formatPercent(Number(r)) },
+              ]}
+            >
+              <HorizontalBarChart
+                data={weekdayAnalysis}
+                categoryKey="name"
+                valueKey="rate"
+                valueSuffix="%"
+                barColor="#0EA5E9"
+                height={288}
+              />
+            </ChartContainer>
+          )}
         </div>
       </div>
 

@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import { Download, FileText, FileSpreadsheet, FileJson, Printer } from 'lucide-react';
-import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Section } from '../../components';
 import { exportBiJson, exportExcelCsv, exportExcelXlsx, exportSimplePdf, type ExportValue } from '../../lib/exports';
 import { formatDate, todayInSaoPaulo } from '../../lib/date';
@@ -9,6 +8,14 @@ import type { BiFilters } from './model';
 import { useBiData } from './use-bi-data';
 import { BiFilterBar } from './bi-filter-bar';
 import { buildBiView, type BiChart, type BiViewKey } from './views';
+import {
+  ChartContainer,
+  LineTrendChart,
+  HorizontalBarChart,
+  CHART_TOKENS,
+  formatPercent,
+  formatInteger,
+} from '../../lib/charts';
 
 export function initialFilters(today: string): BiFilters {
   const from = new Date(`${today}T12:00:00Z`);
@@ -116,35 +123,40 @@ export function ExportActions({
 
 export function AnalyticsChart({ chart }: { chart: BiChart }) {
   const chartData = chart.data ?? [];
-  const content =
-    chart.type === 'line' ? (
-      <LineChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
-        <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#F1F5F9" />
-        <XAxis dataKey={chart.categoryKey} tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
-        <YAxis unit={chart.valueSuffix} width={48} tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
-        <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0', boxShadow: 'none' }} />
-        <Line type="monotone" dataKey={chart.valueKey} stroke="#2563EB" strokeWidth={2.5} dot={chartData.length < 20} />
-      </LineChart>
-    ) : (
-      <BarChart data={chartData} layout="vertical" margin={{ top: 8, right: 28, left: 16, bottom: 8 }}>
-        <CartesianGrid horizontal={false} strokeDasharray="3 3" stroke="#F1F5F9" />
-        <XAxis type="number" unit={chart.valueSuffix} tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
-        <YAxis type="category" dataKey={chart.categoryKey} width={150} tick={{ fontSize: 11, fill: '#0F172A', fontWeight: 600 }} stroke="#E2E8F0" />
-        <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0', boxShadow: 'none' }} />
-        <Bar dataKey={chart.valueKey} fill="#0284C7" radius={[0, 4, 4, 0]} maxBarSize={18} />
-      </BarChart>
-    );
 
   return (
-    <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs text-left">
-      <h3 className="text-sm font-bold text-slate-900 mb-1">{chart.title}</h3>
-      <p className="text-xs text-slate-500 mb-4">{chart.description}</p>
-      <div className="w-full h-64">
-        <ResponsiveContainer width="100%" height="100%">
-          {content}
-        </ResponsiveContainer>
-      </div>
-    </div>
+    <ChartContainer
+      title={chart.title}
+      subtitle={chart.description}
+      ariaLabel={chart.title}
+      empty={!chartData.length}
+      emptyMessage="Nenhum dado analítico para visualização gráfica."
+      height={260}
+      tableData={chartData}
+      tableColumns={[
+        { header: 'Categoria', key: chart.categoryKey },
+        { header: 'Valor', key: chart.valueKey, align: 'right', format: (v) => `${v}${chart.valueSuffix || ''}` },
+      ]}
+    >
+      {chart.type === 'line' ? (
+        <LineTrendChart
+          data={chartData}
+          xKey={chart.categoryKey}
+          series={[{ key: chart.valueKey, name: chart.title, color: '#2563EB' }]}
+          unit={chart.valueSuffix || ''}
+          height={260}
+        />
+      ) : (
+        <HorizontalBarChart
+          data={chartData}
+          categoryKey={chart.categoryKey}
+          valueKey={chart.valueKey}
+          valueSuffix={chart.valueSuffix || ''}
+          barColor="#0284C7"
+          height={260}
+        />
+      )}
+    </ChartContainer>
   );
 }
 
