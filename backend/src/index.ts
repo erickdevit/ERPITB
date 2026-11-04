@@ -20,6 +20,12 @@ function corsHeaders(env: Env, request: Request): HeadersInit {
     'access-control-max-age': '86400',
     'x-content-type-options': 'nosniff',
     'referrer-policy': 'no-referrer',
+    // Security: Clickjacking mitigation (prevent API framing in malicious iframes)
+    'x-frame-options': 'DENY',
+    // Security: Content-Security-Policy modern standard frame-ancestors restriction
+    'content-security-policy': "frame-ancestors 'none'",
+    // Security: Disable buggy legacy XSS auditor in older browsers
+    'x-xss-protection': '0',
   };
 }
 
