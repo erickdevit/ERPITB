@@ -939,7 +939,7 @@ export function PublicStudentPortal() {
             {/* Top Row: Left Column (Overview & Avaliações) + Right Column (Notas por Módulo) */}
             <div className="flex flex-col lg:flex-row gap-6 items-start">
               {/* ================= LEFT COLUMN ================= */}
-              <div className="w-full lg:w-[350px] xl:w-[370px] shrink-0 space-y-5 -mt-8 sm:-mt-10 lg:-mt-12">
+              <div className="w-full lg:w-80 xl:w-96 max-w-full shrink-0 space-y-5 -mt-8 sm:-mt-10 lg:-mt-12">
                 {/* Card 1: Média Geral + Frequência + Summary Paragraph */}
                 <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100/80">
                   <div className="grid grid-cols-2 gap-4 items-center">

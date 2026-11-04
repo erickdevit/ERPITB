@@ -1,4 +1,4 @@
-import { argon2id } from '@noble/hashes/argon2';
+import { argon2id } from '@noble/hashes/argon2.js';
 import { SignJWT, jwtVerify } from 'jose';
 import { base64, randomToken, sha256Base64, sha256Hex } from './crypto';
 import { AppError, normalizeEmail, nowIso, readJson, requireString, uuid } from './http';

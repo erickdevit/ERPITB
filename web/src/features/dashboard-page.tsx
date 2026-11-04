@@ -135,7 +135,7 @@ function ChartSkeleton({
       data-testid="chart-skeleton"
       aria-busy="true"
       aria-label={label}
-      className="w-full flex flex-col justify-end gap-2 p-4 animate-pulse bg-slate-50/50 rounded-xl border border-dashed border-slate-200/70"
+      className="w-full flex flex-col justify-end gap-2 p-4 animate-pulse bg-slate-50/50 rounded-xl border border-slate-200/60"
       style={{ minHeight: height }}
     >
       <div className="flex items-end justify-between gap-3 h-44 w-full px-4 pb-2">

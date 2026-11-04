@@ -309,21 +309,7 @@ export function BiAttendancePage() {
 
       {/* 2. Executive KPI Summary Ribbon */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold">
-              <TrendingUp className="w-5 h-5 text-sky-400" />
-            </div>
-            <div>
-              <h1 className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight">
-                B.I de Frequência & Assiduidade
-              </h1>
-              <p className="text-xs text-slate-500 font-medium">
-                Monitoramento estratégico de presença, absenteísmo e retenção acadêmica
-              </p>
-            </div>
-          </div>
-
+        <div className="flex items-center justify-end border-b border-slate-100 pb-2">
           <ExportActions
             title="BI de Frequencia - ERPITB"
             context={exportContext}
