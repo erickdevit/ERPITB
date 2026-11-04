@@ -40,14 +40,25 @@ function parseEncryptionKeyBytes(value: string): Uint8Array<ArrayBuffer> {
   throw new AppError(500, 'DATA_ENCRYPTION_KEY deve conter exatamente 32 bytes em Base64.', 'INVALID_ENCRYPTION_KEY');
 }
 
-async function importAesKey(env: Pick<Env, 'DATA_ENCRYPTION_KEY'>): Promise<CryptoKey> {
-  const raw = parseEncryptionKeyBytes(env.DATA_ENCRYPTION_KEY);
-  return crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
+// In-memory cache for imported CryptoKey instances to avoid parsing base64 and
+// re-invoking crypto.subtle.importKey on every encryption/decryption call.
+// Keyed by DATA_ENCRYPTION_KEY.
+const aesKeyCache = new Map<string, Promise<CryptoKey>>();
+
+async function getCachedAesKey(env: Pick<Env, 'DATA_ENCRYPTION_KEY'>): Promise<CryptoKey> {
+  const keyStr = env.DATA_ENCRYPTION_KEY;
+  let keyPromise = aesKeyCache.get(keyStr);
+  if (!keyPromise) {
+    const raw = parseEncryptionKeyBytes(keyStr);
+    keyPromise = crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
+    aesKeyCache.set(keyStr, keyPromise);
+  }
+  return keyPromise;
 }
 
 export async function encryptText(env: Pick<Env, 'DATA_ENCRYPTION_KEY'>, plaintext: string): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const key = await importAesKey(env);
+  const key = await getCachedAesKey(env);
   const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoder.encode(plaintext));
   return `v1.${base64.encode(iv)}.${base64.encode(new Uint8Array(encrypted))}`;
 }
@@ -57,7 +68,7 @@ export async function decryptText(env: Pick<Env, 'DATA_ENCRYPTION_KEY'>, payload
   if (version !== 'v1' || !ivPart || !cipherPart) {
     throw new AppError(500, 'Payload criptografado inválido.', 'INVALID_CIPHERTEXT');
   }
-  const key = await importAesKey(env);
+  const key = await getCachedAesKey(env);
   try {
     const clear = await crypto.subtle.decrypt(
       { name: 'AES-GCM', iv: base64.decode(ivPart) },
