@@ -1,0 +1,440 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-accent: #0284c7;
+    --brand-accent: #0284c7;
+    --brand-accent-text: #ffffff;
+    --brand-accent-subtle: rgba(2, 132, 199, 0.12);
+    --brand-accent-hover: #0369a1;
+    accent-color: var(--brand-accent);
+  }
+
+  html {
+    font-size: 16px;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* Scale up base rem proportionally on tablet viewports (iPad / Android tablets 640px - 1180px)
+     so text, badges, controls, and tables never appear tiny or zoomed out. */
+  @media screen and (min-width: 640px) and (max-width: 1180px) {
+    html {
+      font-size: 17.5px;
+    }
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background-color: #F8FAFC;
+    color: #0F172A;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    letter-spacing: -0.01em;
+  }
+
+  button, input, select, textarea {
+    font-family: inherit;
+  }
+}
+
+/* ==========================================================================
+   DYNAMIC BRAND ACCENT OVERRIDES
+   Maps buttons, active pills, links, inputs and controls previously hardcoded
+   to black (bg-slate-900 / bg-slate-950) to the configured brand accent color.
+   ========================================================================== */
+
+button.bg-slate-900,
+button.bg-slate-950,
+button.bg-black,
+a.bg-slate-900,
+a.bg-slate-950,
+a.bg-black,
+button[type="submit"]:not(.bg-transparent):not(.bg-white):not([class*="rose"]):not([class*="red"]):not([class*="emerald"]):not([class*="green"]),
+.btn-primary {
+  background-color: var(--brand-accent) !important;
+  color: var(--brand-accent-text, #ffffff) !important;
+  border-color: var(--brand-accent) !important;
+}
+
+button.bg-slate-900:hover,
+button.bg-slate-950:hover,
+button.bg-black:hover,
+a.bg-slate-900:hover,
+a.bg-slate-950:hover,
+a.bg-black:hover,
+button[type="submit"]:not(.bg-transparent):not(.bg-white):not([class*="rose"]):not([class*="red"]):not([class*="emerald"]):not([class*="green"]):hover,
+.btn-primary:hover {
+  filter: brightness(0.9) !important;
+}
+
+button.bg-slate-900:active,
+button.bg-slate-950:active,
+button.bg-black:active,
+a.bg-slate-900:active,
+a.bg-slate-950:active,
+a.bg-black:active,
+button[type="submit"]:not(.bg-transparent):not(.bg-white):not([class*="rose"]):not([class*="red"]):not([class*="emerald"]):not([class*="green"]):active,
+.btn-primary:active {
+  filter: brightness(0.8) !important;
+}
+
+/* Ensure inner icons on primary buttons inherit the high-contrast text color */
+button.bg-slate-900 svg,
+button.bg-slate-950 svg,
+a.bg-slate-900 svg,
+a.bg-slate-950 svg {
+  color: var(--brand-accent-text, #ffffff) !important;
+}
+
+/* Active filter tabs, segmented control pills and toggle chips */
+button[class*="bg-slate-900"][class*="text-white"],
+button[class*="bg-slate-950"][class*="text-white"],
+span[class*="bg-slate-900"][class*="text-white"],
+span[class*="bg-slate-950"][class*="text-white"] {
+  background-color: var(--brand-accent) !important;
+  color: var(--brand-accent-text, #ffffff) !important;
+  border-color: var(--brand-accent) !important;
+}
+
+/* Form controls focus rings */
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--brand-accent) !important;
+}
+
+button[class*="focus:ring-slate-950"]:focus,
+button[class*="focus:ring-slate-900"]:focus {
+  --tw-ring-color: var(--brand-accent) !important;
+}
+
+/* Loading animations previously dark */
+div.bg-slate-950.animate-pulse,
+div.bg-slate-900.animate-pulse {
+  background-color: var(--brand-accent) !important;
+}
+
+/* Watermark is print-only: completely hidden in the web application UI */
+.print-watermark {
+  display: none !important;
+}
+
+.print-watermark .watermark-image {
+  max-width: 360px;
+  max-height: 360px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  opacity: 0.085;
+  pointer-events: none;
+  user-select: none;
+  display: block;
+}
+
+.print-watermark .watermark-image.grayscale {
+  filter: grayscale(100%);
+  -webkit-filter: grayscale(100%);
+}
+
+.print-watermark .watermark-text {
+  font-size: 2.5rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: rgba(15, 23, 42, 0.045);
+  transform: rotate(-30deg);
+  user-select: none;
+  white-space: nowrap;
+}
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 6mm;
+  }
+
+  /* Reset root & shell containers to allow natural flow from the top of Page 1 without flex/margin page breaks */
+  html,
+  body,
+  #root,
+  #root > div,
+  #root > div > div,
+  main {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    position: static !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    transform: none !important;
+    perspective: none !important;
+    filter: none !important;
+    contain: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Unlock scroll/height containers without stripping card borders, padding, or backgrounds */
+  div[class*="h-screen"],
+  div[class*="max-h-"],
+  div[class*="overflow-hidden"],
+  div[class*="overflow-y-auto"],
+  div[class*="overflow-x-auto"],
+  .overflow-x-auto,
+  .overflow-y-auto {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Expand max-width constraints so printable sheets use full page width without collapsing */
+  [class*="max-w-"] {
+    max-width: 100% !important;
+  }
+
+  /* Hide app navigation chrome, sidebars, headers and interactive buttons */
+  aside,
+  header,
+  nav,
+  button,
+  .print\:hidden,
+  [data-testid="print-hidden"] {
+    display: none !important;
+  }
+
+  /* Unwrap fixed modal overlays so dialog content flows naturally from the top of page 1,
+     EXCLUDING the print watermark */
+  div[class*="fixed"][class*="inset-0"]:not(.print-watermark):not([data-watermark="true"]) {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+  }
+
+  /* Adapt modal containers for full-page print when triggered from inside dialogs */
+  [role="dialog"] {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: transparent !important;
+    transform: none !important;
+    filter: none !important;
+  }
+
+  /* Repeat watermark on the background of EVERY printed page via CSS Paged Media position: fixed */
+  .print-watermark,
+  div.print-watermark,
+  div[data-watermark="true"] {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    pointer-events: none !important;
+    user-select: none !important;
+    /* Keep the watermark above opaque document/card backgrounds so it remains
+       visible across printed content, not only in the gaps between blocks. */
+    z-index: 1000 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+    page-break-before: avoid !important;
+    page-break-after: avoid !important;
+    break-before: avoid !important;
+    break-after: avoid !important;
+  }
+
+  .print-watermark .watermark-image,
+  div[data-watermark="true"] .watermark-image {
+    max-width: 480px !important;
+    max-height: 480px !important;
+    width: auto !important;
+    height: auto !important;
+    object-fit: contain !important;
+    opacity: 0.085 !important;
+    display: block !important;
+    margin: auto !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .print-watermark .watermark-image.grayscale,
+  div[data-watermark="true"] .watermark-image.grayscale {
+    filter: grayscale(100%) !important;
+    -webkit-filter: grayscale(100%) !important;
+  }
+
+  .print-watermark .watermark-text,
+  div[data-watermark="true"] .watermark-text {
+    font-size: 3.5rem !important;
+    font-weight: 900 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.15em !important;
+    color: rgba(15, 23, 42, 0.05) !important;
+    transform: rotate(-30deg) !important;
+    user-select: none !important;
+    white-space: nowrap !important;
+    display: block !important;
+    margin: auto !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Printable containers must not trap fixed positioning or occlude the background watermark */
+  .print-portrait,
+  .print-landscape,
+  .print-portrait > div:not(.print-watermark):not([data-watermark="true"]),
+  .print-landscape > div:not(.print-watermark):not([data-watermark="true"]) {
+    position: static !important;
+    overflow: visible !important;
+    background-color: transparent !important;
+    transform: none !important;
+    filter: none !important;
+  }
+
+  .print-landscape table,
+  .print-portrait table,
+  .print-landscape tbody,
+  .print-portrait tbody,
+  .print-landscape tr,
+  .print-portrait tr,
+  .print-landscape td,
+  .print-portrait td {
+    background-color: transparent !important;
+  }
+
+  /* Ensure tables use full width, never collapse or clip columns */
+  table {
+    width: 100% !important;
+    max-width: 100% !important;
+    table-layout: auto !important;
+    border-collapse: collapse !important;
+  }
+
+  /* Preserve table borders and colors */
+  table, th, td {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    word-break: normal !important;
+    overflow-wrap: break-word !important;
+  }
+
+  /* Subtle transparent background for table headers so watermark is not completely masked */
+  thead {
+    display: table-header-group !important;
+  }
+
+  thead tr,
+  thead th {
+    background-color: rgba(241, 245, 249, 0.75) !important;
+  }
+
+  /* Protect rows and cards against page-break severance */
+  tr,
+  .print-avoid-break,
+  .break-inside-avoid {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Do NOT assign named `page:` properties to .print-landscape or .print-portrait,
+     because transitioning from the unnamed root @page to a named @page forces Chromium
+     to emit a leading blank/watermark-only Page 1 before the report content! */
+  .print-portrait,
+  .print-landscape {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Strict 1-Page A4 Landscape Rule for Individual Boletim:
+     Fills the single A4 landscape sheet (194mm) so cards expand and the footer stays pinned to the bottom */
+  div.boletim-single-page,
+  .boletim-single-page {
+    width: 100% !important;
+    height: 194mm !important;
+    min-height: 194mm !important;
+    max-height: 194mm !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    page-break-before: avoid !important;
+    break-before: avoid !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  /* Class Batch Boletim Compilation (Strictly 1 Page per Student, Zero Blank Pages) */
+  .class-batch-boletim-document {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  div.class-batch-student-page,
+  .class-batch-student-page {
+    width: 100% !important;
+    height: 194mm !important;
+    min-height: 194mm !important;
+    max-height: 194mm !important;
+    overflow: hidden !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  div.class-batch-page-break,
+  .class-batch-page-break {
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+
+  div.class-batch-last-page,
+  .class-batch-last-page,
+  div.class-batch-student-page:last-child,
+  .class-batch-student-page:last-child {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+}

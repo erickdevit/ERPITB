@@ -1,0 +1,56 @@
+import { readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+import { isReplacementCompletion } from '../src/sync';
+
+describe('sync contract', () => {
+  it('documents an idempotent operation envelope', () => {
+    const operation = {
+      operationId: crypto.randomUUID(),
+      entity: 'attendance_records',
+      action: 'upsert',
+      id: crypto.randomUUID(),
+      baseVersion: 0,
+      updatedAt: new Date().toISOString(),
+      data: { status: 'P' },
+    } as const;
+    expect(operation.operationId).toHaveLength(36);
+    expect(operation.baseVersion).toBe(0);
+  });
+
+  it('keeps the mandatory management and attendance fields in the schema', () => {
+    const schema = readFileSync(new URL('../src/schema.sql', import.meta.url), 'utf8');
+    expect(schema).toContain('birth_date TEXT');
+    expect(schema).toContain("status IN ('P', 'F', 'J', 'A', 'R', 'RC')");
+    expect(schema).toContain('completed_at TEXT');
+    expect(schema).toContain('CREATE TABLE IF NOT EXISTS class_notes');
+    expect(schema).toContain('CREATE TABLE IF NOT EXISTS replacements');
+    expect(schema).toContain('attendance_record_id TEXT NOT NULL UNIQUE');
+    expect(schema).toContain('UNIQUE(class_id, student_id, date)');
+    expect(schema).toContain('uq_enrollments_student_active');
+  });
+
+  it('repairs the conflict table foreign key after rebuilding attendance records', () => {
+    const migration = readFileSync(new URL('../migrations/0006_fix_sync_conflicts_foreign_key.sql', import.meta.url), 'utf8');
+    expect(migration).toContain('attendance_record_id TEXT REFERENCES attendance_records(id)');
+    expect(migration).toContain('INSERT INTO sync_conflicts_v2');
+    expect(migration).not.toContain('attendance_records_old');
+  });
+
+  it('enforces a single active enrollment while preserving enrollment history', () => {
+    const migration = readFileSync(new URL('../migrations/0008_one_active_enrollment_per_student.sql', import.meta.url), 'utf8');
+    expect(migration).toContain('CREATE UNIQUE INDEX IF NOT EXISTS uq_enrollments_student_active');
+    expect(migration).toContain("WHERE status = 'ativa' AND deleted_at IS NULL");
+    expect(migration).not.toContain('DELETE FROM enrollments');
+  });
+
+  it('recognizes only the R to RC transition with a valid completion timestamp', () => {
+    const operation = {
+      operationId: 'operation-1', entity: 'attendance_records', action: 'upsert', id: 'attendance-1',
+      baseVersion: 2, updatedAt: '2026-08-15T12:00:00Z',
+      data: { status: 'RC', completed_at: '2026-08-15T12:00:00Z' },
+    } as const;
+    expect(isReplacementCompletion(operation, { id: 'attendance-1', status: 'R' })).toBe(true);
+    expect(isReplacementCompletion({ ...operation, data: { status: 'RC', completed_at: 'inválido' } }, { id: 'attendance-1', status: 'R' })).toBe(false);
+    expect(isReplacementCompletion(operation, { id: 'attendance-1', status: 'F' })).toBe(false);
+  });
+});

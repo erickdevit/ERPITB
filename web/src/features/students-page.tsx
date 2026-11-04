@@ -1,0 +1,746 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Plus,
+  Search,
+  Edit2,
+  Trash2,
+  UserX,
+  GraduationCap,
+  Calendar,
+  Phone,
+  Filter,
+  Info,
+  Share2,
+  ExternalLink,
+  Check,
+  FileText,
+  X,
+} from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { useApp } from '../app-context';
+import { DateField, PageDialog, Section, SelectField } from '../components';
+import { formatDate, parseBrazilDate, todayInSaoPaulo } from '../lib/date';
+import { buildUnifiedBoletimData } from '../lib/boletim';
+import { StudentReportCardView } from './reports/student-report-card-view';
+import { useEntity } from '../lib/use-entity';
+import type { LocalRecord } from '../types';
+import { ClassFilterFields, filterClassesByAttributes } from './class-filter-controls';
+import {
+  cleanClassName,
+  extractClassNumber,
+  formatClassDisplayName,
+} from './classes-model';
+import {
+  buildStudentViews,
+  classesVisibleToSession,
+  enrollmentStatusLabel,
+  filterStudentViews,
+  permissionsForStudents,
+  type StudentDraft,
+  type StudentView,
+  validateStudentDraft,
+} from './students-model';
+
+const identifier = () => crypto.randomUUID();
+const text = (record: Record<string, unknown> | undefined, key: string) => String(record?.[key] ?? '');
+const active = (record: LocalRecord) => !record.deleted_at && record.active !== 0 && record.active !== false;
+
+const emptyDraft = (initialClassId = ''): StudentDraft => ({
+  name: '',
+  registrationNumber: '',
+  cpf: '',
+  contact: '',
+  birthDate: '',
+  classId: initialClassId,
+  status: 'ativa',
+});
+
+function RateChip({ row }: { row: StudentView }) {
+  if (row.attendanceRate === null || row.attendanceRate === undefined) {
+    return (
+      <span className="px-2 py-0.5 text-[11px] font-bold rounded-md bg-slate-100 text-slate-500 border border-slate-200">
+        Sem aulas
+      </span>
+    );
+  }
+  const isGood = row.attendanceRate >= 75;
+  return (
+    <span
+      className={`px-2 py-0.5 text-[11px] font-bold rounded-md border ${
+        isGood
+          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+          : 'bg-rose-50 text-rose-700 border-rose-200'
+      }`}
+    >
+      {row.attendanceRate}%
+    </span>
+  );
+}
+
+export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) {
+  const { store, sync, session, api, branding } = useApp();
+  const students = useEntity('students');
+  const enrollments = useEntity('enrollments');
+  const classes = useEntity('classes');
+  const classTeachers = useEntity('class_teachers');
+  const attendance = useEntity('attendance_records');
+  const courses = useEntity('courses');
+  const gradeTables = useEntity('grade_tables');
+  const gradeItems = useEntity('grade_items');
+  const studentGrades = useEntity('student_grades');
+
+  const [search, setSearch] = useState('');
+  const [filterClassId, setFilterClassId] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterWeekDay, setFilterWeekDay] = useState('');
+  const [filterShift, setFilterShift] = useState('');
+  const [filterLabId, setFilterLabId] = useState('');
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string>();
+  const [draft, setDraft] = useState<StudentDraft>(() => emptyDraft());
+  const [formError, setFormError] = useState<string>();
+  const [copiedId, setCopiedId] = useState<string>();
+  const [selectedBoletimStudentId, setSelectedBoletimStudentId] = useState<string | null>(null);
+
+  const boletimData = useMemo(() => {
+    if (!selectedBoletimStudentId) return null;
+    return buildUnifiedBoletimData({
+      studentId: selectedBoletimStudentId,
+      classId: filterClassId || undefined,
+      students: students.items ?? [],
+      enrollments: enrollments.items ?? [],
+      classes: classes.items ?? [],
+      courses: courses.items ?? [],
+      attendanceRecords: attendance.items ?? [],
+      gradeTables: gradeTables.items ?? [],
+      gradeItems: gradeItems.items ?? [],
+      studentGrades: studentGrades.items ?? [],
+    });
+  }, [
+    selectedBoletimStudentId,
+    filterClassId,
+    students.items,
+    enrollments.items,
+    classes.items,
+    courses.items,
+    attendance.items,
+    gradeTables.items,
+    gradeItems.items,
+    studentGrades.items,
+  ]);
+
+  const permissions = permissionsForStudents(session.role);
+
+  const visibleClasses = useMemo(
+    () => classesVisibleToSession(classes.items ?? [], classTeachers.items ?? [], session),
+    [classes.items, classTeachers.items, session],
+  );
+
+  const filteredVisibleClasses = useMemo(() => {
+    return filterClassesByAttributes(visibleClasses, {
+      weekDay: filterWeekDay,
+      shift: filterShift,
+      laboratoryId: filterLabId,
+    });
+  }, [visibleClasses, filterWeekDay, filterShift, filterLabId]);
+
+  const filteredClassIds = useMemo(() => {
+    if (!filterWeekDay && !filterShift && !filterLabId) return null;
+    return new Set(filteredVisibleClasses.map((c) => c.id));
+  }, [filterWeekDay, filterShift, filterLabId, filteredVisibleClasses]);
+
+  const rows = useMemo(() => {
+    const raw = buildStudentViews({
+      students: students.items ?? [],
+      enrollments: enrollments.items ?? [],
+      classes: classes.items ?? [],
+      assignments: classTeachers.items ?? [],
+      attendance: attendance.items ?? [],
+      session,
+    });
+    let filtered = filterStudentViews(raw, {
+      query: search,
+      classId: filterClassId,
+      teacherId: '',
+      performance: '',
+      enrollmentStatus: filterStatus === 'all' ? '' : filterStatus,
+    });
+    if (filteredClassIds && !filterClassId) {
+      filtered = filtered.filter((s) => s.classId && filteredClassIds.has(s.classId));
+    }
+    return filtered;
+  }, [students.items, enrollments.items, classes.items, classTeachers.items, attendance.items, session, search, filterClassId, filterStatus, filteredClassIds]);
+
+  const classOptions = useMemo(
+    () => [
+      { value: '', label: 'Selecione uma turma' },
+      ...(visibleClasses ?? []).map((c) => {
+        const rawName = text(c, 'name');
+        const num = c.class_number !== undefined && c.class_number !== null
+          ? Number(c.class_number)
+          : extractClassNumber(rawName);
+        const clean = cleanClassName(rawName);
+        return { value: c.id, label: formatClassDisplayName(num, clean) };
+      }),
+    ],
+    [visibleClasses],
+  );
+
+  const openCreate = () => {
+    setEditingId(undefined);
+    setDraft(emptyDraft(visibleClasses[0]?.id ?? ''));
+    setFormError(undefined);
+    setDialogOpen(true);
+  };
+
+  const openEdit = (row: StudentView) => {
+    setEditingId(row.id);
+    const existingEnr = (enrollments.items ?? []).find(
+      (e) => !e.deleted_at && e.student_id === row.id && (e.status === 'ativa' || e.status === 'trancada'),
+    );
+    const currentStatus = (existingEnr?.status === 'trancada' || row.enrollmentStatus === 'trancada') ? 'trancada' : 'ativa';
+    setDraft({
+      name: row.name,
+      registrationNumber: row.registrationNumber,
+      cpf: row.cpf || '',
+      contact: row.contact,
+      birthDate: formatDate(row.birthDate),
+      classId: existingEnr ? String(existingEnr.class_id) : row.classId,
+      status: currentStatus,
+    });
+    setFormError(undefined);
+    setDialogOpen(true);
+  };
+
+  const copyPublicLink = (row: StudentView) => {
+    const code = row.registrationNumber || row.id;
+    const url = `${window.location.origin}/matricula/${encodeURIComponent(code)}`;
+    navigator.clipboard.writeText(url);
+    setCopiedId(row.id);
+    setTimeout(() => setCopiedId(undefined), 2000);
+  };
+
+  const saveStudent = async () => {
+    const availableClassIds = new Set(visibleClasses.map((c) => c.id));
+    const error = validateStudentDraft(draft, availableClassIds);
+    if (error) {
+      setFormError(error);
+      return;
+    }
+
+    try {
+      let birthDateIso = '';
+      if (draft.birthDate) {
+        birthDateIso = parseBrazilDate(draft.birthDate, { allowFuture: false }) ?? '';
+      }
+
+      if (editingId) {
+        const currentStudent = (students.items ?? []).find((s) => s.id === editingId);
+        await store.mutate('students', {
+          id: editingId,
+          name: draft.name.trim(),
+          registration_number: draft.registrationNumber.trim() || null,
+          cpf: draft.cpf.trim() || null,
+          birth_date: birthDateIso || null,
+          contact: draft.contact.trim() || null,
+          active: 1,
+          sync_version: currentStudent?.sync_version !== undefined ? Number(currentStudent.sync_version) : undefined,
+        });
+
+        if (draft.classId && store.moveStudent) {
+          await store.moveStudent(editingId, draft.classId);
+        }
+
+        const targetStatus = draft.status || 'ativa';
+        const existingEnr = (enrollments.items ?? []).find(
+          (e) => !e.deleted_at && e.student_id === editingId && (e.status === 'ativa' || e.status === 'trancada'),
+        );
+        if (existingEnr && existingEnr.status !== targetStatus) {
+          const today = new Date().toISOString().slice(0, 10);
+          await store.mutate('enrollments', {
+            id: existingEnr.id,
+            class_id: existingEnr.class_id,
+            student_id: existingEnr.student_id,
+            status: targetStatus,
+            left_at: targetStatus === 'trancada' ? today : null,
+            sync_version: existingEnr.sync_version !== undefined ? Number(existingEnr.sync_version) : undefined,
+          });
+        }
+      } else {
+        const studentId = identifier();
+        const studentRecord = {
+          id: studentId,
+          name: draft.name.trim(),
+          registration_number: draft.registrationNumber.trim() || null,
+          cpf: draft.cpf.trim() || null,
+          birth_date: birthDateIso || null,
+          contact: draft.contact.trim() || null,
+          active: 1,
+        };
+
+        if (draft.classId && store.mutateBatch) {
+          await store.mutateBatch([
+            { entity: 'students', data: studentRecord, action: 'upsert' },
+            {
+              entity: 'enrollments',
+              data: {
+                id: identifier(),
+                student_id: studentId,
+                class_id: draft.classId,
+                status: draft.status || 'ativa',
+              },
+              action: 'upsert',
+            },
+          ]);
+        } else {
+          await store.mutate('students', studentRecord);
+          if (draft.classId && store.moveStudent) {
+            await store.moveStudent(studentId, draft.classId);
+          }
+        }
+      }
+
+      await Promise.all([students.reload(), enrollments.reload()]);
+      setDialogOpen(false);
+      void sync();
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : 'Erro ao salvar aluno.');
+    }
+  };
+
+  const [confirmAction, setConfirmAction] = useState<{
+    type: 'inactivate' | 'delete';
+    student: StudentView;
+  } | null>(null);
+
+  const inactivateStudent = (row: StudentView) => {
+    setConfirmAction({ type: 'inactivate', student: row });
+  };
+
+  const deleteStudent = (row: StudentView) => {
+    setConfirmAction({ type: 'delete', student: row });
+  };
+
+  const executeConfirmedStudentAction = async () => {
+    if (!confirmAction) return;
+    const { type, student: row } = confirmAction;
+    setConfirmAction(null);
+    try {
+      if (type === 'inactivate') {
+        await store.mutate('students', { id: row.id, active: 0, sync_version: row.record?.sync_version });
+      } else {
+        await store.mutate('students', { id: row.id, sync_version: row.record?.sync_version }, 'delete');
+      }
+      await students.reload();
+      void sync();
+    } catch (e) {
+      setFormError(
+        e instanceof Error
+          ? e.message
+          : type === 'inactivate'
+            ? 'Erro ao inativar aluno.'
+            : 'Erro ao excluir aluno.',
+      );
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-3.5 text-left">
+      <div className={`flex flex-col gap-3.5 ${selectedBoletimStudentId ? 'print:hidden' : ''}`}>
+        {session.role === 'professor' && (
+          <div className="flex items-center gap-2.5 p-3 rounded-xl bg-sky-50 border border-sky-200 text-xs text-sky-800 print:hidden">
+            <Info className="w-4 h-4 text-sky-600 shrink-0" />
+            <span>Exibindo somente os alunos das turmas atribuídas a você.</span>
+          </div>
+        )}
+
+        {/* Filter Bar */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs space-y-2.5 print:hidden">
+          {/* Class Filters: Dia da semana, Turno, Lab */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pb-2.5 border-b border-slate-100">
+            <ClassFilterFields
+              weekDay={filterWeekDay}
+              onWeekDayChange={setFilterWeekDay}
+              shift={filterShift}
+              onShiftChange={setFilterShift}
+              laboratoryId={filterLabId}
+              onLaboratoryIdChange={setFilterLabId}
+            />
+          </div>
+
+          <div className="flex flex-col lg:flex-row lg:items-end gap-2.5 sm:gap-3">
+            <div className="flex-1 min-w-[200px]">
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="search-student-page" className="text-xs font-medium text-slate-700">
+                  Buscar aluno
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <Search className="w-4 h-4" />
+                  </div>
+                  <input
+                    id="search-student-page"
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Nome ou matrícula do aluno..."
+                    className="w-full pl-9 pr-3 py-2 text-sm text-slate-900 bg-white border border-slate-200/90 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all placeholder:text-slate-400"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="w-full lg:w-48">
+              <SelectField
+                label="Turma"
+                value={filterClassId}
+                onChange={setFilterClassId}
+                options={[
+                  { value: '', label: 'Todas as turmas' },
+                  ...filteredVisibleClasses.map((c) => {
+                    const rawName = text(c, 'name');
+                    const num = c.class_number !== undefined && c.class_number !== null
+                      ? Number(c.class_number)
+                      : extractClassNumber(rawName);
+                    const clean = cleanClassName(rawName);
+                    return { value: c.id, label: formatClassDisplayName(num, clean) };
+                  }),
+                ]}
+              />
+            </div>
+
+          <div className="w-full lg:w-44">
+            <SelectField
+              label="Situação da matrícula"
+              value={filterStatus}
+              onChange={setFilterStatus}
+              options={[
+                { value: 'all', label: 'Todas' },
+                { value: 'ativa', label: 'Ativas' },
+                { value: 'trancada', label: 'Trancadas' },
+                { value: 'concluida', label: 'Concluídas' },
+              ]}
+            />
+          </div>
+
+          {permissions.canCreate && (
+            <div className="shrink-0 pt-1 lg:pt-0">
+              <button
+                type="button"
+                onClick={openCreate}
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-slate-950 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer w-full sm:w-auto h-[38px]"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Novo aluno</span>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Students Table */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xs overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50/75 text-slate-500 uppercase tracking-wider font-semibold text-[11px]">
+                <th className="py-3 px-4 hidden sm:table-cell">Matrícula</th>
+                <th className="py-3 px-4">Nome</th>
+                <th className="py-3 px-4">Turma</th>
+                <th className="py-3 px-4 hidden md:table-cell">Nascimento</th>
+                <th className="py-3 px-4 hidden lg:table-cell">Cadastro</th>
+                <th className="py-3 px-4 hidden md:table-cell">Contato</th>
+                <th className="py-3 px-4">Situação</th>
+                <th className="py-3 px-4 hidden sm:table-cell">Taxa</th>
+                <th className="py-3 px-4 text-right print:hidden">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+              {rows.map((row) => (
+                <tr key={row.key} className="hover:bg-slate-50/75 transition-colors">
+                  <td className="py-3 px-4 font-semibold text-slate-500 hidden sm:table-cell">{row.registrationNumber || '—'}</td>
+                  <td className="py-3 px-4">
+                    <Link
+                      to={`/alunos/${row.id}`}
+                      className="font-bold text-slate-900 hover:text-blue-600 hover:underline transition-colors"
+                    >
+                      {row.name}
+                    </Link>
+                    {row.registrationNumber && (
+                      <span className="block sm:hidden text-[10px] text-slate-400 font-mono">
+                        RA: {row.registrationNumber}
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-3 px-4 text-slate-600 font-semibold">{row.className}</td>
+                  <td className="py-3 px-4 text-slate-500 hidden md:table-cell">{formatDate(row.birthDate) || '—'}</td>
+                  <td className="py-3 px-4 text-slate-500 hidden lg:table-cell">{formatDate(row.registrationDate) || '—'}</td>
+                  <td className="py-3 px-4 text-slate-500 hidden md:table-cell">{row.contact || '—'}</td>
+                  <td className="py-3 px-4">
+                    <span
+                      className={`px-2 py-0.5 text-[10px] font-bold rounded-md border ${
+                        row.enrollmentStatus === 'ativa'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-slate-100 text-slate-600 border-slate-200'
+                      }`}
+                    >
+                      {enrollmentStatusLabel(row.enrollmentStatus)}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 hidden sm:table-cell">
+                    <RateChip row={row} />
+                  </td>
+                  <td className="py-3 px-4 text-right print:hidden">
+                    <div className="inline-flex items-center gap-1 justify-end">
+                      {/* Copy Public Link */}
+                      <button
+                        type="button"
+                        aria-label={`Copiar link público de ${row.name}`}
+                        onClick={() => copyPublicLink(row)}
+                        title={copiedId === row.id ? 'Link público copiado!' : 'Copiar link público do aluno'}
+                        className={`p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg transition-colors cursor-pointer ${
+                          copiedId === row.id
+                            ? 'text-emerald-600 bg-emerald-50'
+                            : 'text-slate-400 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
+                      >
+                        {copiedId === row.id ? <Check className="w-3.5 h-3.5" /> : <Share2 className="w-3.5 h-3.5" />}
+                      </button>
+
+                      {/* Open Public Portal in New Tab */}
+                      <a
+                        href={`/matricula/${encodeURIComponent(row.registrationNumber || row.id)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Abrir portal público de ${row.name}`}
+                        title="Abrir portal público em nova aba"
+                        className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+
+                      {/* Emitir Boletim Escolar */}
+                      <button
+                        type="button"
+                        aria-label={`Emitir Boletim de ${row.name}`}
+                        onClick={() => setSelectedBoletimStudentId(row.id)}
+                        title="Emitir Boletim Escolar"
+                        className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-colors cursor-pointer"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                      </button>
+
+                      {permissions.canEdit && (
+                        <button
+                          type="button"
+                          aria-label={`Editar ${row.name}`}
+                          onClick={() => openEdit(row)}
+                          title="Editar aluno"
+                          className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {permissions.canInactivate && (
+                        <button
+                          type="button"
+                          aria-label={`Inativar ${row.name}`}
+                          onClick={() => inactivateStudent(row)}
+                          title="Inativar aluno"
+                          className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
+                        >
+                          <UserX className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {permissions.canDelete && (
+                        <button
+                          type="button"
+                          aria-label={`Excluir ${row.name}`}
+                          onClick={() => deleteStudent(row)}
+                          title="Excluir cadastro"
+                          className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {!rows.length && (
+                <tr>
+                  <td colSpan={9} className="py-8 text-center text-slate-400 font-medium">
+                    Nenhum aluno encontrado.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      </div>
+
+      {/* Create / Edit Modal */}
+      <PageDialog
+        open={dialogOpen}
+        title={editingId ? 'Editar aluno' : 'Novo aluno'}
+        onClose={() => setDialogOpen(false)}
+        onSave={saveStudent}
+      >
+        {formError && (
+          <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800">
+            {formError}
+          </div>
+        )}
+
+        <div className="flex flex-col gap-1.5 text-left">
+          <label htmlFor="student-name-input" className="text-xs font-semibold text-slate-700">
+            Nome completo <span className="text-rose-500">*</span>
+          </label>
+          <input
+            id="student-name-input"
+            type="text"
+            required
+            value={draft.name}
+            onChange={(e) => setDraft((cur) => ({ ...cur, name: e.target.value }))}
+            placeholder="Nome do aluno"
+            className="w-full px-3 py-2 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5 text-left">
+          <label htmlFor="student-reg-input" className="text-xs font-semibold text-slate-700">
+            Matrícula <span className="text-rose-500">*</span>
+          </label>
+          <input
+            id="student-reg-input"
+            type="text"
+            required
+            value={draft.registrationNumber}
+            onChange={(e) => setDraft((cur) => ({ ...cur, registrationNumber: e.target.value }))}
+            placeholder="Ex: 2026001"
+            className="w-full px-3 py-2 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <SelectField
+            label="Turma de matrícula"
+            value={draft.classId}
+            onChange={(val) => setDraft((cur) => ({ ...cur, classId: val }))}
+            options={classOptions}
+          />
+          <SelectField
+            label="Situação da matrícula"
+            value={draft.status || 'ativa'}
+            onChange={(val) => setDraft((cur) => ({ ...cur, status: val as 'ativa' | 'trancada' }))}
+            options={[
+              { value: 'ativa', label: 'Ativa' },
+              { value: 'trancada', label: 'Trancada' },
+            ]}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <DateField
+            label="Data de nascimento"
+            value={draft.birthDate}
+            onChange={(val) => setDraft((cur) => ({ ...cur, birthDate: val }))}
+          />
+          <div className="flex flex-col gap-1.5 text-left">
+            <label htmlFor="student-contact-input" className="text-xs font-semibold text-slate-700">
+              Telefone / Contato
+            </label>
+            <input
+              id="student-contact-input"
+              type="text"
+              value={draft.contact}
+              onChange={(e) => setDraft((cur) => ({ ...cur, contact: e.target.value }))}
+              placeholder="(00) 00000-0000"
+              className="w-full px-3 py-2 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-transparent transition-all"
+            />
+          </div>
+        </div>
+      </PageDialog>
+
+      {/* Confirm Inactivate / Delete Modal */}
+      {confirmAction && (
+        <PageDialog
+          open={Boolean(confirmAction)}
+          title={
+            confirmAction.type === 'inactivate'
+              ? 'Inativar cadastro de aluno'
+              : 'Excluir cadastro de aluno'
+          }
+          onClose={() => setConfirmAction(null)}
+          onSave={executeConfirmedStudentAction}
+          saveText={
+            confirmAction.type === 'inactivate'
+              ? 'Confirmar inativação'
+              : 'Confirmar exclusão'
+          }
+        >
+          <div className="flex flex-col gap-3 text-left text-xs text-slate-600 leading-relaxed">
+            <p className="font-semibold text-slate-900 text-sm">
+              {confirmAction.student.name}
+            </p>
+            {confirmAction.type === 'inactivate' ? (
+              <p>
+                Deseja realmente inativar o cadastro do aluno{' '}
+                <strong className="text-slate-900">&ldquo;{confirmAction.student.name}&rdquo;</strong>?
+                O histórico escolar, frequência e notas serão preservados.
+              </p>
+            ) : (
+              <p>
+                Deseja realmente excluir o cadastro do aluno{' '}
+                <strong className="text-slate-900">&ldquo;{confirmAction.student.name}&rdquo;</strong>?
+                Esta ação arquivará o registro do aluno no sistema.
+              </p>
+            )}
+          </div>
+        </PageDialog>
+      )}
+
+      {selectedBoletimStudentId && boletimData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 print:p-0">
+          <div
+            className="fixed inset-0 bg-slate-950/50 backdrop-blur-xs transition-opacity print:hidden"
+            onClick={() => setSelectedBoletimStudentId(null)}
+            aria-hidden="true"
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Boletim Escolar de ${boletimData.student.name}`}
+            className="relative w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-2xl p-4 sm:p-6 z-10 transition-all text-left print:max-w-none print:max-h-none print:overflow-visible print:p-0 print:border-none print:shadow-none"
+          >
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 print:hidden">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-sky-600" />
+                <h2 className="text-sm font-bold text-slate-900 tracking-tight">
+                  Emissão de Boletim Escolar
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedBoletimStudentId(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                aria-label="Fechar"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <StudentReportCardView
+              data={boletimData}
+              logoUrl={branding?.loginLogoUrl}
+              watermarkLogoUrl={branding?.printWatermarkLogoUrl}
+              watermarkGrayscale={branding?.printWatermarkGrayscale ?? true}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

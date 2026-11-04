@@ -1,0 +1,241 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
+import { ApiClient, ApiError, OfflineError } from './lib/api';
+import { LocalStore } from './lib/db';
+import { applyBrandDesignTokens } from './lib/design-tokens';
+import { drainLegacyClientStorage } from './lib/migration-drain';
+import { clearEntityMemoryCache, notifyEntityChanged } from './lib/use-entity';
+import { useServerEvents } from './lib/use-events';
+import type { BrandingSettings, UserSession } from './types';
+
+interface AppState {
+  session: UserSession;
+  store: LocalStore;
+  api: ApiClient;
+  branding?: BrandingSettings;
+  setBranding?: (branding: BrandingSettings) => void;
+  sync: () => Promise<void>;
+  syncState: 'idle' | 'syncing' | 'offline' | 'warning' | 'error';
+  message?: string;
+  refresh: number;
+  logout: () => Promise<void>;
+}
+
+const Context = createContext<AppState | null>(null);
+
+export const useApp = () => {
+  const value = useContext(Context);
+  if (!value) throw new Error('O contexto da aplicação não está disponível.');
+  return value;
+};
+
+export function ApplicationProvider({
+  initialSession,
+  initialStore,
+  onSignedOut,
+  children,
+}: PropsWithChildren<{
+  initialSession: UserSession;
+  initialStore: LocalStore;
+  onSignedOut: (notice?: string) => void;
+}>) {
+  const [session, setSession] = useState(initialSession);
+  const [store] = useState(initialStore);
+  const [branding, setBranding] = useState<BrandingSettings | undefined>(undefined);
+  const [syncState, setSyncState] = useState<AppState['syncState']>('idle');
+  const [message, setMessage] = useState<string>();
+  const [refresh, setRefresh] = useState(0);
+  const syncing = useRef(false);
+
+  const api = useMemo(
+    () =>
+      new ApiClient(
+        () => session,
+        async (next) => {
+          setSession({ ...next, offline: false });
+          if (store && typeof store.saveSession === 'function') {
+            await store.saveSession({ ...next, offline: false });
+          }
+        },
+      ),
+    [session, store],
+  );
+
+  useEffect(() => {
+    if (store && typeof store.setApi === 'function') {
+      store.setApi(api);
+    }
+  }, [store, api]);
+
+  // Apply server-side branding configuration dynamically
+  useEffect(() => {
+    void api
+      .getBranding()
+      .then((b) => {
+        if (b) {
+          setBranding(b);
+          applyBrandDesignTokens(b.accentColor || '#0284c7', b.appName || 'opschool');
+        }
+      })
+      .catch(() => {});
+  }, [api]);
+
+  useServerEvents({
+    enabled: Boolean(session?.accessToken) && typeof EventSource !== 'undefined' && !(import.meta as any).env?.VITEST,
+    token: session?.accessToken,
+    currentUserId: session?.id,
+    onEntityChanged: (entityName, entities) => {
+      const targets = entities && entities.length > 0 ? entities : entityName ? [entityName] : undefined;
+      if (targets && targets.length > 0) {
+        notifyEntityChanged(targets);
+      } else {
+        clearEntityMemoryCache();
+        setRefresh((value) => value + 1);
+      }
+    },
+    onBrandingUpdated: (next) => {
+      setBranding((prev) => {
+        const merged = { ...(prev ?? { appName: 'opschool', accentColor: '#0284c7', showHeaderLogoLeft: true, showHeaderLogoRight: true }), ...next } as BrandingSettings;
+        applyBrandDesignTokens(merged.accentColor || '#0284c7', merged.appName || 'opschool');
+        return merged;
+      });
+    },
+    onSessionRevoked: () => {
+      if (store && typeof store.clearSession === 'function') {
+        void store.clearSession();
+      }
+      onSignedOut('Sua sessão foi encerrada pelo administrador.');
+    },
+  });
+
+  const sync = useCallback(async () => {
+    if (syncing.current) return;
+    syncing.current = true;
+    setSyncState('syncing');
+    try {
+      const res = await drainLegacyClientStorage(api);
+      if (res?.drained && res.count > 0) {
+        clearEntityMemoryCache();
+        setRefresh((value) => value + 1);
+      }
+      setSyncState('idle');
+      setMessage(undefined);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        if (store && typeof store.clearSession === 'function') {
+          await store.clearSession();
+        }
+        onSignedOut('Sua sessão expirou. Entre novamente.');
+        return;
+      }
+      setSyncState('idle');
+    } finally {
+      syncing.current = false;
+    }
+  }, [api, onSignedOut, store]);
+
+  useEffect(() => {
+    void sync();
+    const online = () => void sync();
+    window.addEventListener('online', online);
+    return () => {
+      window.removeEventListener('online', online);
+    };
+  }, [sync]);
+
+  const loggingOut = useRef(false);
+  const logout = useCallback(async () => {
+    if (loggingOut.current) return;
+    loggingOut.current = true;
+    try {
+      await api.logout(session.refreshToken);
+    } catch {
+      // Continue logout locally even if network fails
+    }
+    clearEntityMemoryCache();
+    if (store && typeof store.clearSession === 'function') {
+      await store.clearSession();
+    }
+    onSignedOut();
+  }, [api, onSignedOut, session.refreshToken, store]);
+
+  useEffect(() => {
+    api.setOnUnauthorized(() => {
+      void logout();
+    });
+  }, [api, logout]);
+
+  return (
+    <Context.Provider value={{ session, store, api, branding, setBranding, sync, syncState, message, refresh, logout }}>
+      {children}
+    </Context.Provider>
+  );
+}
+
+export function useBoot() {
+  const [state, setState] = useState<{
+    loading: boolean;
+    session?: UserSession;
+    store?: LocalStore;
+    error?: string;
+  }>({ loading: true });
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const restored = await LocalStore.restore();
+        if (!alive) return;
+        if (!restored) {
+          setState({ loading: false });
+          return;
+        }
+
+        const api = new ApiClient(
+          () => restored.session,
+          async (next) => {
+            restored.session = next;
+            await restored.store.saveSession(next);
+          },
+        );
+
+        let refreshFailedWith401 = false;
+        if (restored.session.refreshToken) {
+          try {
+            const success = await api.refresh();
+            if (!success) {
+              refreshFailedWith401 = true;
+            }
+          } catch (err) {
+            if (err instanceof ApiError && err.status === 401) {
+              refreshFailedWith401 = true;
+            }
+          }
+        }
+
+        if (refreshFailedWith401) {
+          const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+          if (isOnline) {
+            await restored.store.clearSession();
+            if (alive) {
+              setState({
+                loading: false,
+                error: 'Sua sessão expirou. Entre novamente.',
+              });
+            }
+            return;
+          }
+        }
+
+        if (alive) setState({ loading: false, ...restored });
+      } catch {
+        if (alive) setState({ loading: false });
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  return state;
+}

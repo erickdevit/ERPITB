@@ -1,0 +1,82 @@
+stages:
+  - test
+  - build
+  - release
+
+variables:
+  NODE_VERSION: "22"
+
+# ==========================================
+# 1. TEST STAGE
+# ==========================================
+
+test:backend:
+  stage: test
+  image: node:22-alpine
+  before_script:
+    - cd backend
+    - npm ci
+  script:
+    - npm run typecheck
+    - npm test
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_TAG =~ /^v/'
+
+test:web:
+  stage: test
+  image: node:22-alpine
+  before_script:
+    - cd web
+    - npm ci
+  script:
+    - npx tsc -b
+    - npm test
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_TAG =~ /^v/'
+
+# ==========================================
+# 2. BUILD STAGE
+# ==========================================
+
+build:web:
+  stage: build
+  image: node:22-alpine
+  needs: ["test:web"]
+  before_script:
+    - cd web
+    - npm ci
+  script:
+    - npm run build
+    - mkdir -p ../artifacts
+    - tar -czf ../artifacts/opschool-web-${CI_COMMIT_REF_SLUG}.tar.gz dist
+  artifacts:
+    name: "opschool-web-${CI_COMMIT_REF_SLUG}"
+    paths:
+      - artifacts/opschool-web-*.tar.gz
+    expire_in: 30 days
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_TAG =~ /^v/'
+
+# ==========================================
+# 3. RELEASE STAGE
+# ==========================================
+
+release:create:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  needs:
+    - job: build:web
+      optional: true
+  script:
+    - echo "Criando release automatizado no GitLab para a tag $CI_COMMIT_TAG"
+  release:
+    name: "opschool $CI_COMMIT_TAG"
+    description: "Versão oficial $CI_COMMIT_TAG do sistema opschool (Web PWA e Cloudflare Worker API)."
+    tag_name: "$CI_COMMIT_TAG"
+    ref: "$CI_COMMIT_TAG"
+    assets:
+      links:
+        - name: "opschool - Web PWA Bundle"
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/raw/artifacts/opschool-web-${CI_COMMIT_REF_SLUG}.tar.gz?job=build:web"
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v/'

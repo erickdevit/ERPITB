@@ -1,0 +1,48 @@
+# Node / Cloudflare
+node_modules/
+.wrangler/
+backend/dist/
+backend/.dev.vars
+backend/.env*
+!backend/.env.example
+backend/.remote-secrets.json
+backend/.wrangler-*.log
+backend/.wrangler-integration-*/
+backend/.migration-check/
+
+# Web PWA
+web/node_modules/
+web/dist/
+web/*.tsbuildinfo
+dist/
+coverage/
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Keystores & Security
+*.jks
+*.keystore
+*.p12
+
+# Generated reports and local databases
+*.db
+*.db-shm
+*.db-wal
+*.sql
+*.sql.gz
+!backend/src/schema.sql
+!backend/src/db/schema.postgres.sql
+!backend/migrations/*.sql
+*.pdf
+/artifacts/
+.agents/teamwork/
+
+# Local environment secrets
+.env
+.env.local
+.env.*.local

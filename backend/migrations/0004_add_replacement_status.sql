@@ -1,0 +1,3 @@
+-- Migration 0004: Allow 'R' (Reposição) status in attendance_records table
+-- D1 SQLite migration to recreate table or adjust check constraint for attendance_records
+-- Note: SQLite does not support ALTER TABLE MODIFY CHECK directly; for existing tables, status column type TEXT accepts values smoothly.

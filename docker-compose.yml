@@ -1,0 +1,65 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: opschool-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-opschool_secret_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-opschool}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-opschool}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - opschool-network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: opschool-app:latest
+    container_name: opschool-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOST: 0.0.0.0
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-opschool_secret_pass}@postgres:5432/${POSTGRES_DB:-opschool}
+      STORAGE_PATH: /app/storage
+      JWT_SECRET: ${JWT_SECRET:-opschool-super-secret-jwt-key-minimum-32-chars-long}
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:-MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=}
+      BOOTSTRAP_SECRET: ${BOOTSTRAP_SECRET:-troque-este-segredo}
+      ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:-*}
+      INSTITUTION_TIMEZONE: ${INSTITUTION_TIMEZONE:-America/Sao_Paulo}
+    volumes:
+      - storage_data:/app/storage
+    ports:
+      - "${PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    networks:
+      - opschool-network
+
+volumes:
+  postgres_data:
+    name: ${POSTGRES_DATA_VOLUME:-opschool_postgres_data}
+  storage_data:
+    name: ${STORAGE_DATA_VOLUME:-opschool_storage_data}
+
+networks:
+  opschool-network:
+    name: opschool-network
+    driver: bridge

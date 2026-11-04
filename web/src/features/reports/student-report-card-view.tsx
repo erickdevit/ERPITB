@@ -1,0 +1,436 @@
+import React, { useState } from 'react';
+import {
+  Printer,
+  Download,
+  CheckCircle2,
+  FileText,
+  FileSpreadsheet,
+} from 'lucide-react';
+import type { AcademicStatus, UnifiedBoletimData } from '../../lib/boletim';
+import { PrintWatermark, QrCodeImage } from '../../components';
+import { formatGrade } from '../../lib/grades';
+import {
+  formatPrintDocumentTitle,
+  printWithDocumentTitle,
+  usePrintDocumentTitle,
+} from '../../lib/print-helper';
+
+export function statusBadgeStyle(status: string): string {
+  switch (status.toLowerCase()) {
+    case 'aprovado':
+      return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    case 'recuperacao':
+    case 'reprovado por frequência':
+      return 'bg-amber-50 text-amber-700 border-amber-200';
+    case 'reprovado':
+    case 'reprovado por nota':
+    case 'reprovado por nota e frequência':
+      return 'bg-rose-50 text-rose-700 border-rose-200';
+    case 'em andamento':
+    case 'em_andamento':
+      return 'bg-sky-50 text-sky-700 border-sky-200';
+    case 'sem notas':
+    default:
+      return 'bg-slate-100 text-slate-600 border-slate-200';
+  }
+}
+
+export function AcademicStatusBadge({ status }: { status: AcademicStatus }) {
+  const knownStatuses = [
+    'Aprovado',
+    'Reprovado por Nota',
+    'Reprovado por Frequência',
+    'Reprovado por Nota e Frequência',
+    'Em Andamento',
+    'Sem Notas',
+  ];
+  const isKnown = knownStatuses.includes(status);
+  const label = isKnown ? status : 'Sem Notas';
+  const badgeClass = statusBadgeStyle(label);
+  const isApproved = label === 'Aprovado';
+
+  return (
+    <span
+      data-testid="status-badge"
+      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${badgeClass}`}
+    >
+      {isApproved && <CheckCircle2 className="w-3 h-3" />}
+      <span>{label}</span>
+    </span>
+  );
+}
+
+export interface StudentReportCardViewProps {
+  data: UnifiedBoletimData;
+  institutionName?: string;
+  portalUrl?: string;
+  onPrint?: () => void;
+  onDownloadPdf?: () => void;
+  onSwitchFormat?: (format: 'standard' | 'spreadsheet') => void;
+  watermarkText?: string;
+  watermarkLogoUrl?: string;
+  watermarkGrayscale?: boolean;
+  logoUrl?: string;
+  showHeaderLogoLeft?: boolean;
+  showHeaderLogoRight?: boolean;
+  isBatchItem?: boolean;
+}
+
+export function StudentReportCardView({
+  data,
+  institutionName = 'opschool',
+  portalUrl,
+  onPrint,
+  onDownloadPdf,
+  onSwitchFormat,
+  watermarkText = 'opschool - Documento Oficial',
+  watermarkLogoUrl,
+  watermarkGrayscale = true,
+  logoUrl,
+  showHeaderLogoLeft = true,
+  showHeaderLogoRight = false,
+  isBatchItem = false,
+}: StudentReportCardViewProps) {
+  const [downloading, setDownloading] = useState(false);
+
+  const student = data?.student ?? { name: 'Aluno', id: '', classNames: [] };
+  const classNames = student.classNames ?? [];
+  const classTitle = classNames.length > 0 ? classNames.join(', ') : 'Turma';
+  const portalCode = student.registrationNumber || student.id || '';
+  const publicPortalUrl =
+    portalUrl ||
+    (typeof window !== 'undefined' && window.location?.origin
+      ? `${window.location.origin}/aluno/${encodeURIComponent(portalCode)}`
+      : `/aluno/${encodeURIComponent(portalCode)}`);
+
+  const documentTitle = formatPrintDocumentTitle([
+    'Boletim Escolar Individual',
+    student.name,
+    student.registrationNumber,
+  ]);
+  usePrintDocumentTitle(documentTitle, !isBatchItem);
+
+  const handlePrint = () => {
+    if (onPrint) {
+      onPrint();
+    } else {
+      printWithDocumentTitle(documentTitle);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    if (onDownloadPdf) {
+      onDownloadPdf();
+      return;
+    }
+    try {
+      setDownloading(true);
+      const { exportBoletimPdf } = await import('../../lib/boletim-pdf');
+      await exportBoletimPdf(data, undefined, undefined, {
+        portalUrl: publicPortalUrl,
+        watermarkText,
+        watermarkLogoUrl,
+        watermarkGrayscale,
+        logoUrl,
+      });
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const modules = data?.modules ?? [];
+  const totalClassesHeld = modules.reduce((sum, m) => sum + (Number(m.classesHeld) || 0), 0);
+
+  const formattedEmissionDate = (() => {
+    try {
+      if (!data?.issueDate) return '';
+      const d = new Date(data.issueDate);
+      if (Number.isNaN(d.getTime())) return data.issueDate;
+      return d.toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return data?.issueDate || '';
+    }
+  })();
+
+  const printGridColsClass =
+    modules.length > 6
+      ? 'print:grid-cols-4'
+      : modules.length > 4
+      ? 'print:grid-cols-3'
+      : 'print:grid-cols-2';
+
+  return (
+    <div className="flex flex-col gap-4 print:gap-0 text-left w-full max-w-5xl mx-auto print-landscape print:max-w-none print:w-full print:mx-0 relative">
+      {/* ACTION BAR (Hidden in print and batch item) */}
+      {!isBatchItem && (
+        <div
+          data-testid="print-hidden"
+          className="print:hidden flex flex-wrap items-center justify-between gap-3 bg-white border border-slate-200/90 rounded-2xl p-3 px-4 shadow-2xs"
+        >
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-700 flex items-center justify-center font-bold text-xs border border-sky-100">
+              <FileText className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-xs font-bold text-slate-900 tracking-tight">
+                Boletim Escolar Individual
+              </h2>
+              <p className="text-[11px] text-slate-400 font-medium">
+                Documento oficial de frequência e notas
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {onSwitchFormat && (
+              <button
+                type="button"
+                onClick={() => onSwitchFormat('spreadsheet')}
+                aria-label="Ver Versão Planilha"
+                className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[36px] rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
+                title="Alternar para visualização em grade tabular / planilha"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Ver Versão Planilha</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handlePrint}
+              aria-label="Imprimir Boletim"
+              className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[36px] rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
+            >
+              <Printer className="w-3.5 h-3.5 text-slate-600" />
+              <span>Imprimir</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={downloading}
+              aria-label="Baixar PDF"
+              className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[36px] rounded-lg bg-slate-950 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5 text-sky-400" />
+              <span>{downloading ? 'Gerando...' : 'Baixar PDF'}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* PRINTABLE BOLETIM SHEET */}
+      <div className="boletim-single-page bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-2xs print:border-none print:p-0 print:shadow-none print:w-full flex flex-col justify-between gap-5 print:gap-2.5 relative overflow-hidden">
+        {!isBatchItem && (
+          <PrintWatermark text={watermarkText} logoUrl={watermarkLogoUrl} grayscale={watermarkGrayscale} />
+        )}
+        {/* 1. INSTITUTIONAL HEADER */}
+        <div className="border-b border-slate-200 pb-3.5 print:pb-2 flex items-center justify-between gap-4 shrink-0">
+          <div className="flex items-center gap-3">
+            {showHeaderLogoLeft && (
+              <img
+                src={logoUrl || '/ops-logo.svg'}
+                alt={institutionName}
+                className="w-10 h-10 print:w-8 print:h-8 object-contain rounded-lg"
+                data-testid="print-logo-left"
+              />
+            )}
+            <div>
+              <span className="text-xs print:text-[10px] font-black uppercase tracking-widest text-slate-900 block">
+                {institutionName}
+              </span>
+              <h1 className="text-sm print:text-xs font-extrabold text-slate-900 tracking-tight">
+                BOLETIM ESCOLAR INDIVIDUAL
+              </h1>
+            </div>
+          </div>
+
+          <div className="text-right text-[11px] print:text-[10px] text-slate-500 shrink-0">
+            <span className="block font-semibold">Data e Hora de Emissão</span>
+            <span className="font-mono text-slate-800">{formattedEmissionDate}</span>
+          </div>
+        </div>
+
+        {/* 2. UNIFIED STUDENT CREDENTIALS & ACADEMIC SUMMARY ROW (SINGLE STRICT ROW, FULL NAME SPACE) */}
+        <div className="bg-slate-50/80 border border-slate-200/90 rounded-xl p-3 sm:p-3.5 print:py-2.5 print:px-3.5 print:bg-white print:border-slate-300 w-full overflow-x-auto print:overflow-visible shrink-0">
+          <div className="grid grid-cols-7 [grid-template-columns:minmax(220px,1fr)_auto_auto_auto_auto_auto_auto] print:[grid-template-columns:minmax(0,1fr)_auto_auto_auto_auto_auto] print:grid-cols-6 items-center gap-3 sm:gap-4 print:gap-3.5 text-xs min-w-[760px] print:min-w-0">
+            <div className="min-w-0 pr-2">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Aluno
+              </span>
+              <span
+                className="text-xs sm:text-sm print:text-xs font-extrabold text-slate-900 block whitespace-nowrap overflow-hidden text-ellipsis leading-snug uppercase"
+                title={data.student.name}
+              >
+                {data.student.name}
+              </span>
+            </div>
+            <div className="shrink-0 border-l border-slate-200/90 pl-2.5 sm:pl-3 print:pl-3 whitespace-nowrap">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Matrícula
+              </span>
+              <span className="text-xs font-bold text-slate-900 block font-mono">
+                {data.student.registrationNumber || '—'}
+              </span>
+            </div>
+            <div className="shrink-0 border-l border-slate-200/90 pl-2.5 sm:pl-3 print:pl-3 whitespace-nowrap">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Curso
+              </span>
+              <span className="text-xs font-semibold text-slate-800 block whitespace-nowrap" title={data.student.courseName || '—'}>
+                {data.student.courseName || '—'}
+              </span>
+            </div>
+            <div className="shrink-0 border-l border-slate-200/90 pl-2.5 sm:pl-3 print:pl-3 whitespace-nowrap">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Turma
+              </span>
+              <span className="text-xs font-semibold text-slate-800 block whitespace-nowrap" title={classTitle}>
+                {classTitle}
+              </span>
+            </div>
+            <div className="shrink-0 border-l border-slate-200/90 pl-2.5 sm:pl-3 print:pl-3 whitespace-nowrap">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Média Geral
+              </span>
+              <span className="text-sm font-black text-slate-950 block">
+                {formatGrade(data.overallGpa)}
+              </span>
+            </div>
+            <div className="shrink-0 border-l border-slate-200/90 pl-2.5 sm:pl-3 print:pl-3 whitespace-nowrap">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Frequência
+              </span>
+              <span className="text-sm font-bold text-slate-800 block">
+                {totalClassesHeld > 0 ? `${data.overallAttendanceRate.toFixed(1).replace('.', ',')}%` : '—'}
+              </span>
+            </div>
+            <div className="shrink-0 border-l border-slate-200/90 pl-2.5 sm:pl-3 print:hidden whitespace-nowrap">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Situação
+              </span>
+              <div className="mt-0.5">
+                <AcademicStatusBadge status={data.overallAcademicStatus} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 3. DETAILED EVALUATIONS BREAKDOWN BY TABLE/MODULE (EXPANDED CARDS) */}
+        {data.modules.length > 0 && (
+          <div className="flex-1 flex flex-col gap-3 print:gap-2 print:w-full min-h-0">
+            <h3 className="text-xs print:text-[10px] font-bold uppercase tracking-wider text-slate-500 shrink-0">
+              Detalhamento das Avaliações por Etapa
+            </h3>
+
+            <div className={`flex-1 grid grid-cols-1 md:grid-cols-2 ${printGridColsClass} gap-4 print:gap-3 content-stretch items-stretch`}>
+              {data.modules.map((m) => (
+                <div
+                  key={m.moduleId}
+                  className="bg-slate-50/70 border border-slate-200/90 rounded-xl p-4 print:p-3.5 flex flex-col justify-between gap-3 print:gap-2.5 print:bg-white print:border-slate-300 h-full"
+                >
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-200/80 pb-2.5 print:pb-2 shrink-0">
+                    <div className="text-xs sm:text-sm print:text-xs font-extrabold text-slate-900 leading-tight uppercase">
+                      {m.moduleName}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="print:hidden">
+                        <AcademicStatusBadge status={m.academicStatus} />
+                      </span>
+                      <div className="text-right">
+                        <div className="text-base sm:text-lg print:text-base font-black text-slate-900 leading-none tracking-tight">
+                          {formatGrade(m.finalGrade)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {m.grades.length > 0 ? (
+                    <div className="flex-1 flex flex-col justify-evenly gap-2 print:gap-1.5">
+                      {m.grades.map((grade, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between text-xs print:text-[11px] py-1.5 print:py-1.5 px-2.5 print:px-2.5 rounded-lg bg-white border border-slate-200/70 print:border-slate-200"
+                        >
+                          <span className="font-semibold text-slate-700 flex-1 pr-2 uppercase">{grade.name}</span>
+                          <span className="font-mono font-extrabold text-slate-900 text-xs sm:text-sm print:text-xs">
+                            {typeof grade.score === 'number' && !Number.isNaN(grade.score)
+                              ? grade.score.toFixed(1).replace('.', ',')
+                              : '—'}
+                            <span className="text-[10px] print:text-[9.5px] font-normal text-slate-400 ml-1">/ {grade.maxScore ?? 10}</span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center text-xs print:text-[11px] text-slate-400 italic py-3 print:py-2 text-center">
+                      Nenhuma avaliação lançada nesta etapa.
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 4. BOTTOM SIGNATURES & INSTITUTIONAL FOOTER (PINNED TO SHEET BOTTOM) */}
+        <div className="mt-auto flex flex-col gap-4 print:gap-3 pt-4 print:pt-3 w-full shrink-0">
+          {/* SIGNATURES AREA (No top horizontal divider line) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 print:gap-8">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-48 sm:w-64 border-b border-slate-400 mb-1" />
+              <span className="text-xs print:text-[10px] font-bold text-slate-800">
+                Coordenação Pedagógica / Direção
+              </span>
+              <span className="text-[10px] print:text-[9px] text-slate-400 font-medium">
+                {institutionName}
+              </span>
+            </div>
+
+            <div className="flex flex-col items-center text-center">
+              <div className="w-48 sm:w-64 border-b border-slate-400 mb-1" />
+              <span className="text-xs print:text-[10px] font-bold text-slate-800">
+                Aluno(a) ou Responsável Legal
+              </span>
+              <span className="text-[10px] print:text-[9px] text-slate-400 font-medium">
+                Assinatura do Aluno / Responsável
+              </span>
+            </div>
+          </div>
+
+          {/* INSTITUTIONAL FOOTER WITH QR CODE (PINNED TO BOTTOM OF SHEET) */}
+          <div className="pt-3 border-t border-slate-200 flex items-center justify-between gap-4 text-xs print:pt-2 print:border-slate-300">
+            <div className="space-y-0.5 print:space-y-0">
+              <span className="text-xs print:text-[10px] font-bold text-slate-800 block">
+                {institutionName} — Relatório Acadêmico
+              </span>
+              <p className="text-[11px] print:text-[9.5px] text-slate-500">
+                Documento oficial emitido pelo Sistema de Gestão {institutionName}.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 shrink-0 text-right">
+              <div className="text-[10px] print:text-[9px] text-slate-500 leading-tight">
+                <span className="font-bold text-slate-700 block">Boletim Virtual</span>
+                <span>Escaneie para validar</span>
+              </div>
+              <a
+                href={publicPortalUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Abrir boletim virtual público do aluno"
+                className="inline-block transition-opacity hover:opacity-80 p-0 m-0 bg-transparent border-0 shadow-none print:scale-75 print:origin-right"
+              >
+                <QrCodeImage value={publicPortalUrl} size={64} alt={`QR Code Boletim de ${data.student.name}`} />
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

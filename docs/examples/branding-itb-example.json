@@ -1,0 +1,14 @@
+{
+  "_comment": "Exemplo de configuração de branding institucional da escola/instituto (Instância Instituto Transforma Brasil)",
+  "id": "itb-branding-profile",
+  "appName": "Instituto Transforma Brasil",
+  "accentColor": "#102A43",
+  "loginLogoUrl": "/custom-branding/itb-logo.svg",
+  "loginBgUrl": null,
+  "printWatermarkText": "Instituto Transforma Brasil - Documento Oficial",
+  "printWatermarkLogoUrl": null,
+  "printWatermarkGrayscale": 1,
+  "showHeaderLogoLeft": 1,
+  "showHeaderLogoRight": 0,
+  "documentHeaderAlign": "left"
+}

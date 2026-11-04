@@ -1,0 +1,256 @@
+import React from 'react';
+import { RotateCcw } from 'lucide-react';
+import { DateField, SelectField } from '../../components';
+import { SearchableStudentSelect } from '../student-select';
+import { formatDate, parseBrazilDate } from '../../lib/date';
+import type { LocalRecord, Role } from '../../types';
+import { canManage } from '../../types';
+import { cleanClassName, extractClassNumber, formatClassDisplayName } from '../classes-model';
+import { ClassFilterFields, filterClassesByAttributes } from '../class-filter-controls';
+import type { ReportFilters, ReportType } from './model';
+import { reportTypeOptions } from './model';
+
+const text = (record: LocalRecord | undefined, field: string) => String(record?.[field] ?? '');
+const active = (record: LocalRecord) => !record.deleted_at && record.active !== 0 && record.active !== false;
+
+export function ReportFiltersBar({
+  filters,
+  onChange,
+  courses,
+  classes,
+  students,
+  enrollments,
+  classTeachers,
+  teachers,
+  role,
+  onReset,
+}: {
+  filters: ReportFilters;
+  onChange: (filters: ReportFilters) => void;
+  courses?: LocalRecord[];
+  classes?: LocalRecord[];
+  students?: LocalRecord[];
+  enrollments?: LocalRecord[];
+  classTeachers?: LocalRecord[];
+  teachers?: LocalRecord[];
+  role: Role;
+  onReset: () => void;
+}) {
+  const safeClassTeachers = classTeachers ?? [];
+  const safeClasses = classes ?? [];
+  const safeCourses = courses ?? [];
+  const safeEnrollments = enrollments ?? [];
+  const safeStudents = students ?? [];
+  const safeTeachers = teachers ?? [];
+
+  const teacherClassIds = filters.teacherId
+    ? new Set(
+        safeClassTeachers
+          .filter((item) => !item.deleted_at && item.user_id === filters.teacherId)
+          .map((item) => item.class_id),
+      )
+    : undefined;
+  const teacherClasses = safeClasses.filter((item) => active(item) && (!teacherClassIds || teacherClassIds.has(item.id)));
+  const teacherCourseIds = new Set(teacherClasses.map((item) => item.course_id));
+  const availableCourses = safeCourses.filter((item) => active(item) && (!teacherClassIds || teacherCourseIds.has(item.id)));
+  const rawAvailableClasses = teacherClasses.filter((item) => !filters.courseId || item.course_id === filters.courseId);
+  const availableClasses = filterClassesByAttributes(rawAvailableClasses, {
+    weekDay: filters.weekDay,
+    shift: filters.shift,
+    laboratoryId: filters.laboratoryId,
+  });
+  const studentIds = new Set(
+    safeEnrollments
+      .filter((item) => !item.deleted_at && item.status === 'ativa' && (!filters.classId || item.class_id === filters.classId))
+      .map((item) => item.student_id),
+  );
+  const availableStudents = safeStudents
+    .filter((item) => active(item) && (filters.classId ? studentIds.has(item.id) : (filters.type === 'studentBoletim' ? true : studentIds.has(item.id))))
+    .sort((left, right) => text(left, 'name').localeCompare(text(right, 'name')));
+
+  const showCourse =
+    filters.type === 'course' ||
+    filters.type === 'dropoutRisk' ||
+    filters.type === 'classGrades' ||
+    filters.type === 'assessmentTypes';
+  const showClass =
+    filters.type === 'classDiary' ||
+    filters.type === 'classGrades' ||
+    filters.type === 'assessmentTypes' ||
+    filters.type === 'student' ||
+    filters.type === 'studentBoletim' ||
+    filters.type === 'dropoutRisk';
+
+  const changeType = (type: string) =>
+    onChange({
+      type: type as ReportType,
+      from: filters.from,
+      to: filters.to,
+      teacherId: filters.teacherId,
+    });
+
+  const changeDate = (field: 'from' | 'to', value: string) => {
+    try {
+      const parsed = parseBrazilDate(value);
+      if (parsed) onChange({ ...filters, [field]: parsed });
+    } catch {
+      // DateField mantém visualmente o último valor válido
+    }
+  };
+
+  return (
+    <div className="bg-white border border-slate-200/90 rounded-2xl p-2.5 sm:p-3 shadow-2xs text-left print:hidden">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-2 sm:gap-2.5 items-end">
+        <div className="sm:col-span-2">
+          <SelectField
+            label="Tipo de relatório"
+            value={filters.type}
+            onChange={changeType}
+            options={reportTypeOptions}
+          />
+        </div>
+
+        <div>
+          <DateField
+            label="Data inicial"
+            value={formatDate(filters.from)}
+            onChange={(val) => changeDate('from', val)}
+            allowFuture
+          />
+        </div>
+
+        <div>
+          <DateField
+            label="Data final"
+            value={formatDate(filters.to)}
+            onChange={(val) => changeDate('to', val)}
+            allowFuture
+          />
+        </div>
+
+        {canManage(role) && (
+          <div>
+            <SelectField
+              label="Professor"
+              value={filters.teacherId ?? ''}
+              onChange={(teacherId) =>
+                onChange({
+                  ...filters,
+                  teacherId: teacherId || undefined,
+                  courseId: undefined,
+                  classId: undefined,
+                  studentId: undefined,
+                })
+              }
+              options={[
+                { value: '', label: 'Todos os professores' },
+                ...safeTeachers.map((item) => ({
+                  value: item.id,
+                  label: text(item, 'name') || `Professor ${item.id.slice(0, 8)}`,
+                })),
+              ]}
+            />
+          </div>
+        )}
+
+        {showCourse && (
+          <div>
+            <SelectField
+              label="Curso"
+              value={filters.courseId ?? ''}
+              onChange={(courseId) =>
+                onChange({
+                  ...filters,
+                  courseId: courseId || undefined,
+                  classId: undefined,
+                  studentId: undefined,
+                })
+              }
+              options={[
+                { value: '', label: 'Todos os cursos' },
+                ...availableCourses.map((c) => ({
+                  value: c.id,
+                  label: text(c, 'name'),
+                })),
+              ]}
+            />
+          </div>
+        )}
+
+        {showClass && (
+          <>
+            <ClassFilterFields
+              weekDay={filters.weekDay ?? ''}
+              onWeekDayChange={(val) => onChange({ ...filters, weekDay: val || undefined, classId: undefined })}
+              shift={filters.shift ?? ''}
+              onShiftChange={(val) => onChange({ ...filters, shift: val || undefined, classId: undefined })}
+              laboratoryId={filters.laboratoryId ?? ''}
+              onLaboratoryIdChange={(val) => onChange({ ...filters, laboratoryId: val || undefined, classId: undefined })}
+            />
+            <div>
+              <SelectField
+                label="Turma"
+                value={filters.classId ?? ''}
+                onChange={(classId) =>
+                  onChange({
+                    ...filters,
+                    classId: classId || undefined,
+                    studentId: undefined,
+                  })
+                }
+                options={[
+                  { value: '', label: 'Todas as turmas' },
+                  ...availableClasses
+                    .map((c) => {
+                      const cName = text(c, 'name');
+                      const num = c.class_number !== undefined && c.class_number !== null
+                        ? Number(c.class_number)
+                        : extractClassNumber(cName);
+                      const clean = cleanClassName(cName);
+                      return {
+                        value: c.id,
+                        classNumber: num,
+                        label: formatClassDisplayName(num, clean),
+                      };
+                    })
+                    .sort((a, b) => {
+                      const numA = a.classNumber ?? 999999;
+                      const numB = b.classNumber ?? 999999;
+                      if (numA !== numB) return numA - numB;
+                      return a.label.localeCompare(b.label, 'pt-BR');
+                    })
+                    .map(({ value, label }) => ({ value, label })),
+                ]}
+              />
+            </div>
+          </>
+        )}
+
+        {((filters.type === 'student' && filters.classId) || filters.type === 'studentBoletim') && (
+          <div>
+            <SearchableStudentSelect
+              label="Aluno"
+              value={filters.studentId ?? ''}
+              onChange={(studentId) => onChange({ ...filters, studentId: studentId || undefined })}
+              students={availableStudents}
+              enrollments={safeEnrollments}
+              classes={safeClasses}
+              placeholder="Buscar por nome ou matrícula..."
+            />
+          </div>
+        )}
+
+        <div>
+          <button
+            type="button"
+            onClick={onReset}
+            className="w-full h-[38px] px-3 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-medium text-slate-600 hover:text-slate-900 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
+            <span>Restaurar</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
