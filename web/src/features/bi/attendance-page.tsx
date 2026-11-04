@@ -20,6 +20,7 @@ import {
   Calendar,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useApp } from '../../app-context';
 import { useEntity } from '../../lib/use-entity';
 import { formatDate, todayInSaoPaulo } from '../../lib/date';
 import type { LocalRecord } from '../../types';
@@ -48,6 +49,13 @@ export function BiAttendancePage() {
   const today = todayInSaoPaulo();
   const defaults = useMemo(() => initialFilters(today), [today]);
   const [filters, setFilters] = useState<BiFilters>(defaults);
+
+  let branding: ReturnType<typeof useApp>['branding'];
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const app = useApp();
+    branding = app?.branding;
+  } catch {}
   const { data, directory, options, loading } = useBiData(filters, today);
   const rawAttendance = useEntity('attendance_records', true);
   const rawClasses = useEntity('classes', true);
@@ -306,7 +314,7 @@ export function BiAttendancePage() {
       <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-4">
         <div className="flex items-center justify-end border-b border-slate-100 pb-2">
           <ExportActions
-            title="BI de Frequencia - opschool"
+            title={`BI de Frequência - ${branding?.appName || 'opschool'}`}
             context={exportContext}
             headers={exportHeaders}
             rows={exportRows}

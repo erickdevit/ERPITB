@@ -2,8 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { Download, FileText, FileSpreadsheet, Printer, RotateCcw } from 'lucide-react';
 import { useApp } from '../../app-context';
 import { Section } from '../../components';
-import { exportExcelCsv, exportExcelXlsx, exportSimplePdf } from '../../lib/exports';
-import { exportBoletimPdf, exportClassBoletimPdf } from '../../lib/boletim-pdf';
+import { exportExcelCsv, exportExcelXlsx, exportSimplePdf, printSimplePdf } from '../../lib/exports';
+import { exportBoletimPdf, exportClassBoletimPdf, printBoletimPdf, printClassBoletimPdf } from '../../lib/boletim-pdf';
 import { todayInSaoPaulo } from '../../lib/date';
 import { formatPrintDocumentTitle, printWithDocumentTitle } from '../../lib/print-helper';
 import type { ReportFilters } from './model';
@@ -75,22 +75,19 @@ export function ReportsCenterPage() {
             type="button"
             disabled={!view.ready}
             onClick={() => {
+              const pdfOptions = {
+                institutionName: branding?.appName,
+                logoUrl: branding?.loginLogoUrl,
+                watermarkText: branding?.printWatermarkText,
+                watermarkLogoUrl: branding?.printWatermarkLogoUrl,
+                watermarkGrayscale: branding?.printWatermarkGrayscale ?? true,
+              };
               if (view.type === 'studentBoletim' && view.boletimData) {
-                printWithDocumentTitle(
-                  formatPrintDocumentTitle([
-                    'Boletim Escolar Individual',
-                    view.boletimData.student.name,
-                    view.boletimData.student.registrationNumber,
-                  ]),
-                );
+                void printBoletimPdf(view.boletimData, pdfOptions);
               } else if (view.type === 'classGrades' && view.classBoletimData) {
-                printWithDocumentTitle(
-                  formatPrintDocumentTitle(['Boletim Consolidado da Turma', view.classBoletimData.className]),
-                );
+                void printClassBoletimPdf(view.classBoletimData, pdfOptions);
               } else {
-                printWithDocumentTitle(
-                  formatPrintDocumentTitle([view.title || 'Relatório', `${filters.from} a ${filters.to}`]),
-                );
+                void printSimplePdf(view.title || 'Relatório', view.context, view.headers, view.rows, pdfOptions);
               }
             }}
             className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
@@ -102,24 +99,19 @@ export function ReportsCenterPage() {
             type="button"
             disabled={!view.ready}
             onClick={() => {
+              const pdfOptions = {
+                institutionName: branding?.appName,
+                logoUrl: branding?.loginLogoUrl,
+                watermarkText: branding?.printWatermarkText,
+                watermarkLogoUrl: branding?.printWatermarkLogoUrl,
+                watermarkGrayscale: branding?.printWatermarkGrayscale ?? true,
+              };
               if (view.type === 'studentBoletim' && view.boletimData) {
-                void exportBoletimPdf(view.boletimData, undefined, undefined, {
-                  watermarkText: branding?.printWatermarkText,
-                  watermarkLogoUrl: branding?.printWatermarkLogoUrl,
-                  watermarkGrayscale: branding?.printWatermarkGrayscale ?? true,
-                });
+                void exportBoletimPdf(view.boletimData, undefined, undefined, pdfOptions);
               } else if (view.type === 'classGrades' && view.classBoletimData) {
-                void exportClassBoletimPdf(view.classBoletimData, undefined, undefined, {
-                  watermarkText: branding?.printWatermarkText,
-                  watermarkLogoUrl: branding?.printWatermarkLogoUrl,
-                  watermarkGrayscale: branding?.printWatermarkGrayscale ?? true,
-                });
+                void exportClassBoletimPdf(view.classBoletimData, undefined, undefined, pdfOptions);
               } else {
-                void exportSimplePdf(filename, view.title, view.context, view.headers, view.rows, {
-                  watermarkText: branding?.printWatermarkText,
-                  watermarkLogoUrl: branding?.printWatermarkLogoUrl,
-                  watermarkGrayscale: branding?.printWatermarkGrayscale ?? true,
-                });
+                void exportSimplePdf(filename, view.title, view.context, view.headers, view.rows, pdfOptions);
               }
             }}
             className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"

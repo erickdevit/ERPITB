@@ -25,6 +25,7 @@ import { useApp } from '../app-context';
 import { PageDialog, SelectField, ErrorBoundary, TableSkeleton } from '../components';
 import { latestAttendance } from '../lib/attendance';
 import { buildUnifiedBoletimData, type ClassBoletimData } from '../lib/boletim';
+import { printClassBoletimPdf } from '../lib/boletim-pdf';
 import {
   buildClassGradeSummary,
   calculationModeLabel,
@@ -806,9 +807,13 @@ export function GradesPage() {
               <button
                 type="button"
                 onClick={() =>
-                  printWithDocumentTitle(
-                    formatPrintDocumentTitle(['Boletim Consolidado da Turma', classBoletimData.className]),
-                  )
+                  void printClassBoletimPdf(classBoletimData, {
+                    institutionName: branding?.appName,
+                    logoUrl: branding?.loginLogoUrl,
+                    watermarkText: branding?.printWatermarkText,
+                    watermarkLogoUrl: branding?.printWatermarkLogoUrl || branding?.loginLogoUrl,
+                    watermarkGrayscale: branding?.printWatermarkGrayscale ?? true,
+                  })
                 }
                 aria-label="Imprimir Boletim"
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
@@ -1675,7 +1680,9 @@ export function GradesPage() {
               <ErrorBoundary fallbackTitle="Erro ao carregar o boletim do aluno">
                 <StudentReportCardView
                   data={studentBoletimData}
+                  institutionName={branding?.appName}
                   logoUrl={branding?.loginLogoUrl}
+                  watermarkText={branding?.printWatermarkText}
                   watermarkLogoUrl={branding?.printWatermarkLogoUrl}
                   watermarkGrayscale={branding?.printWatermarkGrayscale ?? true}
                 />

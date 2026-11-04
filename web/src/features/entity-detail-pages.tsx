@@ -1154,14 +1154,18 @@ export function StudentDetailPage() {
         {boletimFormat === 'spreadsheet' ? (
           <StudentBoletimSpreadsheetView
             data={boletimData}
+            institutionName={branding?.appName}
             logoUrl={branding?.loginLogoUrl}
+            watermarkText={branding?.printWatermarkText}
             watermarkLogoUrl={branding?.printWatermarkLogoUrl}
             watermarkGrayscale={branding?.printWatermarkGrayscale ?? true}
           />
         ) : (
           <StudentReportCardView
             data={boletimData}
+            institutionName={branding?.appName}
             logoUrl={branding?.loginLogoUrl}
+            watermarkText={branding?.printWatermarkText}
             watermarkLogoUrl={branding?.printWatermarkLogoUrl}
             watermarkGrayscale={branding?.printWatermarkGrayscale ?? true}
           />
@@ -1366,7 +1370,9 @@ export function StudentDetailPage() {
           {boletimFormat === 'spreadsheet' ? (
             <StudentBoletimSpreadsheetView
               data={boletimData}
+              institutionName={branding?.appName}
               logoUrl={branding?.loginLogoUrl}
+              watermarkText={branding?.printWatermarkText}
               watermarkLogoUrl={branding?.printWatermarkLogoUrl}
               watermarkGrayscale={branding?.printWatermarkGrayscale ?? true}
               onSwitchFormat={(fmt) => setBoletimFormat(fmt)}
@@ -1374,7 +1380,9 @@ export function StudentDetailPage() {
           ) : (
             <StudentReportCardView
               data={boletimData}
+              institutionName={branding?.appName}
               logoUrl={branding?.loginLogoUrl}
+              watermarkText={branding?.printWatermarkText}
               watermarkLogoUrl={branding?.printWatermarkLogoUrl}
               watermarkGrayscale={branding?.printWatermarkGrayscale ?? true}
               onSwitchFormat={(fmt) => setBoletimFormat(fmt)}

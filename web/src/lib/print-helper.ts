@@ -70,3 +70,98 @@ export function usePrintDocumentTitle(
     };
   }, [documentTitle, enabled]);
 }
+
+/**
+ * Sends a pre-rendered PDF Blob directly to the browser print dialog.
+ * Instead of printing the web DOM via `window.print()`, this creates an isolated,
+ * hidden iframe with the PDF object URL so the print dialog uses the exact vector PDF layout.
+ */
+export async function printPdfBlob(blob: Blob, documentTitle?: string): Promise<void> {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+  const previousTitle = document.title || DEFAULT_APP_TITLE;
+  if (documentTitle) {
+    document.title = formatPrintDocumentTitle([documentTitle]);
+  }
+
+  // Vitest / jsdom environment fallback
+  const isJsdom = typeof navigator !== 'undefined' && /jsdom/i.test(navigator.userAgent);
+  if (isJsdom || typeof window.URL?.createObjectURL !== 'function') {
+    window.print?.();
+    if (documentTitle) {
+      document.title = previousTitle;
+    }
+    return;
+  }
+
+  return new Promise<void>((resolve) => {
+    let blobUrl = '';
+    try {
+      blobUrl = URL.createObjectURL(blob);
+    } catch {
+      window.print?.();
+      if (documentTitle) document.title = previousTitle;
+      resolve();
+      return;
+    }
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.style.visibility = 'hidden';
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.src = blobUrl;
+
+    let finished = false;
+    const cleanup = () => {
+      if (finished) return;
+      finished = true;
+      setTimeout(() => {
+        try {
+          if (iframe.parentNode) {
+            iframe.parentNode.removeChild(iframe);
+          }
+          URL.revokeObjectURL(blobUrl);
+        } catch {}
+        if (documentTitle && document.title === formatPrintDocumentTitle([documentTitle])) {
+          document.title = previousTitle;
+        }
+        resolve();
+      }, 1500);
+    };
+
+    iframe.onload = () => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch {
+        const win = window.open(blobUrl, '_blank');
+        if (win) {
+          win.focus();
+          win.print?.();
+        } else {
+          window.print?.();
+        }
+      } finally {
+        cleanup();
+      }
+    };
+
+    iframe.onerror = () => {
+      try {
+        const win = window.open(blobUrl, '_blank');
+        win?.print?.();
+      } catch {
+        window.print?.();
+      } finally {
+        cleanup();
+      }
+    };
+
+    document.body.appendChild(iframe);
+  });
+}

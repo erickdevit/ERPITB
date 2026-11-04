@@ -20,7 +20,7 @@ import {
   type BoletimModuleRow,
   type UnifiedBoletimData,
 } from '../lib/boletim';
-import { exportBoletimPdf } from '../lib/boletim-pdf';
+import { exportBoletimPdf, printBoletimPdf } from '../lib/boletim-pdf';
 import { StudentReportCardView } from './reports/student-report-card-view';
 import { formatPrintDocumentTitle, printWithDocumentTitle } from '../lib/print-helper';
 import type { BrandingSettings } from '../types';
@@ -519,18 +519,15 @@ export function PublicStudentPortal() {
     setTimeout(() => setCopied(false), 2500);
   };
 
-  const handlePrintReportCard = () => {
-    setIsPrinting(true);
-    setActiveTab('oficial');
-    setTimeout(() => {
-      printWithDocumentTitle(
-        formatPrintDocumentTitle([
-          'Boletim Escolar Individual',
-          data?.student.name,
-          data?.student.registrationNumber,
-        ]),
-      );
-    }, 20);
+  const handlePrintReportCard = async () => {
+    if (!unifiedBoletimData) return;
+    await printBoletimPdf(unifiedBoletimData, {
+      institutionName: branding?.appName || appName,
+      logoUrl: branding?.loginLogoUrl,
+      watermarkText: branding?.printWatermarkText || `${branding?.appName || appName} - Documento Oficial`,
+      watermarkLogoUrl: branding?.printWatermarkLogoUrl || branding?.loginLogoUrl,
+      watermarkGrayscale: Boolean(branding?.printWatermarkGrayscale ?? true),
+    });
   };
 
   const unifiedBoletimData = useMemo(() => {
@@ -540,7 +537,13 @@ export function PublicStudentPortal() {
 
   const handleDownloadPdf = async () => {
     if (!unifiedBoletimData) return;
-    await exportBoletimPdf(unifiedBoletimData);
+    await exportBoletimPdf(unifiedBoletimData, undefined, undefined, {
+      institutionName: branding?.appName || appName,
+      logoUrl: branding?.loginLogoUrl,
+      watermarkText: branding?.printWatermarkText || `${branding?.appName || appName} - Documento Oficial`,
+      watermarkLogoUrl: branding?.printWatermarkLogoUrl || branding?.loginLogoUrl,
+      watermarkGrayscale: Boolean(branding?.printWatermarkGrayscale ?? true),
+    });
   };
 
   const filteredHistory = useMemo(() => {

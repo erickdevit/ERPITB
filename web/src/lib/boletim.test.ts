@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { LocalRecord } from '../types';
 import {
+  buildClassBoletimData,
   buildUnifiedBoletimData,
   MIN_ATTENDANCE_RATE,
   MIN_PASSING_GRADE,
@@ -862,6 +863,118 @@ describe('buildUnifiedBoletimData — Calculation Engine', () => {
       // Criteria
       expect(data!.criteria.minAttendanceRate).toBe(MIN_ATTENDANCE_RATE);
       expect(data!.criteria.minPassingGrade).toBe(MIN_PASSING_GRADE);
+    });
+
+    it('excludes unpublished grade tables (published = 0) from individual and class boletim', () => {
+      const publishedTable: LocalRecord = {
+        id: 'table-published',
+        class_id: 'class-1',
+        name: 'Módulo 1 - Publicado',
+        calculation_mode: 'simple',
+        passing_grade: 7.0,
+        published: 1,
+        sort_order: 1,
+      };
+
+      const unpublishedTable: LocalRecord = {
+        id: 'table-unpublished',
+        class_id: 'class-1',
+        name: 'Módulo 2 - Oculto do Boletim',
+        calculation_mode: 'simple',
+        passing_grade: 7.0,
+        published: 0,
+        sort_order: 2,
+      };
+
+      const item1: LocalRecord = {
+        id: 'item-1',
+        class_id: 'class-1',
+        grade_table_id: 'table-published',
+        name: 'Prova 1',
+        max_score: 10,
+        weight: 1,
+      };
+
+      const item2: LocalRecord = {
+        id: 'item-2',
+        class_id: 'class-1',
+        grade_table_id: 'table-unpublished',
+        name: 'Prova Secreta',
+        max_score: 10,
+        weight: 1,
+      };
+
+      const grade1: LocalRecord = {
+        id: 'grade-1',
+        class_id: 'class-1',
+        student_id: 'student-1',
+        grade_item_id: 'item-1',
+        grade_table_id: 'table-published',
+        score: 9.0,
+      };
+
+      const grade2: LocalRecord = {
+        id: 'grade-2',
+        class_id: 'class-1',
+        student_id: 'student-1',
+        grade_item_id: 'item-2',
+        grade_table_id: 'table-unpublished',
+        score: 2.0,
+      };
+
+      const data = buildUnifiedBoletimData(
+        buildDataset({
+          gradeTables: [publishedTable, unpublishedTable],
+          gradeItems: [item1, item2],
+          studentGrades: [grade1, grade2],
+        }),
+      );
+
+      expect(data).not.toBeNull();
+      // Only the published table should appear as a module row
+      expect(data!.modules).toHaveLength(1);
+      expect(data!.modules[0]!.moduleName).toBe('Módulo 1 - Publicado');
+      expect(data!.modules[0]!.finalGrade).toBe(9.0);
+
+      // Now verify buildClassBoletimData
+      const classData = buildClassBoletimData({
+        classId: 'class-1',
+        classes: [baseClass],
+        courses: [baseCourse],
+        students: [baseStudent],
+        enrollments: [baseEnrollment],
+        gradeTables: [publishedTable, unpublishedTable],
+        gradeItems: [item1, item2],
+        studentGrades: [grade1, grade2],
+        attendanceRecords: [],
+      });
+
+      expect(classData).not.toBeNull();
+      expect(classData!.tables).toHaveLength(1);
+      expect(classData!.tables[0]!.name).toBe('Módulo 1 - Publicado');
+    });
+
+    it('omits class module if all grade tables of that class are unpublished', () => {
+      const unpublishedTable: LocalRecord = {
+        id: 'table-unpub-only',
+        class_id: 'class-1',
+        name: 'Módulo Em Rascunho',
+        calculation_mode: 'simple',
+        passing_grade: 7.0,
+        published: 0,
+        sort_order: 1,
+      };
+
+      const data = buildUnifiedBoletimData(
+        buildDataset({
+          gradeTables: [unpublishedTable],
+          gradeItems: [],
+          studentGrades: [],
+        }),
+      );
+
+      expect(data).not.toBeNull();
+      expect(data!.modules).toHaveLength(0);
     });
   });
 });

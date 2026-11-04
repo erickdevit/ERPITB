@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import type { jsPDF } from 'jspdf';
 import {
@@ -5,7 +6,14 @@ import {
   buildClassBoletimPdf,
   exportBoletimPdf,
   exportClassBoletimPdf,
+  exportClassBatchBoletimPdf,
+  generateBoletimPdfDoc,
+  generateClassBoletimPdfDoc,
+  generateClassBatchBoletimPdfDoc,
   getBoletimPdfFilename,
+  printBoletimPdf,
+  printClassBoletimPdf,
+  printClassBatchBoletimPdf,
   urlToDataUrl,
 } from './boletim-pdf';
 import type { ClassBoletimData, UnifiedBoletimData } from './boletim';
@@ -223,5 +231,72 @@ describe('Boletim PDF Generator — Native Vector jsPDF', () => {
     expect(await urlToDataUrl(undefined)).toBeNull();
     const dataUrl = 'data:image/png;base64,abc123';
     expect(await urlToDataUrl(dataUrl)).toBe(dataUrl);
+  });
+
+  it('generates PDF doc and prints student boletim via printBoletimPdf', async () => {
+    const doc = await generateBoletimPdfDoc(mockBoletimData, {
+      institutionName: 'Escola Exemplo de Tecnologia',
+      watermarkText: 'Escola Exemplo - Confidencial',
+    });
+    expect(doc).toBeDefined();
+    expect(doc.getNumberOfPages()).toBe(1);
+
+    window.print = vi.fn();
+    await printBoletimPdf(mockBoletimData, {
+      institutionName: 'Escola Exemplo de Tecnologia',
+    });
+    expect(window.print).toHaveBeenCalledTimes(1);
+  });
+
+  it('generates PDF doc and prints class boletim via printClassBoletimPdf', async () => {
+    const classData: ClassBoletimData = {
+      classId: 'class-1',
+      className: 'Turma Beta',
+      courseName: 'Informática',
+      totalStudents: 1,
+      classAverage: 8.5,
+      approvedCount: 1,
+      issueDate: '2026-10-22T12:00:00Z',
+      tables: [{ id: 't-1', name: 'Módulo 1', calculationMode: 'simple', calculationModeLabel: 'Média Simples', passingGrade: 7.0 }],
+      students: [
+        {
+          studentId: 's-1',
+          studentName: 'Ana Clara',
+          registrationNumber: '2026-001',
+          overallAverage: 8.5,
+          overallStatus: 'aprovado',
+          overallStatusLabel: 'Aprovado',
+          attendanceRate: 90,
+          attendanceRateLabel: '90%',
+          tableResults: [{ tableId: 't-1', average: 8.5, evaluatedCount: 1, totalItems: 1, status: 'aprovado', statusLabel: 'Aprovado' }],
+        },
+      ],
+    };
+
+    const doc = await generateClassBoletimPdfDoc(classData, {
+      institutionName: 'Escola Modelo',
+    });
+    expect(doc).toBeDefined();
+    expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(1);
+
+    window.print = vi.fn();
+    await printClassBoletimPdf(classData, {
+      institutionName: 'Escola Modelo',
+    });
+    expect(window.print).toHaveBeenCalledTimes(1);
+  });
+
+  it('generates PDF doc and prints batch boletins via printClassBatchBoletimPdf', async () => {
+    const doc = await generateClassBatchBoletimPdfDoc([mockBoletimData], 'Turma Alpha', {
+      institutionName: 'Escola Modelo',
+    });
+    expect(doc).toBeDefined();
+    expect(doc.getNumberOfPages()).toBe(1);
+
+    window.print = vi.fn();
+    await printClassBatchBoletimPdf([mockBoletimData], 'Turma Alpha', {
+      institutionName: 'Escola Modelo',
+    });
+    expect(window.print).toHaveBeenCalledTimes(1);
   });
 });

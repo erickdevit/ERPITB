@@ -39,6 +39,7 @@ export interface ReportInput {
   gradeTables?: LocalRecord[];
   gradeItems?: LocalRecord[];
   studentGrades?: LocalRecord[];
+  appName?: string;
 }
 
 export interface ReportMetric {
@@ -104,11 +105,12 @@ function baseScope(input: ReportInput, filters: ReportFilters) {
 
 function context(input: ReportInput, filters: ReportFilters, extra: string[] = []) {
   const professor = filters.teacherId ? input.directory.find((item) => item.id === filters.teacherId) : undefined;
+  const appName = input.appName || 'opschool';
   return [
     `Período: ${dateLabel(filters.from)} a ${dateLabel(filters.to)}`,
     `Professor: ${professor ? text(professor, 'name') : 'Todos os professores'}`,
     ...extra,
-    'Fonte: base de dados autoritativa do opschool',
+    `Fonte: base de dados autoritativa do ${appName}`,
   ];
 }
 

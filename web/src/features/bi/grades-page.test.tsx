@@ -74,7 +74,7 @@ describe('BiGradesPage (Notas e Desempenho)', () => {
     window.print = vi.fn();
   });
 
-  it('renders Boletim Consolidado by default with print button and reference table layout', () => {
+  it('renders Boletim Consolidado by default with print button and reference table layout', async () => {
     render(
       <MemoryRouter initialEntries={['/bi/notas']}>
         <BiGradesPage />
@@ -105,10 +105,10 @@ describe('BiGradesPage (Notas e Desempenho)', () => {
     expect(printButtons.length).toBeGreaterThanOrEqual(1);
 
     fireEvent.click(printButtons[0]!);
-    expect(window.print).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(window.print).toHaveBeenCalledTimes(1));
   });
 
-  it('toggles to Visão Analítica B.I and renders comparative view with print option', () => {
+  it('toggles to Visão Analítica B.I and renders comparative view with print option', async () => {
     render(
       <MemoryRouter initialEntries={['/bi/notas']}>
         <BiGradesPage />
@@ -126,7 +126,7 @@ describe('BiGradesPage (Notas e Desempenho)', () => {
     expect(printButtons.length).toBeGreaterThanOrEqual(1);
 
     fireEvent.click(printButtons[0]!);
-    expect(window.print).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(window.print).toHaveBeenCalledTimes(1));
   });
 
   it('opens individual student report card modal when clicking student row in boletim', async () => {
@@ -151,6 +151,6 @@ describe('BiGradesPage (Notas e Desempenho)', () => {
     expect(modalPrint.length).toBeGreaterThanOrEqual(1);
 
     fireEvent.click(modalPrint[0]!);
-    expect(window.print).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(window.print).toHaveBeenCalledTimes(1));
   });
 });

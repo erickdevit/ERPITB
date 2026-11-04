@@ -8,11 +8,13 @@ import {
   printWithDocumentTitle,
   usePrintDocumentTitle,
 } from '../../lib/print-helper';
+import { useApp } from '../../app-context';
 
 export interface ClassBatchBoletimPrintViewProps {
   studentsData: UnifiedBoletimData[];
   className?: string;
   courseName?: string;
+  institutionName?: string;
   onPrint?: () => void;
   onDownloadPdf?: () => void;
   watermarkText?: string;
@@ -25,23 +27,43 @@ export function ClassBatchBoletimPrintView({
   studentsData,
   className = 'Turma',
   courseName,
+  institutionName,
   onPrint,
   onDownloadPdf,
-  watermarkText = 'opschool - Documento Oficial',
+  watermarkText,
   watermarkLogoUrl,
-  watermarkGrayscale = true,
+  watermarkGrayscale,
   logoUrl,
 }: ClassBatchBoletimPrintViewProps) {
   const [downloading, setDownloading] = useState(false);
+  let app: ReturnType<typeof useApp> | null = null;
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    app = useApp();
+  } catch {}
+
+  const resolvedInstitutionName = institutionName ?? app?.branding?.appName ?? 'opschool';
+  const resolvedLogoUrl = logoUrl ?? app?.branding?.loginLogoUrl;
+  const resolvedWatermarkLogoUrl = watermarkLogoUrl ?? app?.branding?.printWatermarkLogoUrl;
+  const resolvedWatermarkText = watermarkText ?? app?.branding?.printWatermarkText ?? `${resolvedInstitutionName} - Documento Oficial`;
+  const resolvedWatermarkGrayscale = watermarkGrayscale ?? app?.branding?.printWatermarkGrayscale ?? true;
+
   const documentTitle = formatPrintDocumentTitle(['Boletins Individuais da Turma', className]);
   usePrintDocumentTitle(documentTitle);
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     if (onPrint) {
       onPrint();
-    } else {
-      printWithDocumentTitle(documentTitle);
+      return;
     }
+    const { printClassBatchBoletimPdf } = await import('../../lib/boletim-pdf');
+    await printClassBatchBoletimPdf(studentsData, className, {
+      institutionName: resolvedInstitutionName,
+      watermarkText: resolvedWatermarkText,
+      watermarkLogoUrl: resolvedWatermarkLogoUrl,
+      watermarkGrayscale: resolvedWatermarkGrayscale,
+      logoUrl: resolvedLogoUrl,
+    });
   };
 
   const handleDownloadPdf = async () => {
@@ -54,10 +76,11 @@ export function ClassBatchBoletimPrintView({
       setDownloading(true);
       const { exportClassBatchBoletimPdf } = await import('../../lib/boletim-pdf');
       await exportClassBatchBoletimPdf(studentsData, className, undefined, undefined, {
-        watermarkText,
-        watermarkLogoUrl,
-        watermarkGrayscale,
-        logoUrl,
+        institutionName: resolvedInstitutionName,
+        watermarkText: resolvedWatermarkText,
+        watermarkLogoUrl: resolvedWatermarkLogoUrl,
+        watermarkGrayscale: resolvedWatermarkGrayscale,
+        logoUrl: resolvedLogoUrl,
       });
     } finally {
       setDownloading(false);
@@ -153,10 +176,11 @@ export function ClassBatchBoletimPrintView({
             >
               <StudentReportCardView
                 data={studentData}
-                logoUrl={logoUrl}
-                watermarkText={watermarkText}
-                watermarkLogoUrl={watermarkLogoUrl}
-                watermarkGrayscale={watermarkGrayscale}
+                institutionName={resolvedInstitutionName}
+                logoUrl={resolvedLogoUrl}
+                watermarkText={resolvedWatermarkText}
+                watermarkLogoUrl={resolvedWatermarkLogoUrl}
+                watermarkGrayscale={resolvedWatermarkGrayscale}
                 isBatchItem={true}
               />
             </div>

@@ -14,6 +14,7 @@ import {
   printWithDocumentTitle,
   usePrintDocumentTitle,
 } from '../../lib/print-helper';
+import { useApp } from '../../app-context';
 
 export function statusBadgeStyle(status: string): string {
   switch (status.toLowerCase()) {
@@ -78,20 +79,31 @@ export interface StudentReportCardViewProps {
 
 export function StudentReportCardView({
   data,
-  institutionName = 'opschool',
+  institutionName,
   portalUrl,
   onPrint,
   onDownloadPdf,
   onSwitchFormat,
-  watermarkText = 'opschool - Documento Oficial',
+  watermarkText,
   watermarkLogoUrl,
-  watermarkGrayscale = true,
+  watermarkGrayscale,
   logoUrl,
   showHeaderLogoLeft = true,
   showHeaderLogoRight = false,
   isBatchItem = false,
 }: StudentReportCardViewProps) {
   const [downloading, setDownloading] = useState(false);
+  let app: ReturnType<typeof useApp> | null = null;
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    app = useApp();
+  } catch {}
+
+  const resolvedInstitutionName = institutionName ?? app?.branding?.appName ?? 'opschool';
+  const resolvedLogoUrl = logoUrl ?? app?.branding?.loginLogoUrl;
+  const resolvedWatermarkLogoUrl = watermarkLogoUrl ?? app?.branding?.printWatermarkLogoUrl;
+  const resolvedWatermarkText = watermarkText ?? app?.branding?.printWatermarkText ?? `${resolvedInstitutionName} - Documento Oficial`;
+  const resolvedWatermarkGrayscale = watermarkGrayscale ?? app?.branding?.printWatermarkGrayscale ?? true;
 
   const student = data?.student ?? { name: 'Aluno', id: '', classNames: [] };
   const classNames = student.classNames ?? [];
@@ -110,12 +122,20 @@ export function StudentReportCardView({
   ]);
   usePrintDocumentTitle(documentTitle, !isBatchItem);
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     if (onPrint) {
       onPrint();
-    } else {
-      printWithDocumentTitle(documentTitle);
+      return;
     }
+    const { printBoletimPdf } = await import('../../lib/boletim-pdf');
+    await printBoletimPdf(data, {
+      institutionName: resolvedInstitutionName,
+      portalUrl: publicPortalUrl,
+      watermarkText: resolvedWatermarkText,
+      watermarkLogoUrl: resolvedWatermarkLogoUrl,
+      watermarkGrayscale: resolvedWatermarkGrayscale,
+      logoUrl: resolvedLogoUrl,
+    });
   };
 
   const handleDownloadPdf = async () => {
@@ -127,11 +147,12 @@ export function StudentReportCardView({
       setDownloading(true);
       const { exportBoletimPdf } = await import('../../lib/boletim-pdf');
       await exportBoletimPdf(data, undefined, undefined, {
+        institutionName: resolvedInstitutionName,
         portalUrl: publicPortalUrl,
-        watermarkText,
-        watermarkLogoUrl,
-        watermarkGrayscale,
-        logoUrl,
+        watermarkText: resolvedWatermarkText,
+        watermarkLogoUrl: resolvedWatermarkLogoUrl,
+        watermarkGrayscale: resolvedWatermarkGrayscale,
+        logoUrl: resolvedLogoUrl,
       });
     } finally {
       setDownloading(false);
@@ -226,22 +247,22 @@ export function StudentReportCardView({
       {/* PRINTABLE BOLETIM SHEET */}
       <div className="boletim-single-page bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-2xs print:border-none print:p-0 print:shadow-none print:w-full flex flex-col justify-between gap-5 print:gap-2.5 relative overflow-hidden">
         {!isBatchItem && (
-          <PrintWatermark text={watermarkText} logoUrl={watermarkLogoUrl} grayscale={watermarkGrayscale} />
+          <PrintWatermark text={resolvedWatermarkText} logoUrl={resolvedWatermarkLogoUrl} grayscale={resolvedWatermarkGrayscale} />
         )}
         {/* 1. INSTITUTIONAL HEADER */}
         <div className="border-b border-slate-200 pb-3.5 print:pb-2 flex items-center justify-between gap-4 shrink-0">
           <div className="flex items-center gap-3">
             {showHeaderLogoLeft && (
               <img
-                src={logoUrl || '/ops-logo.svg'}
-                alt={institutionName}
+                src={resolvedLogoUrl || '/ops-logo.svg'}
+                alt={resolvedInstitutionName}
                 className="w-10 h-10 print:w-8 print:h-8 object-contain rounded-lg"
                 data-testid="print-logo-left"
               />
             )}
             <div>
               <span className="text-xs print:text-[10px] font-black uppercase tracking-widest text-slate-900 block">
-                {institutionName}
+                {resolvedInstitutionName}
               </span>
               <h1 className="text-sm print:text-xs font-extrabold text-slate-900 tracking-tight">
                 BOLETIM ESCOLAR INDIVIDUAL
@@ -406,10 +427,10 @@ export function StudentReportCardView({
           <div className="pt-3 border-t border-slate-200 flex items-center justify-between gap-4 text-xs print:pt-2 print:border-slate-300">
             <div className="space-y-0.5 print:space-y-0">
               <span className="text-xs print:text-[10px] font-bold text-slate-800 block">
-                {institutionName} — Relatório Acadêmico
+                {resolvedInstitutionName} — Relatório Acadêmico
               </span>
               <p className="text-[11px] print:text-[9.5px] text-slate-500">
-                Documento oficial emitido pelo Sistema de Gestão {institutionName}.
+                Documento oficial emitido pelo Sistema de Gestão {resolvedInstitutionName}.
               </p>
             </div>
 

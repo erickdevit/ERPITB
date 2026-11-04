@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { Download, FileText, FileSpreadsheet, FileJson, Printer } from 'lucide-react';
 import { Section } from '../../components';
-import { exportBiJson, exportExcelCsv, exportExcelXlsx, exportSimplePdf, type ExportValue } from '../../lib/exports';
+import { exportBiJson, exportExcelCsv, exportExcelXlsx, exportSimplePdf, printSimplePdf, type ExportValue } from '../../lib/exports';
+import { useApp } from '../../app-context';
 import { formatDate, todayInSaoPaulo } from '../../lib/date';
 import { formatPrintDocumentTitle, printWithDocumentTitle } from '../../lib/print-helper';
 import type { BiFilters } from './model';
@@ -57,13 +58,28 @@ export function ExportActions({
   const safeMetrics = metrics ?? [];
   const safeContext = context ?? [];
 
+  let branding: ReturnType<typeof useApp>['branding'];
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const app = useApp();
+    branding = app?.branding;
+  } catch {}
+
+  const pdfOptions = {
+    institutionName: branding?.appName,
+    logoUrl: branding?.loginLogoUrl,
+    watermarkText: branding?.printWatermarkText,
+    watermarkLogoUrl: branding?.printWatermarkLogoUrl,
+    watermarkGrayscale: branding?.printWatermarkGrayscale ?? true,
+  };
+
   return (
     <div className="flex items-center gap-2 flex-wrap print:hidden" aria-label="Opções de exportação">
       <button
         type="button"
         onClick={() => {
           if (onPrint) onPrint();
-          else printWithDocumentTitle(formatPrintDocumentTitle([title, ...safeContext]));
+          else void printSimplePdf(title, safeContext, safeHeaders, safeRows, pdfOptions);
         }}
         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
         aria-label="Imprimir"
@@ -103,7 +119,7 @@ export function ExportActions({
       </button>
       <button
         type="button"
-        onClick={() => void exportSimplePdf(filename, title, safeContext, safeHeaders, safeRows)}
+        onClick={() => void exportSimplePdf(filename, title, safeContext, safeHeaders, safeRows, pdfOptions)}
         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
       >
         <FileText className="w-3.5 h-3.5 text-rose-600" />

@@ -13,7 +13,8 @@ import { useSearchParams } from 'react-router-dom';
 import { formatDate, todayInSaoPaulo } from '../../lib/date';
 import { useEntity } from '../../lib/use-entity';
 import { buildClassBoletimData, buildUnifiedBoletimData, type ClassBoletimData } from '../../lib/boletim';
-import { exportClassBoletimPdf } from '../../lib/boletim-pdf';
+import { exportClassBoletimPdf, printBoletimPdf, printClassBoletimPdf } from '../../lib/boletim-pdf';
+import { printSimplePdf } from '../../lib/exports';
 import { formatPrintDocumentTitle, printWithDocumentTitle } from '../../lib/print-helper';
 import { ClassBoletimView } from '../reports/class-boletim-view';
 import { StudentReportCardView } from '../reports/student-report-card-view';
@@ -136,18 +137,19 @@ export function BiGradesPage() {
   );
 
   const handlePrint = () => {
+    const pdfOptions = {
+      institutionName: branding?.appName,
+      logoUrl: branding?.loginLogoUrl,
+      watermarkText: branding?.printWatermarkText,
+      watermarkLogoUrl: branding?.printWatermarkLogoUrl,
+      watermarkGrayscale: branding?.printWatermarkGrayscale ?? true,
+    };
     if (selectedStudentId && studentBoletimData) {
-      printWithDocumentTitle(
-        formatPrintDocumentTitle([
-          'Boletim Escolar Individual',
-          studentBoletimData.student.name,
-          studentBoletimData.student.registrationNumber,
-        ]),
-      );
+      void printBoletimPdf(studentBoletimData, pdfOptions);
     } else if (viewMode === 'boletim' && classBoletimData) {
-      printWithDocumentTitle(formatPrintDocumentTitle(['Boletim Consolidado da Turma', classBoletimData.className]));
+      void printClassBoletimPdf(classBoletimData, pdfOptions);
     } else {
-      printWithDocumentTitle(formatPrintDocumentTitle([biView.title || 'Análise de Notas', `${filters.from} a ${filters.to}`]));
+      void printSimplePdf(biView.title || 'Análise de Notas', context, biView.headers, biView.rows, pdfOptions);
     }
   };
 
@@ -156,6 +158,8 @@ export function BiGradesPage() {
     try {
       setDownloadingPdf(true);
       await exportClassBoletimPdf(classBoletimData, undefined, undefined, {
+        institutionName: branding?.appName,
+        logoUrl: branding?.loginLogoUrl,
         watermarkText: branding?.printWatermarkText,
         watermarkLogoUrl: branding?.printWatermarkLogoUrl,
         watermarkGrayscale: branding?.printWatermarkGrayscale ?? true,
@@ -374,7 +378,9 @@ export function BiGradesPage() {
 
             <StudentReportCardView
               data={studentBoletimData}
+              institutionName={branding?.appName}
               logoUrl={branding?.loginLogoUrl}
+              watermarkText={branding?.printWatermarkText}
               watermarkLogoUrl={branding?.printWatermarkLogoUrl}
               watermarkGrayscale={branding?.printWatermarkGrayscale ?? true}
             />

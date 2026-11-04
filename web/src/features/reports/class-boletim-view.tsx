@@ -14,6 +14,7 @@ import {
   printWithDocumentTitle,
   usePrintDocumentTitle,
 } from '../../lib/print-helper';
+import { useApp } from '../../app-context';
 
 export function statusBadgeStyle(status: GradeStatus): string {
   switch (status) {
@@ -53,26 +54,44 @@ export function ClassBoletimView({
   onPrint,
   onDownloadPdf,
   showSearch = true,
-  institutionName = 'opschool',
-  watermarkText = 'opschool - Documento Oficial',
+  institutionName,
+  watermarkText,
   watermarkLogoUrl,
-  watermarkGrayscale = true,
+  watermarkGrayscale,
   logoUrl,
   showHeaderLogoLeft = true,
   showHeaderLogoRight = false,
 }: ClassBoletimViewProps) {
   const [search, setSearch] = useState('');
   const [downloading, setDownloading] = useState(false);
+  let app: ReturnType<typeof useApp> | null = null;
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    app = useApp();
+  } catch {}
+
+  const resolvedInstitutionName = institutionName ?? app?.branding?.appName ?? 'opschool';
+  const resolvedLogoUrl = logoUrl ?? app?.branding?.loginLogoUrl;
+  const resolvedWatermarkLogoUrl = watermarkLogoUrl ?? app?.branding?.printWatermarkLogoUrl;
+  const resolvedWatermarkText = watermarkText ?? app?.branding?.printWatermarkText ?? `${resolvedInstitutionName} - Documento Oficial`;
+  const resolvedWatermarkGrayscale = watermarkGrayscale ?? app?.branding?.printWatermarkGrayscale ?? true;
 
   const documentTitle = formatPrintDocumentTitle(['Boletim Consolidado da Turma', data.className]);
   usePrintDocumentTitle(documentTitle);
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     if (onPrint) {
       onPrint();
-    } else {
-      printWithDocumentTitle(documentTitle);
+      return;
     }
+    const { printClassBoletimPdf } = await import('../../lib/boletim-pdf');
+    await printClassBoletimPdf(data, {
+      institutionName: resolvedInstitutionName,
+      watermarkText: resolvedWatermarkText,
+      watermarkLogoUrl: resolvedWatermarkLogoUrl,
+      watermarkGrayscale: resolvedWatermarkGrayscale,
+      logoUrl: resolvedLogoUrl,
+    });
   };
 
   const handleDownloadPdf = async () => {
@@ -84,10 +103,11 @@ export function ClassBoletimView({
       setDownloading(true);
       const { exportClassBoletimPdf } = await import('../../lib/boletim-pdf');
       await exportClassBoletimPdf(data, undefined, undefined, {
-        watermarkText,
-        watermarkLogoUrl,
-        watermarkGrayscale,
-        logoUrl,
+        institutionName: resolvedInstitutionName,
+        watermarkText: resolvedWatermarkText,
+        watermarkLogoUrl: resolvedWatermarkLogoUrl,
+        watermarkGrayscale: resolvedWatermarkGrayscale,
+        logoUrl: resolvedLogoUrl,
       });
     } finally {
       setDownloading(false);
@@ -120,14 +140,14 @@ export function ClassBoletimView({
 
   return (
     <div className="flex flex-col gap-3 text-left w-full print-landscape relative">
-      <PrintWatermark text={watermarkText} logoUrl={watermarkLogoUrl} grayscale={watermarkGrayscale} />
+      <PrintWatermark text={resolvedWatermarkText} logoUrl={resolvedWatermarkLogoUrl} grayscale={resolvedWatermarkGrayscale} />
       {/* PRINT-ONLY INSTITUTIONAL HEADER */}
       <div className="hidden print:flex flex-col gap-3 pb-4 border-b border-slate-300">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {logoUrl && (
+            {resolvedLogoUrl && (
               <img
-                src={logoUrl}
+                src={resolvedLogoUrl}
                 alt="Logo Institucional"
                 className="w-10 h-10 object-contain rounded-lg"
                 data-testid="print-logo-left"
@@ -135,7 +155,7 @@ export function ClassBoletimView({
             )}
             <div>
               <span className="text-xs font-black uppercase tracking-widest text-slate-900 block">
-                {institutionName}
+                {resolvedInstitutionName}
               </span>
             </div>
           </div>

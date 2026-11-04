@@ -7,7 +7,7 @@ import type { ReportFilters } from './model';
 import { buildReportView } from './model';
 
 export function useReportData(filters: ReportFilters) {
-  const { api, session } = useApp();
+  const { api, session, branding } = useApp();
   const attendance = useEntity('attendance_records', true);
   const classes = useEntity('classes', true);
   const classNotes = useEntity('class_notes', true);
@@ -69,6 +69,7 @@ export function useReportData(filters: ReportFilters) {
     gradeTables: gradeTables.items ?? [],
     gradeItems: gradeItems.items ?? [],
     studentGrades: studentGrades.items ?? [],
+    appName: branding?.appName || 'opschool',
   }), [
     attendance.items,
     classes.items,
@@ -81,6 +82,7 @@ export function useReportData(filters: ReportFilters) {
     gradeTables.items,
     gradeItems.items,
     studentGrades.items,
+    branding?.appName,
   ]);
 
   const view = useMemo(() => buildReportView(input, effectiveFilters), [effectiveFilters, input]);

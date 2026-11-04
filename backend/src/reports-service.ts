@@ -320,7 +320,7 @@ export async function generateReportData(env: Env, user: AuthUser, url: URL): Pr
              gi.name AS item_name, gi.category, gi.max_score, gi.weight,
              sg.score
         FROM student_grades sg
-        JOIN grade_tables gt ON gt.id = sg.grade_table_id AND gt.deleted_at IS NULL
+        JOIN grade_tables gt ON gt.id = sg.grade_table_id AND gt.deleted_at IS NULL AND gt.published = 1
         JOIN grade_items gi ON gi.id = sg.grade_item_id AND gi.deleted_at IS NULL
        WHERE sg.student_id = ? AND sg.deleted_at IS NULL
        ORDER BY gt.sort_order ASC, gi.sort_order ASC

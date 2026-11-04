@@ -28,6 +28,10 @@ export const useApp = () => {
   return value;
 };
 
+export const useAppSafe = (): AppState | null => {
+  return useContext(Context);
+};
+
 export function ApplicationProvider({
   initialSession,
   initialStore,

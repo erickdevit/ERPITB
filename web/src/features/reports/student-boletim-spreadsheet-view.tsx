@@ -14,6 +14,7 @@ import {
   printWithDocumentTitle,
   usePrintDocumentTitle,
 } from '../../lib/print-helper';
+import { useApp } from '../../app-context';
 
 export interface StudentBoletimSpreadsheetViewProps {
   data: UnifiedBoletimData;
@@ -45,19 +46,30 @@ interface SpreadsheetRow {
 
 export function StudentBoletimSpreadsheetView({
   data,
-  institutionName = 'opschool',
+  institutionName,
   portalUrl,
   onPrint,
   onDownloadPdf,
   onSwitchFormat,
-  watermarkText = 'opschool - Documento Oficial',
+  watermarkText,
   watermarkLogoUrl,
-  watermarkGrayscale = true,
+  watermarkGrayscale,
   logoUrl,
   showHeaderLogoLeft = true,
   showHeaderLogoRight = false,
 }: StudentBoletimSpreadsheetViewProps) {
   const [downloading, setDownloading] = useState(false);
+  let app: ReturnType<typeof useApp> | null = null;
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    app = useApp();
+  } catch {}
+
+  const resolvedInstitutionName = institutionName ?? app?.branding?.appName ?? 'opschool';
+  const resolvedLogoUrl = logoUrl ?? app?.branding?.loginLogoUrl;
+  const resolvedWatermarkLogoUrl = watermarkLogoUrl ?? app?.branding?.printWatermarkLogoUrl;
+  const resolvedWatermarkText = watermarkText ?? app?.branding?.printWatermarkText ?? `${resolvedInstitutionName} - Documento Oficial`;
+  const resolvedWatermarkGrayscale = watermarkGrayscale ?? app?.branding?.printWatermarkGrayscale ?? true;
 
   const student = data?.student ?? { name: 'Aluno', id: '', classNames: [] };
   const classNames = student.classNames ?? [];
@@ -76,9 +88,20 @@ export function StudentBoletimSpreadsheetView({
   ]);
   usePrintDocumentTitle(documentTitle);
 
-  const handlePrint = () => {
-    if (onPrint) onPrint();
-    else printWithDocumentTitle(documentTitle);
+  const handlePrint = async () => {
+    if (onPrint) {
+      onPrint();
+      return;
+    }
+    const { printBoletimPdf } = await import('../../lib/boletim-pdf');
+    await printBoletimPdf(data, {
+      institutionName: resolvedInstitutionName,
+      portalUrl: publicPortalUrl,
+      watermarkText: resolvedWatermarkText,
+      watermarkLogoUrl: resolvedWatermarkLogoUrl,
+      watermarkGrayscale: resolvedWatermarkGrayscale,
+      logoUrl: resolvedLogoUrl,
+    });
   };
 
   const handleDownloadPdf = async () => {
@@ -90,10 +113,12 @@ export function StudentBoletimSpreadsheetView({
       setDownloading(true);
       const { exportBoletimPdf } = await import('../../lib/boletim-pdf');
       await exportBoletimPdf(data, undefined, undefined, {
+        institutionName: resolvedInstitutionName,
         portalUrl: publicPortalUrl,
-        watermarkText,
-        watermarkLogoUrl,
-        watermarkGrayscale,
+        watermarkText: resolvedWatermarkText,
+        watermarkLogoUrl: resolvedWatermarkLogoUrl,
+        watermarkGrayscale: resolvedWatermarkGrayscale,
+        logoUrl: resolvedLogoUrl,
       });
     } finally {
       setDownloading(false);
@@ -214,9 +239,9 @@ export function StudentBoletimSpreadsheetView({
         className="relative bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-7 shadow-xs space-y-5 print:border-none print:shadow-none print:p-0 print:rounded-none"
       >
         <PrintWatermark
-          text={watermarkText}
-          logoUrl={watermarkLogoUrl}
-          grayscale={watermarkGrayscale}
+          text={resolvedWatermarkText}
+          logoUrl={resolvedWatermarkLogoUrl}
+          grayscale={resolvedWatermarkGrayscale}
         />
 
         {/* 1. INSTITUTIONAL HEADER */}
@@ -225,15 +250,15 @@ export function StudentBoletimSpreadsheetView({
             <div className="flex items-center gap-3">
               {showHeaderLogoLeft && (
                 <img
-                  src={logoUrl || '/ops-logo.svg'}
-                  alt={institutionName}
+                  src={resolvedLogoUrl || '/ops-logo.svg'}
+                  alt={resolvedInstitutionName}
                   className="h-10 w-auto object-contain shrink-0"
                   crossOrigin="anonymous"
                 />
               )}
               <div>
                 <h1 className="text-base font-extrabold text-slate-900 tracking-tight leading-tight uppercase">
-                  {institutionName}
+                  {resolvedInstitutionName}
                 </h1>
                 <p className="text-xs font-medium text-slate-500">
                   Boletim de Rendimento Escolar — Grade Tabular
@@ -357,7 +382,7 @@ export function StudentBoletimSpreadsheetView({
               Coordenação Pedagógica / Direção
             </span>
             <span className="text-[10px] text-slate-400 font-medium">
-              {institutionName}
+              {resolvedInstitutionName}
             </span>
           </div>
 
@@ -375,7 +400,7 @@ export function StudentBoletimSpreadsheetView({
         {/* 6. INSTITUTIONAL FOOTER */}
         <div className="pt-2 border-t border-slate-200 flex items-center justify-between gap-4 text-xs print:pt-4">
           <div className="text-[10px] text-slate-500">
-            {institutionName} — Documento oficial emitido em formato grade tabular / planilha.
+            {resolvedInstitutionName} — Documento oficial emitido em formato grade tabular / planilha.
           </div>
           <div className="text-[10px] text-slate-400 font-mono">
             Código: {data.student.registrationNumber || data.student.id}

@@ -212,8 +212,9 @@ export function buildUnifiedBoletimData(params: {
 
   for (const classRecord of targetClasses) {
     const classAttendance = studentAttendance.filter((a) => a.class_id === classRecord.id);
-    const classTables = allGradeTables
-      .filter((t) => t.class_id === classRecord.id)
+    const rawClassTables = allGradeTables.filter((t) => t.class_id === classRecord.id);
+    const classTables = rawClassTables
+      .filter((t) => t.published !== 0 && t.published !== false && t.published !== '0' && t.published !== 'false')
       .sort((a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0) || String(a.created_at ?? '').localeCompare(String(b.created_at ?? '')));
 
     // Distinct dates on which lessons were actually registered and launched for this class:
@@ -226,7 +227,13 @@ export function buildUnifiedBoletimData(params: {
     ).sort();
 
     if (classTables.length === 0) {
-      // Class has no grade tables defined
+      // If there were grade tables defined for this class, but all were marked unpublished (not to be displayed in boletim),
+      // omit this module from the boletim.
+      if (rawClassTables.length > 0) {
+        continue;
+      }
+
+      // Class has no grade tables defined at all
       const classesHeld = distinctClassDates.length;
       const presences = classAttendance.filter((a) => a.status === 'P' || a.status === 'RC').length;
       const absences = classAttendance.filter((a) => a.status === 'F' || a.status === 'R').length;
@@ -432,6 +439,7 @@ export function buildClassBoletimData(params: {
     items: params.gradeItems ?? [],
     studentGrades: params.studentGrades ?? [],
     students: activeStudents,
+    publishedOnly: true,
   });
 
   const dedupedAttendance = latestAttendance(params.attendanceRecords ?? []);

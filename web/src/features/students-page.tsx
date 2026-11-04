@@ -734,7 +734,9 @@ export function StudentsPage({ today = todayInSaoPaulo() }: { today?: string }) 
 
             <StudentReportCardView
               data={boletimData}
+              institutionName={branding?.appName}
               logoUrl={branding?.loginLogoUrl}
+              watermarkText={branding?.printWatermarkText}
               watermarkLogoUrl={branding?.printWatermarkLogoUrl}
               watermarkGrayscale={branding?.printWatermarkGrayscale ?? true}
             />

@@ -2,6 +2,7 @@ import { jsPDF, GState } from 'jspdf';
 import QRCode from 'qrcode';
 import type { ClassBoletimData, UnifiedBoletimData } from './boletim';
 import { formatGrade } from './grades';
+import { printPdfBlob } from './print-helper';
 
 export interface BoletimPdfOptions {
   institutionName?: string;
@@ -511,14 +512,24 @@ export function buildClassBoletimPdf(data: ClassBoletimData, options?: BoletimPd
   let currentY = 10;
 
   // Header (Clean White, No Dark Block)
+  let headerTextX = marginX;
+  if (options?.logoDataUrl) {
+    try {
+      doc.addImage(options.logoDataUrl, 'PNG', marginX, currentY + 0.5, 9, 9);
+      headerTextX = marginX + 11.5;
+    } catch {
+      headerTextX = marginX;
+    }
+  }
+
   doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
-  doc.text(options?.institutionName || 'opschool', marginX, currentY + 4);
+  doc.text(options?.institutionName || 'opschool', headerTextX, currentY + 4);
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12.5);
-  doc.text('BOLETIM CONSOLIDADO DA TURMA', marginX, currentY + 9.5);
+  doc.text('BOLETIM CONSOLIDADO DA TURMA', headerTextX, currentY + 9.5);
 
   const emissionStr = `Data e Hora de Emissão: ${formatEmissionDate(data.issueDate)}`;
   doc.setFont('helvetica', 'normal');
@@ -686,6 +697,41 @@ export function getBoletimPdfFilename(
 }
 
 /**
+ * Builds and returns the jsPDF document for an individual student boletim.
+ */
+export async function generateBoletimPdfDoc(
+  data: UnifiedBoletimData,
+  options?: BoletimPdfOptions
+): Promise<jsPDF> {
+  let qrDataUrl = options?.qrDataUrl;
+  if (!qrDataUrl) {
+    try {
+      const portalCode = data.student?.registrationNumber || data.student?.id || '';
+      const publicPortalUrl =
+        options?.portalUrl ||
+        (typeof window !== 'undefined' && window.location?.origin
+          ? `${window.location.origin}/aluno/${encodeURIComponent(portalCode)}`
+          : `/aluno/${encodeURIComponent(portalCode)}`);
+      qrDataUrl = await QRCode.toDataURL(publicPortalUrl, { margin: 0, width: 120 });
+    } catch {
+      qrDataUrl = undefined;
+    }
+  }
+
+  let watermarkLogoDataUrl = options?.watermarkLogoDataUrl;
+  if (!watermarkLogoDataUrl && options?.watermarkLogoUrl) {
+    watermarkLogoDataUrl = (await urlToDataUrl(options.watermarkLogoUrl, options.watermarkGrayscale ?? true)) ?? undefined;
+  }
+
+  let logoDataUrl = options?.logoDataUrl;
+  if (!logoDataUrl && options?.logoUrl) {
+    logoDataUrl = (await urlToDataUrl(options.logoUrl, false)) ?? undefined;
+  }
+
+  return buildBoletimPdf(data, { ...options, qrDataUrl, watermarkLogoDataUrl, logoDataUrl });
+}
+
+/**
  * Generates and downloads the Boletim PDF for the given student report card data.
  */
 export async function exportBoletimPdf(
@@ -694,38 +740,43 @@ export async function exportBoletimPdf(
   docInstance?: jsPDF,
   options?: BoletimPdfOptions
 ): Promise<void> {
-  let doc = docInstance;
-  if (!doc) {
-    let qrDataUrl = options?.qrDataUrl;
-    if (!qrDataUrl) {
-      try {
-        const portalCode = data.student?.registrationNumber || data.student?.id || '';
-        const publicPortalUrl =
-          options?.portalUrl ||
-          (typeof window !== 'undefined' && window.location?.origin
-            ? `${window.location.origin}/aluno/${encodeURIComponent(portalCode)}`
-            : `/aluno/${encodeURIComponent(portalCode)}`);
-        qrDataUrl = await QRCode.toDataURL(publicPortalUrl, { margin: 0, width: 120 });
-      } catch {
-        qrDataUrl = undefined;
-      }
-    }
-
-    let watermarkLogoDataUrl = options?.watermarkLogoDataUrl;
-    if (!watermarkLogoDataUrl && options?.watermarkLogoUrl) {
-      watermarkLogoDataUrl = (await urlToDataUrl(options.watermarkLogoUrl, options.watermarkGrayscale ?? true)) ?? undefined;
-    }
-
-    let logoDataUrl = options?.logoDataUrl;
-    if (!logoDataUrl && options?.logoUrl) {
-      logoDataUrl = (await urlToDataUrl(options.logoUrl, false)) ?? undefined;
-    }
-
-    doc = buildBoletimPdf(data, { ...options, qrDataUrl, watermarkLogoDataUrl, logoDataUrl });
-  }
-
+  const doc = docInstance || (await generateBoletimPdfDoc(data, options));
   const filename = getBoletimPdfFilename(data, customFilename);
   doc.save(filename);
+}
+
+/**
+ * Generates the vector PDF for the student boletim and sends it directly to the browser print dialog.
+ */
+export async function printBoletimPdf(
+  data: UnifiedBoletimData,
+  options?: BoletimPdfOptions
+): Promise<void> {
+  const doc = await generateBoletimPdfDoc(data, options);
+  doc.autoPrint();
+  const blob = doc.output('blob');
+  const filename = getBoletimPdfFilename(data, options?.customFilename);
+  await printPdfBlob(blob, filename.replace(/\.pdf$/i, ''));
+}
+
+/**
+ * Builds and returns the jsPDF document for the consolidated class boletim.
+ */
+export async function generateClassBoletimPdfDoc(
+  data: ClassBoletimData,
+  options?: BoletimPdfOptions
+): Promise<jsPDF> {
+  let watermarkLogoDataUrl = options?.watermarkLogoDataUrl;
+  if (!watermarkLogoDataUrl && options?.watermarkLogoUrl) {
+    watermarkLogoDataUrl = (await urlToDataUrl(options.watermarkLogoUrl, options.watermarkGrayscale ?? true)) ?? undefined;
+  }
+
+  let logoDataUrl = options?.logoDataUrl;
+  if (!logoDataUrl && options?.logoUrl) {
+    logoDataUrl = (await urlToDataUrl(options.logoUrl, false)) ?? undefined;
+  }
+
+  return buildClassBoletimPdf(data, { ...options, watermarkLogoDataUrl, logoDataUrl });
 }
 
 /**
@@ -737,16 +788,66 @@ export async function exportClassBoletimPdf(
   docInstance?: jsPDF,
   options?: BoletimPdfOptions
 ): Promise<void> {
-  let doc = docInstance;
-  if (!doc) {
-    let watermarkLogoDataUrl = options?.watermarkLogoDataUrl;
-    if (!watermarkLogoDataUrl && options?.watermarkLogoUrl) {
-      watermarkLogoDataUrl = (await urlToDataUrl(options.watermarkLogoUrl, options.watermarkGrayscale ?? true)) ?? undefined;
-    }
-    doc = buildClassBoletimPdf(data, { ...options, watermarkLogoDataUrl });
-  }
+  const doc = docInstance || (await generateClassBoletimPdfDoc(data, options));
   const filename = customFilename || `Boletim_Consolidado_${safeFilename(data.className)}.pdf`;
   doc.save(filename);
+}
+
+/**
+ * Generates the vector PDF for the class boletim and sends it directly to the browser print dialog.
+ */
+export async function printClassBoletimPdf(
+  data: ClassBoletimData,
+  options?: BoletimPdfOptions
+): Promise<void> {
+  const doc = await generateClassBoletimPdfDoc(data, options);
+  doc.autoPrint();
+  const blob = doc.output('blob');
+  const title = `Boletim Consolidado da Turma - ${data.className}`;
+  await printPdfBlob(blob, title);
+}
+
+/**
+ * Builds and returns the jsPDF document for batch individual class boletins.
+ */
+export async function generateClassBatchBoletimPdfDoc(
+  studentsData: UnifiedBoletimData[],
+  className?: string,
+  options?: BoletimPdfOptions
+): Promise<jsPDF> {
+  const qrDataUrlsByStudentId: Record<string, string> = { ...(options?.qrDataUrlsByStudentId ?? {}) };
+  for (const studentData of studentsData) {
+    const studentId = studentData.student?.id || '';
+    if (studentId && !qrDataUrlsByStudentId[studentId]) {
+      try {
+        const portalCode = studentData.student?.registrationNumber || studentId;
+        const publicPortalUrl =
+          typeof window !== 'undefined' && window.location?.origin
+            ? `${window.location.origin}/aluno/${encodeURIComponent(portalCode)}`
+            : `/aluno/${encodeURIComponent(portalCode)}`;
+        qrDataUrlsByStudentId[studentId] = await QRCode.toDataURL(publicPortalUrl, { margin: 0, width: 120 });
+      } catch {
+        // Ignore QR generation error for individual student
+      }
+    }
+  }
+
+  let watermarkLogoDataUrl = options?.watermarkLogoDataUrl;
+  if (!watermarkLogoDataUrl && options?.watermarkLogoUrl) {
+    watermarkLogoDataUrl = (await urlToDataUrl(options.watermarkLogoUrl, options.watermarkGrayscale ?? true)) ?? undefined;
+  }
+
+  let logoDataUrl = options?.logoDataUrl;
+  if (!logoDataUrl && options?.logoUrl) {
+    logoDataUrl = (await urlToDataUrl(options.logoUrl, false)) ?? undefined;
+  }
+
+  return buildClassBatchBoletimPdf(studentsData, {
+    ...options,
+    qrDataUrlsByStudentId,
+    watermarkLogoDataUrl,
+    logoDataUrl,
+  });
 }
 
 /**
@@ -760,44 +861,24 @@ export async function exportClassBatchBoletimPdf(
   docInstance?: jsPDF,
   options?: BoletimPdfOptions
 ): Promise<void> {
-  let doc = docInstance;
-  if (!doc) {
-    const qrDataUrlsByStudentId: Record<string, string> = { ...(options?.qrDataUrlsByStudentId ?? {}) };
-    for (const studentData of studentsData) {
-      const studentId = studentData.student?.id || '';
-      if (studentId && !qrDataUrlsByStudentId[studentId]) {
-        try {
-          const portalCode = studentData.student?.registrationNumber || studentId;
-          const publicPortalUrl =
-            typeof window !== 'undefined' && window.location?.origin
-              ? `${window.location.origin}/aluno/${encodeURIComponent(portalCode)}`
-              : `/aluno/${encodeURIComponent(portalCode)}`;
-          qrDataUrlsByStudentId[studentId] = await QRCode.toDataURL(publicPortalUrl, { margin: 0, width: 120 });
-        } catch {
-          // Ignore QR generation error for individual student
-        }
-      }
-    }
-
-    let watermarkLogoDataUrl = options?.watermarkLogoDataUrl;
-    if (!watermarkLogoDataUrl && options?.watermarkLogoUrl) {
-      watermarkLogoDataUrl = (await urlToDataUrl(options.watermarkLogoUrl, options.watermarkGrayscale ?? true)) ?? undefined;
-    }
-
-    let logoDataUrl = options?.logoDataUrl;
-    if (!logoDataUrl && options?.logoUrl) {
-      logoDataUrl = (await urlToDataUrl(options.logoUrl, false)) ?? undefined;
-    }
-
-    doc = buildClassBatchBoletimPdf(studentsData, {
-      ...options,
-      qrDataUrlsByStudentId,
-      watermarkLogoDataUrl,
-      logoDataUrl,
-    });
-  }
-
+  const doc = docInstance || (await generateClassBatchBoletimPdfDoc(studentsData, className, options));
   const resolvedClassName = className || studentsData[0]?.student?.classNames?.[0] || 'Turma';
   const filename = customFilename || `Boletins_Turma_${safeFilename(resolvedClassName)}.pdf`;
   doc.save(filename);
+}
+
+/**
+ * Generates the concatenated PDF for all student boletins in a class and sends it directly to the browser print dialog.
+ */
+export async function printClassBatchBoletimPdf(
+  studentsData: UnifiedBoletimData[],
+  className?: string,
+  options?: BoletimPdfOptions
+): Promise<void> {
+  const doc = await generateClassBatchBoletimPdfDoc(studentsData, className, options);
+  doc.autoPrint();
+  const blob = doc.output('blob');
+  const resolvedClassName = className || studentsData[0]?.student?.classNames?.[0] || 'Turma';
+  const title = `Boletins Individuais da Turma - ${resolvedClassName}`;
+  await printPdfBlob(blob, title);
 }

@@ -6,13 +6,22 @@ import { PrintWatermark } from '../../components';
 import { useApp } from '../../app-context';
 
 export function ReportResult({ view }: { view: ReportView }) {
-  const { branding } = useApp();
+  let branding: ReturnType<typeof useApp>['branding'];
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const app = useApp();
+    branding = app?.branding;
+  } catch {
+    // gracefully handles render outside provider or minimal test mocks
+  }
 
   if (view.type === 'studentBoletim' && view.boletimData) {
     return (
       <StudentReportCardView
         data={view.boletimData}
+        institutionName={branding?.appName}
         logoUrl={branding?.loginLogoUrl}
+        watermarkText={branding?.printWatermarkText}
         watermarkLogoUrl={branding?.printWatermarkLogoUrl}
         watermarkGrayscale={branding?.printWatermarkGrayscale ?? true}
       />
@@ -23,7 +32,9 @@ export function ReportResult({ view }: { view: ReportView }) {
     return (
       <ClassBoletimView
         data={view.classBoletimData}
+        institutionName={branding?.appName}
         logoUrl={branding?.loginLogoUrl}
+        watermarkText={branding?.printWatermarkText}
         watermarkLogoUrl={branding?.printWatermarkLogoUrl}
         watermarkGrayscale={branding?.printWatermarkGrayscale ?? true}
       />
@@ -34,10 +45,28 @@ export function ReportResult({ view }: { view: ReportView }) {
   return (
     <div className="flex flex-col gap-3 text-left print-landscape relative">
       <PrintWatermark
-        text={branding?.printWatermarkText || 'opschool - Documento Oficial'}
+        text={branding?.printWatermarkText || `${branding?.appName || 'opschool'} - Documento Oficial`}
         logoUrl={branding?.printWatermarkLogoUrl}
         grayscale={branding?.printWatermarkGrayscale ?? true}
       />
+      {/* PRINT-ONLY INSTITUTIONAL HEADER */}
+      <div className="hidden print:flex items-center gap-3 mb-2 border-b border-slate-300 pb-2">
+        {branding?.loginLogoUrl && (
+          <img
+            src={branding.loginLogoUrl}
+            alt={branding.appName || 'Logo Institucional'}
+            className="w-8 h-8 object-contain rounded-lg"
+          />
+        )}
+        <div>
+          <span className="text-xs font-black uppercase tracking-widest text-slate-900 block">
+            {branding?.appName || 'opschool'}
+          </span>
+          <span className="text-sm font-extrabold text-slate-900 block">
+            {displayTitle}
+          </span>
+        </div>
+      </div>
       <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xs overflow-hidden print:border-none print:shadow-none">
         <div className="py-3 px-4 border-b border-slate-100 flex items-center justify-between">
           <div>
