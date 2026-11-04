@@ -1,129 +1,129 @@
-# opschool — Plataforma de Gestão Escolar Acadêmica, Financeira e Analítica
+# opschool — Academic, Financial, and Analytical School Management Platform
 
-Plataforma de gestão escolar modular, agnóstica de instituição e com suporte nativo a multi-branding (cada escola configura sua marca, logotipo, cores e identidade visual), composta por aplicação Web PWA (**React 19 + TypeScript + Vite**) 100% online e API REST nativa em **Node.js 22 + PostgreSQL 16**, suportando também implantação serverless em Cloudflare Workers + D1.
+Modular school management platform, agnostic to the institution and with native multi-branding support (each school configures its own brand, logo, colors, and visual identity). It is composed of a web PWA and a Cloudflare Workers + D1 backend, designed for operational efficiency, institutional autonomy, and privacy-conscious data handling.
 
 ---
 
-## Execução com Docker & PostgreSQL (Recomendado)
+## Docker & PostgreSQL Execution (Recommended)
 
-A aplicação foi portanteada para container Docker multi-stage ultraleve (`node:22-alpine`, usuário não-root `node`, bundle esbuild de 400KB), com banco relacional **PostgreSQL 16**, armazenamento local persistente de assets/branding e serving unificado de API e PWA estático na porta **3000**.
+The application has been ported to a lightweight multi-stage Docker container (`node:22-alpine`, non-root user `node`, ~400KB esbuild bundle), with a relational **PostgreSQL 16** database and persistent storage. The runtime is optimized for local execution and quick startup.
 
-### 1. Iniciar com Docker Compose
+### 1. Start with Docker Compose
 
 ```bash
-# Copie o arquivo de variáveis de ambiente
+# Copy environment variables
 cp .env.example .env
 
-# Suba os containers do PostgreSQL e da Aplicação
+# Start PostgreSQL and the application containers
 docker compose up -d
 ```
 
-Os serviços iniciados são:
-- `opschool-postgres`: PostgreSQL 16 Alpine com volume persistente `postgres_data` na porta `5432`.
-- `opschool-app`: Aplicação unificada (API REST + PWA Web) com volume persistente de arquivos `storage_data` na porta `3000`.
+The services started are:
+- `opschool-postgres`: PostgreSQL 16 Alpine with persistent volume `postgres_data` on port `5432`.
+- `opschool-app`: Unified application (REST API + Web PWA) with persistent file volume `storage_data` on port `3000`.
 
-### 2. Verificar a Saúde dos Containers
+### 2. Verify container health
 
 ```bash
 docker compose ps
 curl http://127.0.0.1:3000/health
 ```
 
-### 3. Bootstrap do Primeiro Administrador no Docker
+### 3. Bootstrap the first administrator on Docker
 
-Com os containers em execução:
+With the containers running:
 
 ```bash
 curl -X POST http://127.0.0.1:3000/auth/bootstrap \
-  -H "X-Bootstrap-Secret: troque-este-segredo" \
+  -H "X-Bootstrap-Secret: change-this-secret" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Administrador","email":"admin@opschool.local","password":"SuaSenhaSegura123!"}'
+  -d '{"name":"Administrator","email":"admin@opschool.local","password":"YourStrongPassword123!"}'
 ```
 
-Após o bootstrap, acesse `http://localhost:3000` no seu navegador para utilizar o sistema.
+After bootstrap, open `http://localhost:3000` in your browser to use the system.
 
 ---
 
-## Principais Módulos e Capacidades
+## Main Modules and Capabilities
 
-- **Arquitetura Online REST (`/api/v1/*`)**:
-  - Cloudflare D1 como autoridade canônica única de dados e regras de negócio.
-  - Controle de concorrência otimista (`ETag` / `If-Match` com detecção de conflito HTTP 409).
-  - Idempotência nativa (`x-idempotency-key`) para chamadas, baixas de mensalidades, lançamentos de caixa e estornos.
-  - Invalidação de cache e revogação de sessão em tempo real via Server-Sent Events (`GET /api/v1/events`).
-  - Drenagem automática e segura de filas legadas do navegador (`POST /api/v1/migration/drain`).
-- **Gestão Acadêmica e Chamada Rápida**:
-  - Chamada com ações rápidas inline (edição rápida de aluno, trancamento de matrícula preservando histórico e botão discreto `+` para inclusão imediata na turma).
-  - Contabilização canônica de aulas ministradas (`class_sessions`) desacoplada dos registros individuais de presença.
-  - Boletim escolar unificado (por turma e individual), gestão de etapas avaliativas e controle de reposições.
-- **Domínio Financeiro Completo e RBAC de Menor Privilégio**:
-  - Gestão de mensalidades (`financial_fees`) com geração individual ou em lote por turma, controle de competência, vencimento, baixa parcial/total e cálculo automático de inadimplência.
-  - Livro Caixa (`cash_transactions`) com saldo inicial, entradas, saídas, saldo de fechamento e estornos compensatórios auditáveis (sem exclusão física).
-  - Papel dedicado `financeiro` com isolamento estrito: acesso total à operação financeira e bloqueio (`403 Forbidden`) a dados pedagógicos (notas, frequência e anotações de aula).
-  - Criptografia **AES-256-GCM** para dados sensíveis (CPF e contatos de alunos e responsáveis financeiros).
-- **Identidade Visual (Branding), Chaves M2M e OpenAPI**:
-  - Painel administrativo (`/admin/branding`) com validação de contraste **WCAG 2.1 AA**, logotipo, plano de fundo de login e marca d'água para impressões A4 (`.print-portrait` e `.print-landscape`).
-  - Gestão de Chaves de API M2M (`/admin/api-keys`) com escopos granulares, rotação, revogação e proteção de PII (`students:pii`).
-  - Especificação OpenAPI 3.0 disponível em `GET /api/v1/openapi.json`.
-
----
-
-## Estrutura do Repositório
-
-- `backend/`: API REST `/api/v1/*` em Cloudflare Workers, autenticação PBKDF2/JWT/API Keys, RBAC, serviços de domínio (acadêmico, financeiro, B.I., relatórios, SSE) e migrações D1.
-- `web/`: Aplicação Web PWA em React 19 + TypeScript (shell instalável 100% online), módulos operacionais, financeiro, B.I., administração e layouts de impressão A4.
-- `docs/`: Documentação de arquitetura, contratos de API, segurança e guia de operação (`docs/architecture.md`).
+- **Online REST Architecture (`/api/v1/*`)**:
+  - Cloudflare D1 as the single canonical source of truth for data and business rules.
+  - Optimistic concurrency control (`ETag` / `If-Match` with HTTP 409 conflict detection).
+  - Native idempotency (`x-idempotency-key`) for fee collections, cash entries, and reversals.
+  - Cache invalidation and real-time session revocation via Server-Sent Events (`GET /api/v1/events`).
+  - Automatic and safe draining of legacy browser queues (`POST /api/v1/migration/drain`).
+- **Academic Management and Quick Attendance**:
+  - Attendance with inline quick actions (rapid student editing, enrollment suspension while preserving history, and a discreet `+` button for immediate inclusion in the class).
+  - Canonical accounting of taught classes (`class_sessions`) decoupled from individual attendance records.
+  - Unified gradebook (by class and by student), evaluation stage management, and replacement tracking.
+- **Complete Financial Domain and Least-Privilege RBAC**:
+  - Tuition management (`financial_fees`) with individual or bulk generation by class, competence control, due date management, partial/total payment settlement, and automatic delinquency calculation.
+  - Cash book (`cash_transactions`) with opening balance, inflows, outflows, closing balance, and auditable compensatory reversals (without physical deletion).
+  - Dedicated `financeiro` role with strict isolation: complete access to financial operations and blocking (`403 Forbidden`) of academic data (grades, attendance, and class notes).
+  - **AES-256-GCM** encryption for sensitive data (CPF and student or financial guardian contact information).
+- **Visual Identity (Branding), M2M Keys, and OpenAPI**:
+  - Administrative panel (`/admin/branding`) with **WCAG 2.1 AA** contrast validation, logo upload, login background, and watermark configuration for A4 prints (`.print-portrait` and `.print-landscape`).
+  - Management of M2M API Keys (`/admin/api-keys`) with granular scopes, rotation, revocation, and PII protection (`students:pii`).
+  - OpenAPI 3.0 specification available at `GET /api/v1/openapi.json`.
 
 ---
 
-## Desenvolvimento e Verificação
+## Repository Structure
+
+- `backend/`: REST API `/api/v1/*` on Cloudflare Workers, authentication with PBKDF2/JWT/API Keys, RBAC, domain services (academic, financial, BI, reporting, SSE), and D1 migrations.
+- `web/`: React 19 + TypeScript PWA application (fully online installable shell), operational modules, finance, BI, administration, and A4 print layouts.
+- `docs/`: Architecture documentation, API contracts, security notes, and operations guide (`docs/architecture.md`).
+
+---
+
+## Development and Verification
 
 ### 1. Backend Worker (`backend/`)
 
 ```bash
 cd backend
 npm install
-npm run typecheck  # Validação estática de tipos TypeScript
-npm test           # Suíte de testes unitários, RBAC, concorrência, idempotência e integração (Vitest)
-npm run dev        # Servidor local do Cloudflare Worker (Wrangler na porta 8787)
+npm run typecheck  # Static TypeScript validation
+npm test           # Unit, RBAC, concurrency, idempotency, and integration test suite (Vitest)
+npm run dev        # Local Cloudflare Worker server (Wrangler on port 8787)
 ```
 
-Para inicializar o schema completo no banco D1 local:
+To initialize the complete schema in the local D1 database:
 
 ```bash
 npx wrangler d1 execute opschool --local --file=src/schema.sql
 ```
 
-### 2. Aplicação Web (`web/`)
+### 2. Web Application (`web/`)
 
 ```bash
 cd web
 npm install
-npx tsc -b         # Validação estática de tipos TypeScript
-npm test           # Suíte de testes unitários, componentes e E2E (Vitest)
-npm run dev        # Servidor Vite local com proxy para o Worker (8787)
-npm run build      # Gera o bundle de produção em web/dist
+npx tsc -b         # Static TypeScript validation
+npm test           # Unit, component, and UI test suite (Vitest)
+npm run dev        # Local Vite dev server with Worker proxy (port 8787)
+npm run build      # Generates the production bundle in web/dist
 ```
 
-### 3. Build & Deploy Completo
+### 3. Full Build & Deploy
 
-A partir do diretório `backend/`:
+From the `backend/` directory:
 
 ```bash
-npm run deploy     # Compila o PWA (web/dist) e publica no Cloudflare Worker
+npm run deploy     # Builds the PWA (web/dist) and publishes it to the Cloudflare Worker
 ```
 
 ---
 
-## Bootstrap do Primeiro Administrador
+## Bootstrap the First Administrator
 
-Com o Worker em execução e `BOOTSTRAP_SECRET` configurado:
+With the Worker running and `BOOTSTRAP_SECRET` configured:
 
 ```bash
 curl -X POST http://127.0.0.1:8787/auth/bootstrap \
-  -H "X-Bootstrap-Secret: troque-este-segredo" \
+  -H "X-Bootstrap-Secret: change-this-secret" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Administrador","email":"admin@opschool.local","password":"Senha Forte 123!"}'
+  -d '{"name":"Administrator","email":"admin@opschool.local","password":"StrongPassword 123!"}'
 ```
 
-O endpoint de bootstrap é automaticamente desabilitado após a criação do primeiro usuário no banco de dados.
+The bootstrap endpoint is automatically disabled after the first user is created in the database.
