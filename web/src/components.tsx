@@ -121,6 +121,20 @@ export function PageDialog({
     }
   }, [open, rendered]);
 
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [open, onClose]);
+
   if (!rendered) return null;
 
   return (
@@ -142,7 +156,8 @@ export function PageDialog({
             type="button"
             onClick={onClose}
             aria-label="Fechar"
-            className="p-1.5 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            title="Fechar (Esc)"
+            className="p-1.5 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>

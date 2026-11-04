@@ -3,8 +3,9 @@
  */
 import React from 'react';
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { PrintWatermark, QrCodeImage, PageDialog } from './components';
+import { vi } from 'vitest';
 
 describe('Common Components', () => {
   describe('PrintWatermark', () => {
@@ -73,6 +74,18 @@ describe('Common Components', () => {
         </PageDialog>
       );
       expect(screen.queryByText('Modal Hidden')).toBeNull();
+    });
+
+    it('invokes onClose when pressing Escape key', () => {
+      const handleClose = vi.fn();
+      render(
+        <PageDialog open={true} title="Modal Keyboard Test" onClose={handleClose} onSave={() => {}}>
+          <p>Esc Content</p>
+        </PageDialog>
+      );
+
+      fireEvent.keyDown(document, { key: 'Escape' });
+      expect(handleClose).toHaveBeenCalledTimes(1);
     });
   });
 });
