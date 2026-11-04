@@ -24,7 +24,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useApp } from '../app-context';
 import { PageDialog, SelectField, ErrorBoundary, TableSkeleton } from '../components';
 import { latestAttendance } from '../lib/attendance';
-import { buildUnifiedBoletimData, type ClassBoletimData } from '../lib/boletim';
+import { buildClassBoletimData, buildUnifiedBoletimData, type ClassBoletimData } from '../lib/boletim';
 import { printClassBoletimPdf } from '../lib/boletim-pdf';
 import {
   buildClassGradeSummary,
@@ -153,6 +153,9 @@ export function GradesPage() {
   const [itemToDelete, setItemToDelete] = useState<LocalRecord | null>(null);
   const [deletingItem, setDeletingItem] = useState(false);
 
+  // Optimistic publication overrides: tableId -> boolean (immediate feedback without waiting for reload)
+  const [publishedOverrides, setPublishedOverrides] = useState<Record<string, boolean>>({});
+
   // Draft cells: key = `${studentId}:${itemId}` -> { scoreText, remarks }
   const [draftCells, setDraftCells] = useState<Record<string, { scoreText: string; remarks: string }>>({});
   const [dirty, setDirty] = useState(false);
@@ -226,16 +229,25 @@ export function GradesPage() {
     }
   }, [classId, activeClasses]);
 
+  const effectiveGradeTables = useMemo(() => {
+    return (gradeTables.items ?? []).map((t) => {
+      if (publishedOverrides[t.id] !== undefined) {
+        return { ...t, published: publishedOverrides[t.id] ? 1 : 0 };
+      }
+      return t;
+    });
+  }, [gradeTables.items, publishedOverrides]);
+
   const classTables = useMemo(
     () =>
-      gradeTables.items
+      effectiveGradeTables
         .filter((t) => !t.deleted_at && String(t.class_id) === classId)
         .sort(
           (a, b) =>
             Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0) ||
             String(a.created_at ?? '').localeCompare(String(b.created_at ?? '')),
         ),
-    [gradeTables.items, classId],
+    [effectiveGradeTables, classId],
   );
 
   useEffect(() => {
@@ -346,12 +358,12 @@ export function GradesPage() {
     () =>
       buildClassGradeSummary({
         classId,
-        tables: gradeTables.items,
+        tables: effectiveGradeTables,
         items: gradeItems.items,
         studentGrades: studentGrades.items,
         students: enrolledStudents,
       }),
-    [classId, gradeTables.items, gradeItems.items, studentGrades.items, enrolledStudents],
+    [classId, effectiveGradeTables, gradeItems.items, studentGrades.items, enrolledStudents],
   );
 
   // Attendance rate per student in this class
@@ -402,6 +414,9 @@ export function GradesPage() {
   };
 
   const openEditTableModal = (table: LocalRecord) => {
+    const isPub = publishedOverrides[table.id] !== undefined
+      ? publishedOverrides[table.id]
+      : (table.published !== 0 && table.published !== false && table.published !== '0' && table.published !== 'false');
     setTableModal({
       open: true,
       existing: table,
@@ -410,7 +425,7 @@ export function GradesPage() {
         ? text(table, 'calculation_mode')
         : 'simple') as CalculationMode,
       passingGrade: String(table.passing_grade ?? 6).replace('.', ','),
-      published: table.published !== 0 && table.published !== false,
+      published: isPub,
       startDate: text(table, 'start_date'),
       endDate: text(table, 'end_date'),
       notes: text(table, 'notes'),
@@ -432,6 +447,8 @@ export function GradesPage() {
         notes: tableModal.notes,
         existing: tableModal.existing,
       });
+      setPublishedOverrides((prev) => ({ ...prev, [savedId]: tableModal.published }));
+      await gradeTables.reload(true);
       setTableModal((prev) => ({ ...prev, open: false, error: undefined }));
       setSelectedTableId(savedId);
       setNotice({
@@ -448,7 +465,13 @@ export function GradesPage() {
 
   const handleDeleteTable = async (table: LocalRecord) => {
     try {
+      setPublishedOverrides((prev) => {
+        const copy = { ...prev };
+        delete copy[table.id];
+        return copy;
+      });
       await deleteGradeTableCascade(store, sync, table, gradeItems.items, studentGrades.items);
+      await gradeTables.reload(true);
       setNotice({ severity: 'success', message: `Tabela "${text(table, 'name')}" removida.` });
     } catch (err) {
       setNotice({
@@ -459,27 +482,40 @@ export function GradesPage() {
   };
 
   const handleTogglePublished = async (table: LocalRecord) => {
+    const currentlyPublished = publishedOverrides[table.id] !== undefined
+      ? publishedOverrides[table.id]
+      : (table.published !== 0 && table.published !== false && table.published !== '0' && table.published !== 'false');
+    const nextPublished = !currentlyPublished;
+
+    // 1. Immediate optimistic feedback across button, tabs, and documents
+    setPublishedOverrides((prev) => ({ ...prev, [table.id]: nextPublished }));
+    setNotice({
+      severity: 'success',
+      message: nextPublished
+        ? 'Tabela agora está visível no Boletim e nos relatórios.'
+        : 'Tabela ocultada do Boletim (modo rascunho). Ela não aparecerá nos documentos e impressões.',
+    });
+
     try {
-      const currentlyPublished = table.published !== 0 && table.published !== false;
       await saveGradeTable(store, sync, session.id, {
         classId,
         name: text(table, 'name'),
         calculationMode: (text(table, 'calculation_mode') || 'simple') as CalculationMode,
         passingGrade: Number(table.passing_grade ?? 6),
-        published: !currentlyPublished,
+        published: nextPublished,
         sortOrder: Number(table.sort_order ?? 0),
         startDate: text(table, 'start_date'),
         endDate: text(table, 'end_date'),
         notes: text(table, 'notes'),
         existing: table,
       });
-      setNotice({
-        severity: 'success',
-        message: !currentlyPublished
-          ? 'Tabela publicada no Boletim Público do aluno.'
-          : 'Tabela ocultada do Boletim Público (modo rascunho).',
-      });
+      await gradeTables.reload(true);
     } catch (err) {
+      setPublishedOverrides((prev) => {
+        const copy = { ...prev };
+        delete copy[table.id];
+        return copy;
+      });
       setNotice({
         severity: 'error',
         message: err instanceof Error ? err.message : 'Erro ao alterar visibilidade da tabela.',
@@ -662,51 +698,41 @@ export function GradesPage() {
   const currentCourse = courses.items.find((c) => c.id === currentClass?.course_id);
 
   const classBoletimData = useMemo<ClassBoletimData | null>(() => {
-    if (!currentClass) return null;
+    if (!classId) return null;
+    const base = buildClassBoletimData({
+      classId,
+      classes: classes.items ?? [],
+      courses: courses.items ?? [],
+      gradeTables: effectiveGradeTables,
+      gradeItems: gradeItems.items ?? [],
+      studentGrades: studentGrades.items ?? [],
+      students: students.items ?? [],
+      enrollments: enrollments.items ?? [],
+      attendanceRecords: attendance.items ?? [],
+    });
+    if (!base) return null;
+    const q = search.trim().toLowerCase();
+    if (!q) return base;
+    const filteredStudents = base.students.filter(
+      (s) => s.studentName.toLowerCase().includes(q) || s.registrationNumber.toLowerCase().includes(q),
+    );
     return {
-      classId: currentClass.id,
-      className: text(currentClass, 'name'),
-      courseName: currentCourse ? text(currentCourse, 'name') : undefined,
-      tables: classTables.map((t) => {
-        const mode = (['simple', 'weighted', 'sum'].includes(text(t, 'calculation_mode'))
-          ? text(t, 'calculation_mode')
-          : 'simple') as CalculationMode;
-        return {
-          id: t.id,
-          name: text(t, 'name'),
-          calculationMode: mode,
-          calculationModeLabel: calculationModeLabel(mode),
-          startDate: text(t, 'start_date') || null,
-          endDate: text(t, 'end_date') || null,
-          periodLabel: formatTablePeriod(t.start_date, t.end_date) || null,
-          passingGrade: Number(t.passing_grade ?? 6) || 6,
-        };
-      }),
-      students: classSummary.studentSummaries
-        .filter((s) => {
-          const q = search.trim().toLowerCase();
-          return !q || s.studentName.toLowerCase().includes(q) || s.registrationNumber.toLowerCase().includes(q);
-        })
-        .map((s) => {
-          const attRate = studentAttendanceRate.get(s.studentId);
-          return {
-            studentId: s.studentId,
-            studentName: s.studentName,
-            registrationNumber: s.registrationNumber,
-            tableResults: s.tableResults,
-            overallAverage: s.overallAverage,
-            attendanceRate: attRate ?? null,
-            attendanceRateLabel: attRate !== null && attRate !== undefined ? `${attRate.toFixed(1).replace('.', ',')}%` : '—',
-            overallStatus: s.overallStatus,
-            overallStatusLabel: s.overallStatusLabel,
-          };
-        }),
-      classAverage: classSummary.classAverage,
-      approvedCount: classSummary.approvedCount,
-      totalStudents: classSummary.studentSummaries.length,
-      issueDate: new Date().toISOString(),
+      ...base,
+      students: filteredStudents,
+      totalStudents: filteredStudents.length,
     };
-  }, [classSummary, classTables, currentClass, currentCourse, search, studentAttendanceRate]);
+  }, [
+    classId,
+    classes.items,
+    courses.items,
+    effectiveGradeTables,
+    gradeItems.items,
+    studentGrades.items,
+    students.items,
+    enrollments.items,
+    attendance.items,
+    search,
+  ]);
 
   const studentBoletimData = useMemo(() => {
     if (!selectedStudentForBoletim || !classId) return null;
@@ -718,11 +744,11 @@ export function GradesPage() {
       classes: classes.items ?? [],
       courses: courses.items ?? [],
       attendanceRecords: attendance.items ?? [],
-      gradeTables: gradeTables.items ?? [],
+      gradeTables: effectiveGradeTables,
       gradeItems: gradeItems.items ?? [],
       studentGrades: studentGrades.items ?? [],
     });
-  }, [selectedStudentForBoletim, classId, students.items, enrollments.items, classes.items, courses.items, attendance.items, gradeTables.items, gradeItems.items, studentGrades.items]);
+  }, [selectedStudentForBoletim, classId, students.items, enrollments.items, classes.items, courses.items, attendance.items, effectiveGradeTables, gradeItems.items, studentGrades.items]);
 
   return (
     <div className="space-y-6 text-left">

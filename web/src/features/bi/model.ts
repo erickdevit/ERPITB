@@ -544,9 +544,9 @@ export function buildBiDataset(rawInput: BiInput, filters: BiFilters, today: str
   };
   const qualityIssues = buildQualityIssues(input, classes, attendance);
 
-  // Build Grades B.I. Summary
+  // Build Grades B.I. Summary (only published grade tables)
   const gradeTables = (input.gradeTables ?? []).filter(
-    (t) => current(t) && classIds.has(text(t, 'class_id')),
+    (t) => current(t) && classIds.has(text(t, 'class_id')) && t.published !== 0 && t.published !== false && t.published !== '0' && t.published !== 'false',
   );
   const tableIds = new Set(gradeTables.map((t) => t.id));
   const gradeItems = (input.gradeItems ?? []).filter(
@@ -580,6 +580,7 @@ export function buildBiDataset(rawInput: BiInput, filters: BiFilters, today: str
       items: gradeItems,
       studentGrades,
       students: clsStudents,
+      publishedOnly: true,
     });
     const clsAssessments = gradeItems.filter((i) => i.class_id === cls.id).length;
     return {

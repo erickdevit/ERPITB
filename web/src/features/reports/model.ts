@@ -312,6 +312,7 @@ function classGradesReport(input: ReportInput, filters: ReportFilters): ReportVi
     items: input.gradeItems ?? [],
     studentGrades: input.studentGrades ?? [],
     students,
+    publishedOnly: true,
   });
 
   const distinctClassDates = new Set(
@@ -384,7 +385,7 @@ function assessmentTypesReport(input: ReportInput, filters: ReportFilters): Repo
   const scope = baseScope(input, filters);
   const activeTables = new Map(
     (input.gradeTables ?? [])
-      .filter((t) => !t.deleted_at && scope.classIds.has(text(t, 'class_id')))
+      .filter((t) => !t.deleted_at && scope.classIds.has(text(t, 'class_id')) && t.published !== 0 && t.published !== false && t.published !== '0' && t.published !== 'false')
       .map((t) => [t.id, t]),
   );
   const activeItems = (input.gradeItems ?? []).filter(

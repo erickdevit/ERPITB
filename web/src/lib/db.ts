@@ -4,7 +4,7 @@ import { planEnrollmentMove } from './enrollment';
 import { classRevocationTargets, type EntitySnapshot } from './revocation';
 import { emailLookupHash, passwordVerifier, verifierMatches } from './offline-auth';
 import { getDeviceId } from './storage';
-import { clearEntityMemoryCache } from './use-entity';
+import { clearEntityMemoryCache, notifyEntityChanged } from './use-entity';
 import type { Action, Entity, LocalRecord, SyncOperation, UserSession } from '../types';
 
 interface KeyRow { accountId: string; key: StoredKey }
@@ -290,7 +290,8 @@ export class LocalStore {
           }
         }
 
-        clearEntityMemoryCache();
+        const mutatedEntities = Array.from(new Set(mutations.map((m) => m.entity)));
+        notifyEntityChanged(mutatedEntities);
         // Canonical state resides on D1; do not persist business entities in IndexedDB during online runtime
         return;
       }
@@ -307,6 +308,8 @@ export class LocalStore {
         await database.queue.bulkDelete(duplicates);
         await database.queue.bulkPut(prepared.map((item) => item.queue));
       });
+      const mutatedEntities = Array.from(new Set(mutations.map((m) => m.entity)));
+      notifyEntityChanged(mutatedEntities);
     });
   }
 

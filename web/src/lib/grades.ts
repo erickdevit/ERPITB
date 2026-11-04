@@ -219,7 +219,7 @@ export function buildClassGradeSummary(input: {
   publishedOnly?: boolean;
 }) {
   const classTables = input.tables
-    .filter((t) => activeRecord(t) && String(t.class_id) === input.classId && (!input.publishedOnly || (t.published !== 0 && t.published !== false)))
+    .filter((t) => activeRecord(t) && String(t.class_id) === input.classId && (!input.publishedOnly || (t.published !== 0 && t.published !== false && t.published !== '0' && t.published !== 'false')))
     .sort((a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0) || String(a.created_at ?? '').localeCompare(String(b.created_at ?? '')));
 
   const itemsByTable = new Map<string, LocalRecord[]>();
